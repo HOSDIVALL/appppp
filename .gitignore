@@ -1,0 +1,39 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# --- 本工程补充（源码交接与版本管理）---
+build/
+app/build/
+.kotlin/
+.idea/
+captures/
+# 本机路径与签名材料，绝不入库
+local.properties
+*.jks
+*.keystore
+*.p12
+# 大型二进制依赖：构建前需单独补齐
+app/libs/*.aar
+# 历史残留副本（不参与编译）
+*.m3version
+# 截图、录屏、测试音频、手工备份、导出包
+Temp/
+export/
+*.m4a
+*.wav
+# 各轮改动手工备份目录
+*-apply-backup-*/
+*-backup-*/

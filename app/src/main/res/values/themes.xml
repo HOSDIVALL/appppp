@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Compose 负责所有界面绘制，这里只管三件事：
+        1) 窗口底色（避免启动瞬间闪白/闪黑）
+        2) 状态栏 / 导航栏透明（真正的边到边显示）
+        3) 深浅色两套 base theme
+    -->
+    <style name="Theme.MyApplicationFirstApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

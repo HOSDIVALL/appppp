@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 只暴露 App 私有目录下的 attachments 文件夹给相机使用 -->
+    <files-path name="attachments" path="attachments/" />
+    <!-- 录音文件分享出去时用 -->
+    <files-path name="recordings" path="recordings/" />
+</paths>
