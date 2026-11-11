@@ -1,0 +1,17 @@
+# daily-ux-1 diff 回放校验
+
+基线   : 26a0de3cc80636718059c118d5af6e4c6f179fc0
+方法   : git worktree add --detach <基线> → git apply --whitespace=nowarn diff/daily-ux-1.diff
+为什么不用 patch -p1：仓库里存的是 CRLF，patch 在跨行尾转换的导出目录上会报
+         "different line endings" 而整体拒绝；git apply 走同一套 conversion，等价且不误报。
+比较   : 回放产物 vs 实现工作区，逐文件 sha256
+
+## apply 输出
+git apply: OK
+
+## 逐文件比较
+OK       app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt  4a9f2a14f05ddf26f993d7825b8adee072034e80754d684ff88215b1598a252f
+OK       app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt  491c5212875fdb2b7c750baef1dd11f2724ca1a815b2344f988f6e6d3a77c9ac
+OK       app/src/test/java/com/example/myapplicationfirstapp/ui/NoteEditorAutoFocusPolicyTest.kt  b82137b1a6a19b96c6a224148d0c524e51d4a60ffdd2d9eb10c0eaeac9414c6e
+
+结果: 一致 3 个，不一致 0 个

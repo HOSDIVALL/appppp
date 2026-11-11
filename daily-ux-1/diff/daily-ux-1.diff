@@ -1,0 +1,107 @@
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt b/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+index 72acfcf..4c6fc4f 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+@@ -721,7 +721,9 @@ fun NotesApp(
+                             )
+                         }
+                     },
+-                    modifier = Modifier.fillMaxSize()
++                    modifier = Modifier.fillMaxSize(),
++                    // 刚由「+」新建出来的这条才自动落焦点；从列表点开的已有笔记不抢
++                    autoFocusBody = editingNote.id == newNoteId
+                 )
+             }
+         }
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt b/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt
+index 880ec5c..9b021f3 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt
+@@ -92,6 +92,7 @@ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
++import androidx.compose.runtime.withFrameNanos
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+@@ -152,7 +153,9 @@ fun NoteEditorScreen(
+     onBack: () -> Unit,
+     onOpenImages: (files: List<File>, index: Int) -> Unit,
+     onSetReminder: (Long?) -> Unit,
+-    modifier: Modifier = Modifier
++    modifier: Modifier = Modifier,
++    /** 刚从「+」新建出来的笔记：进来就把光标放进正文，省掉「先点一下才能打字」 */
++    autoFocusBody: Boolean = false
+ ) {
+     // key 用 note.id：切换到另一条笔记时重新初始化
+     var title by remember(note.id) { mutableStateOf(note.title) }
+@@ -346,6 +349,15 @@ fun NoteEditorScreen(
+         }
+     }
+ 
++    // 新建的普通笔记：光标直接落到正文第一块，和上面新建清单的行为对齐。
++    // 从列表打开的已有笔记不抢焦点——那时人多半是想读，不是想改。
++    LaunchedEffect(note.id, autoFocusBody) {
++        if (!shouldAutoFocusBody(autoFocusBody, note.checklist)) return@LaunchedEffect
++        // 等首帧完成布局，FocusRequester 这时才挂到窗口上
++        withFrameNanos { }
++        focusRequest = 0
++    }
++
+     LaunchedEffect(note.id, title, content) {
+         if (title == note.title && content == note.content) return@LaunchedEffect
+         delay(500)
+@@ -804,6 +816,15 @@ fun NoteEditorScreen(
+     }
+ }
+ 
++/**
++ * 新建笔记该不该自动把光标放进正文。
++ *
++ * 只有「刚由 + 新建」且「不是清单」的笔记成立：
++ * 清单有自己的首项聚焦逻辑，已有笔记则不该抢焦点（那时人多半是想读）。
++ */
++internal fun shouldAutoFocusBody(isNewNote: Boolean, checklist: Boolean): Boolean =
++    isNewNote && !checklist
++
+ @Composable
+ private fun rememberEditorFocusVisibility(): Modifier {
+     val requester = remember { BringIntoViewRequester() }
+diff --git a/app/src/test/java/com/example/myapplicationfirstapp/ui/NoteEditorAutoFocusPolicyTest.kt b/app/src/test/java/com/example/myapplicationfirstapp/ui/NoteEditorAutoFocusPolicyTest.kt
+new file mode 100644
+index 0000000..54558c3
+--- /dev/null
++++ b/app/src/test/java/com/example/myapplicationfirstapp/ui/NoteEditorAutoFocusPolicyTest.kt
+@@ -0,0 +1,31 @@
++package com.example.myapplicationfirstapp.ui
++
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++/**
++ * 落焦点策略的判定分支。
++ *
++ * 只覆盖「该不该聚焦」这个判定，**不覆盖**焦点与输入法的实际效果
++ * （那部分靠模拟器上的前后截图对照，见 evidence 索引）。
++ * 摆在这里是为了挡住两种回退：新建不聚焦，以及已有笔记也被抢焦点。
++ */
++class NoteEditorAutoFocusPolicyTest {
++
++    @Test
++    fun newTextNoteFocusesItsBody() {
++        assertTrue(shouldAutoFocusBody(isNewNote = true, checklist = false))
++    }
++
++    @Test
++    fun newChecklistKeepsItsOwnFirstItemFocus() {
++        // 清单已有「进来聚焦第一项」的逻辑，正文块在这里根本不存在
++        assertFalse(shouldAutoFocusBody(isNewNote = true, checklist = true))
++    }
++
++    @Test
++    fun existingNoteDoesNotStealFocus() {
++        assertFalse(shouldAutoFocusBody(isNewNote = false, checklist = false))
++    }
++}

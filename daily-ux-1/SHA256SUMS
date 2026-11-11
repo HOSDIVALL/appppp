@@ -1,0 +1,4 @@
+3cadadd1a717d4b816b4eabe0b294b486ad19bd6938db8101ef38a891e388775 *diff/daily-ux-1.diff
+4a9f2a14f05ddf26f993d7825b8adee072034e80754d684ff88215b1598a252f *source/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+491c5212875fdb2b7c750baef1dd11f2724ca1a815b2344f988f6e6d3a77c9ac *source/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt
+b82137b1a6a19b96c6a224148d0c524e51d4a60ffdd2d9eb10c0eaeac9414c6e *source/app/src/test/java/com/example/myapplicationfirstapp/ui/NoteEditorAutoFocusPolicyTest.kt
