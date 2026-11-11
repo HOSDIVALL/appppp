@@ -1,0 +1,16 @@
+BACKUP-SAFE-1A 发布包校验清单（sha256 / 字节数 / 路径）
+
+8e4a49206edbd3dbff10570b22ede5c900fd9f6da3c649e4d1b5fe09bc13ad10    28380  BACKUP-SAFE-1A-REPORT.md
+3659881eeb8bc56571ccf489891008e2d827dd811bd7308f3f65ea284b60ca55    73605  BACKUP-SAFE-1A.diff
+d7171bb08c2ccd5698f01814d7a1fd14f45da9ec14d7f4c83d71a1a7600be6af     7574  README.md
+619103dfb8d2f3b9aaceda1c430781edd7c98c4a0b34b5c0b3d5b3540dd37f64     1634  logs/compile.log
+c4171092c4ad592fd0ccc8ffcee6748ff5779585abcd53e305280bff9a40e2c2    12624  logs/full-androidtest.xml
+1c84dcae7054899ee9cf14ea9de56789a637c37a4f75e119080f3253b060f093     3899  src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
+d86d0271fecf1c62ad6ce1b11f5bde9da5d59f2d57527b0f1d7590c608716094     6346  src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterLimitsTest.kt
+9af9477cb821c3933096c5f2bc69a245c565ed718ec0cd22a79373cc191a54be    10463  src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
+2e80d8014c092e9d818f27e547238b534020ef83bcc183f8675ad53736c7f529     8984  src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
+9d4d0b74eacf45a8aafc35d9265bb1a9dce760393eb3db4636efce4502b34843     7642  src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
+2305e8119cfb0e7d02431f10fae0a0d8d51ab4cafaab43e4113dffa04952b9d7     2800  src/main/java/com/example/myapplicationfirstapp/data/BackupFileOps.kt
+d1e3e601daf58e27b5ba34cf8cd011cfa49676f64a45a7be8f56e4b70fa195e5     5804  src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
+599f02126dd2e159cce46a982960a3d4dcc99c70ca553ec1cfa0e3a68abdc4f0    21621  src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
+87f46e04c962b332865a72e4572198425dba57fa177436bce35db6379926c3ea     1204  src/main/java/com/example/myapplicationfirstapp/data/BackupNotesParser.kt
