@@ -21,6 +21,15 @@
 | 5 | ticket 代次、修改前门禁、异步回调代次、提醒读取协调与 BLOCKED 加载 | §6.3–§6.5 |
 | 6 | 取消后的回滚/阻塞责任；掉电保证收窄 | §7、§9 |
 
+进入 BACKUP-SAFE-1B-CORE 前又修正四项，同样直接改在正文，不留旧解释：
+
+| # | 修正点 | 落在 |
+|---|---|---|
+| 7 | `APPLYING` 无终态证据 ⇒ 回滚，**不看** `notes.json` 是否已等于新载荷 | §3.2 #11、§5.2 |
+| 8 | 无 journal / 无凭据的 `txn-*` 一律隔离保留，不按摘要推断可删 | §3.2 #2、§1.5、§4.3 |
+| 9 | 写入资格 = `epoch` + `sequence` + writer 锁内校验；写前 `Refused` 与写后 `Stale` 分开 | §6.3、§6.4 |
+| 10 | 提醒读取与媒体回调只登记为接线门禁，本批不接线 | §6.6 |
+
 ---
 
 ## 1. 准备与物化
@@ -89,7 +98,7 @@ files/.import/staging-<token>/
 |---|---|---|---|
 | `notesDigest` | 暂存 `backup.zip` 内 `notes.json` 的**原始字节** | 提交开始时重读 zip、重新抽取该条目并比对，确认「暂存材料仍是用户选的那一份」 | 判断是否已提交；判断载荷是否正确 |
 | `commitDigest` | `commit.json` 的字节 | ① 提交前重算材料摘要；② 写入 `notes.json` 后比对实际落盘字节；③ 提交凭据里记录的比对基准 | **单独**判断是否已提交（见 §2.4） |
-| `oldNotesDigest` | 提交前 `files/notes.json` 的字节（不存在则记 `null`） | 回滚目标、`Orphan` 判读（§3.2 第 2 组） | 判断提交 |
+| `oldNotesDigest` | 提交前 `files/notes.json` 的字节（不存在则记 `null`） | 回滚目标、`ABORTED` 判读（§3.2 #17） | 判断提交 |
 
 附件逐个记 `old` / `new` 摘要，用途同 `oldNotesDigest`。所有摘要都只是**材料一致性证据**，是否已提交由 §2.4 判定。
 
@@ -99,10 +108,11 @@ files/.import/staging-<token>/
 
 | 情形 | 判读 | 动作 |
 |---|---|---|
-| 未开始提交：无 `journal` 或 `journal.state == PREPARED`，且无凭据；`plan.json` / `commit.json` 缺失或不可解析 | `StagingFailed` / `Orphan`（未应用） | 放弃本次导入，删除材料，**不动正式数据**，无 ID 被使用（§3.2 2a、8b） |
+| 未开始提交：`journal.state == PREPARED`，且无凭据；`commit.json` 缺失或不可解析 | `StagingFailed` | 放弃本次导入，删除材料，**不动正式数据**，无 ID 被使用（§3.2 8b） |
+| 未开始提交但生命周期不明：无 `journal`、无凭据，只剩 `txn-*` | `Quarantined` | **保留隔离**，不删、不回滚，等显式处置（§3.2 #2） |
 | 已开始提交：`journal.state ∈ {APPLYING, ROLLING_BACK}`，或存在凭据；**回滚所需齐备**（journal 的 `Dold` + 需要恢复的文件都有副本） | `Interrupted` | 回滚（§5）；**回滚完成前不清理任何材料** |
-| 已开始提交，**回滚所需不齐备**（`journal` 不可读、`Dold` 与副本不足以还原） | `Corrupt` | **`BLOCKED`：保留全部材料，不清理，不回滚** |
-| 旧副本缺失：`old-manifest.json` 声明 `notes.present == true` 但 `old-notes.json` 不存在/摘要不符 | 分情况 | 该文件**仍需恢复**时 `Corrupt` → `BLOCKED`（没有副本就无法证明能回到旧状态，猜一次就是把用户数据赌掉）；该文件已处于旧状态时不需要副本，回滚照常进行（§5.1） |
+| 已开始提交，**回滚所需不齐备**（`journal` 不可读、`Dold` 与副本不足以还原） | `Corrupt` / `RollbackFailed` | **`BLOCKED`：保留全部材料，不清理，不回滚** |
+| 旧副本缺失：`old-manifest.json` 声明 `notes.present == true` 但 `old-notes.json` 不存在/摘要不符 | 分情况 | 该文件**仍需恢复**时 `RollbackFailed` → `BLOCKED`（没有副本就无法证明能回到旧状态，猜一次就是把用户数据赌掉）；该文件已处于旧状态时不需要副本，回滚照常进行（§5.1） |
 
 `plan.json` 在提交开始后不再参与判定（只用于物化与重试前的材料校验），它缺失不影响回滚，也不构成 `Corrupt`。只有「未开始提交」才允许直接清理；「已开始提交」的**必需材料**损坏一律停写并保留现场。副本先写 `*.tmp` → fsync → rename，所以半截副本永远不会以正式名字存在。
 
@@ -199,9 +209,7 @@ files/.import/staging-<token>/
 | # | journal | 凭据 | `N` | 材料 | 判定 | 动作 |
 |---|---|---|---|---|---|---|
 | 1 | 无 | 无 | 任意 | 无 | `Idle` | 无 |
-| 2a | 无 | 无 | `== Dold`，或 `Dold == null` 且 `N` 不存在 | 有 | `Orphan`（未应用） | 删材料 → `Idle` |
-| 2b | 无 | 无 | `==` 材料内 `commit.json` 摘要，且 `!= Dold` | 有 | `CommittedUnproven` | `BLOCKED`，保留材料 |
-| 2c | 无 | 无 | 其他 | 有 | `Corrupt` | `BLOCKED`，保留材料 |
+| 2 | 无 | 无 | 任意 | 有 `txn-*` | `Quarantined` | **保留隔离**：不删、不回滚、停写；只能显式 `discardQuarantined(txnId)` |
 | 3 | 无 | 匹配 | `== Dnew` | 任意 | `Committed` | 清理 |
 | 4 | 无 | 可读但不成立（`txnId` 不符或 `sha256(N) != commitDigest`） | 任意 | 任意 | `Corrupt` | `BLOCKED` |
 | 5 | 无 | 存在但不可读 | 任意 | 任意 | `Corrupt` | `BLOCKED` |
@@ -211,27 +219,30 @@ files/.import/staging-<token>/
 | 8b | `PREPARED` | 无 | `== Dold`（同上） | 不完整 / 目录不应存在 | `StagingFailed` | 写 `NotStarted` 结果 → 删材料 → `Idle`（§1.5） |
 | 9 | `PREPARED` | 存在（任意） | 任意 | 任意 | `Corrupt` | `BLOCKED`（凭据不应早于 APPLYING 出现） |
 | 10 | `PREPARED` | 无 | 已变 | 任意 | `Corrupt` | `BLOCKED` |
-| 11 | `APPLYING` | 无 | `!= Dnew` | 满足回滚需要（§5.1） | `Interrupted` | 回滚（§5） |
-| 12 | `APPLYING` | 无 | `!= Dnew` | 有文件需恢复但副本不可用 | `Corrupt` | `BLOCKED`，保留材料 |
-| 13 | `APPLYING` | 匹配 | `== Dnew` | 任意 | `Committed` | 补结果记录 → 补 journal `COMMITTED` → 清理 |
-| 14 | `APPLYING` | 匹配 | `!= Dnew` | 任意 | `Corrupt` | `BLOCKED` |
-| 15 | `APPLYING` | `txnId`/摘要与 journal 冲突 | 任意 | 任意 | `Corrupt` | `BLOCKED` |
-| 16 | `ROLLING_BACK` | 无 | 任意 | 满足回滚需要 | `RollingBack` | 继续回滚 |
-| 17 | `ROLLING_BACK` | 无 | 任意 | 有文件需恢复但副本不可用 | `RollbackFailed` | `BLOCKED` |
-| 18 | `ROLLING_BACK` | 存在 | 任意 | 任意 | `Corrupt` | `BLOCKED`（已回滚的事务不可能有凭据） |
-| 19 | `ABORTED` | 无 | `== Dold` 或 `Dold == null && N` 不存在 | 任意 | `Aborted` | 写结果记录 → 清理 |
-| 19b | `ABORTED` | 无 | 其他 | 任意 | `Corrupt` | `BLOCKED`（回滚已宣称完成，正式数据却不是旧状态） |
-| 20 | `ABORTED` | 存在 | 任意 | 任意 | `Corrupt` | `BLOCKED` |
-| 21 | `COMMITTED` | 无 / 匹配 | `== Dnew` | 任意 | `Committed` | 清理 |
-| 22 | `COMMITTED` | 任意 | `!= Dnew` | 任意 | `Corrupt` | `BLOCKED` |
+| 11 | `APPLYING` | 无 | **不看 `N`** | 任意 | `Interrupted` | 回滚（§5）；副本不足时由回滚返回 `RollbackFailed` |
+| 12 | `APPLYING` | 匹配 | `== Dnew` | 任意 | `Committed` | 补结果记录 → 补 journal `COMMITTED` → 清理 |
+| 13 | `APPLYING` | 匹配 | `!= Dnew` | 任意 | `Corrupt` | `BLOCKED` |
+| 14 | `APPLYING` | `txnId`/摘要与 journal 冲突 | 任意 | 任意 | `Corrupt` | `BLOCKED` |
+| 15 | `ROLLING_BACK` | 无 | 任意 | 任意 | `RollingBack` | 继续回滚（副本不足 → `RollbackFailed`） |
+| 16 | `ROLLING_BACK` | 存在 | 任意 | 任意 | `Corrupt` | `BLOCKED`（已回滚的事务不可能有凭据） |
+| 17 | `ABORTED` | 无 | `== Dold` 或 `Dold == null && N` 不存在 | 任意 | `Aborted` | 写结果记录 → 清理 |
+| 17b | `ABORTED` | 无 | 其他 | 任意 | `Corrupt` | `BLOCKED`（回滚已宣称完成，正式数据却不是旧状态） |
+| 18 | `ABORTED` | 存在 | 任意 | 任意 | `Corrupt` | `BLOCKED` |
+| 19 | `COMMITTED` | 无 / 匹配 | `== Dnew` | 任意 | `Committed` | 清理 |
+| 20 | `COMMITTED` | 任意 | `!= Dnew` | 任意 | `Corrupt` | `BLOCKED` |
+
+两条与旧表不同的硬规则：
+
+- **#11 不看 `N`**。只要 journal 是 `APPLYING` 且没有终态证据，无论 `notes.json` 是否已经等于 `Dnew`，都判 `Interrupted` 并回滚。`N == Dnew` 只说明「备注可能已经换过」，不构成提交证据；把它当成「已应用所以跳过回滚」正是「凭据没写成但数据已换」被漏掉的地方。
+- **#2 不看摘要**。无 journal、无凭据的 `txn-*` 目录，其生命周期无法确定（可能是改名后、写 journal 前崩溃，也可能是外部残留）。此时**不删材料**，也不再靠「`N == Dold` 就安全删」来推断——摘要相同不代表事务没动过别的文件。
 
 同一次 `classify()` 只看磁盘，不看内存、不看 `MutableStateFlow`、不看上一次返回值。
 
 ### 3.3 判定优先级
 
-1. **先判提交事实**：证据 + 摘要（#3、#6、#13、#21）。摘要不符一律 `Corrupt`，绝不因为 journal 停在 `APPLYING` 就假设「没提交」而回滚一份可能已提交的数据。
-2. **再判是否动过数据**：`PREPARED` 可放弃；`APPLYING` / `ROLLING_BACK` 只能前进或回滚，不能删除材料。
-3. **最后判材料能否支撑动作**：回滚需要旧副本，提交需要 `commit.json`；两者都不具备 → `BLOCKED`，不猜。
+1. **先判提交事实**：证据 + 摘要（#3、#6、#12、#19）。摘要不符一律 `Corrupt`，绝不因为 journal 停在 `APPLYING` 就假设「没提交」而回滚一份可能已提交的数据。
+2. **再判是否动过数据**：`PREPARED` 可放弃；`APPLYING` / `ROLLING_BACK` 只能前进或回滚，不能删除材料；无 journal 无凭据的 `txn-*` 只能隔离。
+3. **最后判材料能否支撑动作**：回滚需要旧副本，提交需要 `commit.json`；两者都不具备 → `BLOCKED`，不猜。材料是否够用由回滚在推进每个文件时判定，不在 `classify()` 里预判。
 4. `journal` 缺失与 `journal` 不可解析是两件事，后者一律视为「事务存在但状态未知」，只能靠凭据救回（#6），否则 `BLOCKED`（#7）。
 
 ---
@@ -258,13 +269,14 @@ files/.import/staging-<token>/
 
 ### 4.3 关键步骤的停止规则
 
-- **门禁**：执行第 5 步前必须确认 `txn-<txnId>/` 已不存在。材料删不干净就**不许删证据**，否则会落进 §3.2 的 2b/2c（无证据 + 材料）而被迫 `BLOCKED`。
+- **门禁**：执行第 5 步前必须确认 `txn-<txnId>/` 已不存在。材料删不干净就**不许删证据**，否则会落进 §3.2 #2（无证据 + 材料 → `Quarantined`），把一个本来干净收尾的事务变成永久隔离。
 - **关键步骤**：第 0、5、6 步。
   - 第 0 步失败 → 立即停，先保住证据，不删任何材料。
   - 第 5 步失败 → 停，保留 journal 与凭据（此时材料已删完），下次重试。
   - 第 6 步失败 → 停，保留凭据，下次重试。
 - **非关键步骤**：第 1–4 步。失败只记 `leftovers`，可继续下一步；但第 4 步失败（目录非空）等价于门禁不通过，第 5、6 步不执行。
 - 任何一步都按「删除不存在即成功」实现，重复执行结果相同；清理失败不改写事务终态，不触发回滚。
+- **清理测试的口径**：必须逐步注入中断（第 0 步到第 6 步各一次），每次中断后重新 `classify()`，断言结论是 `Committed` 而不是 `Interrupted`/`Quarantined`；再断言 `results.json` 仍可按 `txnId` 命中、材料与证据的存留符合门禁。清理过程中**不得**出现「先删证据、后删材料」的顺序，否则测试必须失败。
 
 ### 4.4 每步中断后的判读
 
@@ -308,6 +320,8 @@ files/.import/staging-<token>/
 
 `journal.oldNotesDigest == null`（提交前本就没有 `notes.json`）时，目标状态是「文件不存在」：仅当当前摘要 `== Dnew` 才删除；已不存在则跳过；其他情况 `RollbackFailed`。
 
+**新旧 `notes.json` 字节相同的特例**：此时 `Dold == Dnew`，摘要无法区分「已替换」与「没动过」。回滚按「当前 == 目标即跳过」处理，`notes.json` 保持原样；事务是否真的动过，由附件逐个的摘要决定——绝不能因为「notes 已经等于目标」就整体跳过回滚，那样会把已替换的附件留在新状态。
+
 ### 5.3 每个附件的恢复规则
 
 三处位置：`A = attachments/<n>`、`O = old-attachments/<n>`、`old`/`new` 取自 journal。
@@ -325,7 +339,7 @@ files/.import/staging-<token>/
 
 ### 5.4 回滚的可达状态与收敛
 
-- 入口只有两个：`APPLYING`（#11）与 `ROLLING_BACK`（#16）。其他状态不得进入回滚。
+- 入口只有两个：`APPLYING`（#11）与 `ROLLING_BACK`（#15）。其他状态不得进入回滚，`Quarantined` 也**不得**回滚。
 - 逐文件可达状态只有三种：**未处理**（当前 == old）、**已替换**（当前 == new）、**已恢复**（当前 == old，副本仍在）。因为替换与恢复都走 `temp + rename`，不存在「半个文件」的中间态；「目标文件缺失」只可能来自外部删除，仍按 §5.3 从副本恢复，或落到 `RollbackFailed`。
 - 回滚开始即把 `journal.state` 置 `ROLLING_BACK`（含失败文件与 `failedAt`）。
 - 每轮重新计算每个文件的摘要，按 §5.2 / §5.3 推进；完成条件是「全部摘要达成目标」，不是「执行过动作」，因此中断任意次数都能收敛。
@@ -379,24 +393,37 @@ files/.import/staging-<token>/
 
 ### 6.3 ticket 代次与修改前门禁
 
+写入资格由三样东西共同决定，缺一不可：`epoch`、`sequence`、`writer` 锁。三者都在**锁内**校验，锁外只做展示。
+
 ```kotlin
-data class WriteTicket(val txn: Long, val epoch: Long)
+data class WriteTicket(val epoch: Long, val sequence: Long)
 
-sealed interface WriteStart
-  data class Granted(val ticket: WriteTicket) : WriteStart
-  data class Refused(val reason: Refusal) : WriteStart     // Busy | Blocked(reason)
+sealed interface Admission
+  data class Granted(val ticket: WriteTicket) : Admission
+  data class Refused(val refusal: Refusal) : Admission      // NotOpen | Busy
 
-fun beginWrite(snapshot: NotesSnapshot): WriteStart
+enum class Refusal { NotOpen, Busy }
+
+fun beginWrite(): Admission            // 锁内判定：非 OPEN 或已有写入 → Refused
+suspend fun <T> write(ticket: WriteTicket, block: suspend () -> T): WriteRun<T>
+fun freshness(ticket: WriteTicket): Freshness   // Current | Stale，锁内读 epoch/sequence
 ```
 
-- `epoch` 只在**写权限发生变化**时自增：`OPEN→IMPORTING`、`IMPORTING→OPEN`、`→COMMITTED_PENDING_PUBLISH`、`→BLOCKED`、`→RECOVERING`。普通保存成功**不改** `epoch`（否则排队中的下一次保存会被无谓作废）。
-- `beginWrite()` 在 `BLOCKED` / `IMPORTING` / `COMMITTED_PENDING_PUBLISH` / `RECOVERING` 下**不发放 ticket**，返回 `Refused`。所以「拿到 ticket」本身就表示「当时允许写」。
-- **修改前门禁**在三个点各校验一次 `ticket.epoch == store.epoch`：
-  1. 替换内存快照前；
-  2. 调用 `store.saveAll` 写盘前；
-  3. 写盘返回、发布结果前。
-  任一处不符 → 丢弃本次写入（`Superseded`），**不落盘、不改内存、不报错给用户**。这堵住「保存已排队，排队期间导入把状态改成 `IMPORTING`，旧快照随后覆盖新数据」。
-- 导入本身也持 ticket（`txn` 字段是 txnId 的哈希），用于让并发保存确定地失效。
+- `epoch` 只在**写权限发生变化**时自增：`OPEN→IMPORTING`、`IMPORTING→OPEN`、`→COMMITTED_PENDING_PUBLISH`、`→BLOCKED`、`→RECOVERING`。普通保存成功**不改** `epoch`。
+- `sequence` 每次发放 ticket 自增；`savedSequence` 记录已落盘的最后一个。这样「同一代次里旧 ticket 的写入」也会被识别出来，不依赖 `epoch` 变化。
+- **两个失败点必须分开表达，不能合并成「失败」：**
+  - **写前拒绝 `Refused`**：`beginWrite()` / `write()` 进入执行体**之前**判定，`NotOpen`（`BLOCKED`/`IMPORTING`/`COMMITTED_PENDING_PUBLISH`/`RECOVERING`）或 `Busy`（同类写入进行中）。此时**没有任何 IO 发生**，调用方可以把它当「这次没写」，不得显示为「保存失败」。
+  - **写后旧回调失效 `Stale`**：回调到达时 `ticket.epoch != epoch` **或** `ticket.sequence <= savedSequence`。此时写入可能已经落盘，但结果属于旧代次，**必须丢弃**：不写 `persistenceError`、不投递导入结果、不重排提醒。把它当失败上报，会把一次正常的新保存标成错误。
+- **锁内校验**：`write()` 在 `writer` 互斥体内重新核对 `epoch` 与 `sequence`；`beginWrite()` 通过、排队期间状态变了，也在锁内被降级为 `Busy`，不会出现「持过期 ticket 写入」。
+- 导入本身持一个 ticket，其 `epoch` 在整个事务期间不变；事务结束时 `epoch++`，让所有排队中的保存与在途回调一并失效。
+
+### 6.4 异步回调代次
+
+`persist` 完成、失败上报、导入结果投递、提醒重排，全部携带发起时的 `ticket`：
+
+- 回调执行时 `freshness(ticket) == Stale` → **丢弃**，不写 `persistenceError`，不投递结果，不重排提醒（与 §6.3 的 `Stale` 同一判定）。
+- `Refused` 与 `Stale` 的区别是**写有没有发生**：前者没写，后者可能写了但结果作废。日志与 UI 文案必须区分，不能都叫「保存失败」。
+- 结果**不依赖回调**投递：真值在磁盘，回调丢了用 `currentImport(txnId)` 重查（§8.2）。
 
 ### 6.4 异步回调代次
 
@@ -416,6 +443,19 @@ fun beginWrite(snapshot: NotesSnapshot): WriteStart
   - `OPEN` → 正常读取并排程。
 - **`BLOCKED` 下的普通加载规则**：普通 `load()`（下拉刷新、Activity 重建）与开机读取同一规则——返回 `Blocked(cause)`，不覆盖内存快照、不 `persist()`、不排程；UI 只展示上一次内存快照并提示只读。
 - `BLOCKED` 的唯一解除路径是 `recover()` 重新 `classify()` 得到 `Idle` / `Committed` / `Aborted`；不允许 UI「再点一次保存」或「重启加载成功」就恢复写权限。`load()` 成功**不等于**状态健康。
+
+### 6.6 接线门禁（本批只登记，不接线）
+
+下列四项属于**后续批次**的前置条件，1B-CORE 只交付内核与测试，不触碰 `NotesRepository`、`NotesState`、`MainActivity`、`ReminderReceiver`。任何一项未满足，都不得把内核接进真实流程：
+
+| 门禁 | 要求 | 未满足的后果 |
+|---|---|---|
+| G1 提醒读取 | `ReminderBootReceiver` 改走只读入口；`IMPORTING`/`RECOVERING` 返回 `Deferred`，`BLOCKED`/`Quarantined` 跳过排程 | 按旧数据排出马上作废的提醒，或绕过封锁读半套数据 |
+| G2 媒体回调 | 图片压缩/拍照回写等异步回调必须带 `ticket`，`Stale` 一律丢弃；不得直接写 `attachments/` | 导入期间的回调把附件写回旧目录，破坏事务材料 |
+| G3 prepare 物化 | prepare 必须产出 `plan.json` + `commit.json` 并把暂存目录交给内核；不得在内核之外补默认值 | ID/时间戳在提交时重新生成，摘要与材料不一致 |
+| G4 结果消费 | UI 按 §8.1 四态消费，`Quarantined`/`Corrupt`/`RollbackFailed` 只显示「需处理」，不提供「重试保存」 | 把停写状态误报成普通失败，诱导用户继续写 |
+
+本批交付的代码里，这四项只以 KDoc 与测试中的显式断言存在，**没有任何生产接线**。
 
 ---
 
@@ -440,9 +480,15 @@ fun beginWrite(snapshot: NotesSnapshot): WriteStart
 1. §2.3 第 4 步 `notes.json` 的 rename；
 2. §2.3 第 5 步 `committed.json` 的写入。
 
-原因：这两步一旦开始就必须走完，否则会停在「数据换了但没凭据」或「凭据写了但数据没换」的不可判状态。其余步骤都可被取消，因为都有 §4/§5 的恢复路径。
+这两步一旦开始就必须走完，否则会停在「数据换了但没凭据」或「凭据写了但数据没换」的不可判状态。其余步骤都可被取消，因为都有 §4/§5 的恢复路径。
 
-清理整段不可取消（保证删除顺序与门禁不被跳过）；它每步幂等，被打断最多留下 `Orphan` 或「证据 + 材料」，不会产生错误判读。
+口径必须说清三点：
+
+- **段内取消是延迟，不是丢弃**。进入不可取消段前已经在排队/已到达的取消，会在段结束后照常投递；此时事务已经 `Committed`，因此**不回滚**，只把发布标记为 `Skipped(cancelled)`（→ `COMMITTED_PENDING_PUBLISH`）。
+- **IO 异常不是取消**。rename / 凭据写入抛 `IOException` 时，事务停在「无凭据」，按 `Interrupted` 回滚；不得把异常包装成 `CancellationException`，也不得因为「反正要回滚」就吞掉异常继续写。
+- **回滚本身必须不可取消**（`NonCancellable + IO`），且回滚失败不替换原始取消异常：原始 `CancellationException` 照样抛出，磁盘状态另外记成 `ROLLING_BACK` / `RollbackFailed`。
+
+清理整段不可取消（保证删除顺序与门禁不被跳过）；它每步幂等，被打断最多留下「证据 + 材料」或「只剩证据」，下一次启动仍判 `Committed`，不会被误判成 `Interrupted`。
 
 ### 7.3 取消后的异常与结论
 
@@ -460,7 +506,7 @@ fun beginWrite(snapshot: NotesSnapshot): WriteStart
 ```kotlin
 sealed interface DiskOutcome        // 磁盘事实
   NotStarted | Committed | Interrupted | Aborted
-  | RollbackFailed | Corrupt | CommittedUnproven
+  | RollbackFailed | Corrupt | Quarantined
 sealed interface PublishOutcome     // 内存发布
   Published(snapshot) | Skipped(reason)
 data class CleanupOutcome           // 清理
@@ -469,12 +515,12 @@ sealed interface ImportResult       // UI 消费
   Imported(count, warnings, cleanup)
   | NotImported(reason)
   | ImportedButBlocked(count, reason)   // 已提交但状态未恢复
-  | NeedsUserAction(reason)             // Corrupt / RollbackFailed / CommittedUnproven
+  | NeedsUserAction(reason)             // Corrupt / RollbackFailed / Quarantined
 ```
 
 映射规则（不与磁盘事实冲突，按顺序匹配，先匹配先返回）：
 
-1. `Corrupt` / `RollbackFailed` / `CommittedUnproven` → `NeedsUserAction`。
+1. `Corrupt` / `RollbackFailed` / `Quarantined` → `NeedsUserAction`。
 2. `Committed` + `Published` → `Imported`，清理结果单独附上（`Partial` 不影响成功）。
 3. `Committed` + `Skipped`（未发布，含取消）→ `ImportedButBlocked`，下次启动从磁盘重建后再发布。
 4. 其余（`NotStarted` / `Interrupted` / `Aborted`）→ `NotImported(reason)`，绝不出现「导入成功」文案。
@@ -507,11 +553,12 @@ sealed interface ImportResult       // UI 消费
 
 ## 9. 耐久性边界（收窄）
 
-- **只承诺分类，不承诺结果**：任何掉电后重启，`classify()` 必须给出 `Committed` / 未提交（`Prepared`、`Interrupted`、`Aborted`、`Idle`、`Orphan`）/ `BLOCKED` 之一。
-- **改数据前必先落 journal**：`journal` 的 `APPLYING` 先于任何正式文件写入，所以正常情况下不会出现「正式数据改了一半、磁盘上没有任何记录」。唯一例外是 `journal` 与凭据都未被持久化，而此时 `notes.json` 已换成载荷 → 归 §3.2 #2b 的 `CommittedUnproven`，同样 `BLOCKED`，不会静默。
-- **不承诺** `fsync` 返回后目录项已持久化；不承诺掉电后 `notes.json` 与附件同代；不承诺 `results.json` 不丢；不承诺自动恢复。最坏结果是 `BLOCKED`，需用户介入。
+- **只承诺分类，不承诺结果**：任何掉电后重启，`classify()` 必须给出 `Committed` / 未提交（`Prepared`、`Interrupted`、`Aborted`、`Idle`）/ `BLOCKED` / `Quarantined` 之一。
+- **改数据前必先落 journal，但 journal 的耐久性不保证**：`APPLYING` 的写入在正式文件之前，代码顺序成立；掉电可能让目录项落地顺序与代码顺序不一致。因此不承诺「有 journal 就一定读得回来」，只承诺**读不回来时进入 `Quarantined` 而不是猜着删**。
+- **不承诺** `fsync` 返回后目录项已持久化；不承诺 `journal`/凭据/数据三者的落地顺序与代码顺序一致；不承诺掉电后 `notes.json` 与附件同代；不承诺 `results.json` 不丢；不承诺自动恢复。
+- 掉电后允许出现的三种「不干净」结果，都必须是**可判定的**：`Interrupted`（有 journal、无证据）、`Quarantined`（材料在、生命周期不明）、`Corrupt`（摘要与证据冲突）。最坏是停写等人工，不允许「静默按新数据继续跑」。
 - 掉电可能破坏副本本身（`old-notes.json` 或 `old-attachments/` 未持久化）：此时若正式文件已不是旧内容，回滚无法完成 → `BLOCKED`，保留现场，不猜、不删。
-- 若 `journal` 与凭据都未持久化、而 `notes.json` 已换成载荷内容 → §3.2 #2b 的 `CommittedUnproven`：数据看起来已应用，但无证据，`BLOCKED`。协议**不**自动把它当成功，也**不**自动回滚一份用户可能已经看到的数据；由用户在确认摘要后手工收尾。
+- 若 `journal` 与凭据都未持久化、而 `notes.json` 已换成载荷内容 → §3.2 #2 的 `Quarantined`：数据看起来已应用，但生命周期无法确定。协议**不**自动把它当成功，**不**自动回滚一份用户可能已经看到的数据，**也**不删材料；只能显式处置。
 - 不清洗用户数据，不做自动修复式回滚；`Corrupt` 一律停写并保留现场。
 - 不处理录音文件（备份不含录音，1A 已定）。
 - 本文不包含 UI 交互细节，只定义状态到四类结果的映射。
@@ -526,7 +573,7 @@ sealed interface ImportResult       // UI 消费
 | 2 | prepare 校验 / 扫条目 | 拒绝或取消 | 1A 已有：删暂存，返回 `Invalid` / 抛取消 |
 | 3 | 写 `plan.json` / `commit.json` | 写失败或被杀 | 材料不完整；`StagingFailed` → 清理；无 ID 被使用 |
 | 4 | 写 journal `PREPARED` | 写失败 | 未动正式数据；`NotStarted`；材料保留可重试 |
-| 5 | 改名 `staging-*` → `txn-*` | 被杀 | 无 journal + 材料 + 数据未变 → `Orphan`，删材料 |
+| 5 | 改名 `staging-*` → `txn-*` | 被杀 | 无 journal + 有材料 → `Quarantined`，保留隔离，不删 |
 | 6 | 算旧摘要、写 journal `APPLYING` | 被杀 | journal 未落盘同上；已落盘但未备份 → `Interrupted`，回滚是空操作 |
 | 7 | 复制 `old-notes.json` | 被杀 | 半截副本只在 `.tmp`；`notes.json` 仍等于 `Dold` → 回滚跳过并清理 |
 | 8 | 复制旧附件、写 `old-manifest.json` | 被杀 | 同上；数据未变时回滚是空操作，可直接转入 `ABORTED` 清理 |
@@ -545,7 +592,7 @@ sealed interface ImportResult       // UI 消费
 | 21 | 回滚失败（有文件需恢复但副本不可用） | IO 错误 / 副本缺失 | `BLOCKED`，材料全保留，停止清理 |
 | 22 | journal 损坏 | JSON 不可解析 | 凭据成立 → `Committed`；否则 `Corrupt` → `BLOCKED` |
 | 23 | 摘要与凭据不符 | 外部改动 / 磁盘损坏 | `Corrupt` → `BLOCKED`，保留材料与现场 |
-| 24 | 无 journal 无凭据但材料在，notes 已是载荷 | 掉电丢凭据 | `CommittedUnproven` → `BLOCKED`，保留材料，人工确认 |
+| 24 | 无 journal 无凭据但材料在 | 掉电丢凭据 / 改名后崩溃 | `Quarantined` → 停写，保留材料，等显式处置 |
 
 ## 附录 B：计划修改的文件与测试（含具体反例）
 
@@ -570,7 +617,7 @@ sealed interface ImportResult       // UI 消费
 | 测试 | 反例 / 断言 |
 |---|---|
 | `ImportPlanTest` | ① 同一 `plan.json` 连续序列化 20 次，`commit.json` 字节全等；② **反例**：缺时间戳的备份两次独立 prepare（`preparedAt` 不同）得到不同字节，且用第一次的 `commitDigest` 校验第二次材料必须 `MaterialChanged`，不得判等；③ 改 `backup.zip` 内 notes 的一个字节 → `notesDigest` 校验失败；④ `plan.notes` 与 `commit.json` 的 ID 逐条相同 |
-| `ImportJournalTest` | §3.2 表格逐行（含 2a/2b/2c 三个分支）；**反例**：journal 不可读 + 无凭据 → `BLOCKED` 且断言 `txn-*/` 仍存在；journal 不可读 + 凭据匹配 → `Committed` 且能重建 journal |
+| `ImportJournalTest` | §3.2 表格逐行；**反例**：journal 不可读 + 无凭据 → `BLOCKED` 且断言 `txn-*/` 仍存在；journal 不可读 + 凭据匹配 → `Committed` 且能重建 journal |
 | `ImportCommitTest` | §2.3 顺序（含第 0 步改名）；**反例**：让 §2.2 第 3 步（复制 `old-notes.json`）失败 → 断言 `notes.json` 未被写、正式摘要不变；让第 5 步（凭据）失败 → 断言 `DiskOutcome == Interrupted` 且回滚后 `notes.json == Dold` |
 | `ImportCommitCancelTest` | 取消落在 rename 前 / 凭据写完后各一次：前者同步回滚到 `Dold` 并抛同一 `CancellationException` 实例；后者 `Committed` 且不抛失败文案 |
 | `ImportRecoveryTest` | 附录 A 第 5–14 行逐个注入中断，断言 `DiskOutcome` 与正式数据摘要；**反例**：备份中途中断（副本半截）→ 必须判 `Interrupted` 且回滚是空操作，不得 `BLOCKED` |
@@ -579,4 +626,4 @@ sealed interface ImportResult       // UI 消费
 | `ImportMaterialCorruptTest` | **反例**：`APPLYING` 下删掉 `txn/commit.json` → `BLOCKED` 且材料未被清理；对照：`PREPARED` 下删掉同文件 → 清理成功回到 `Idle` |
 | `NotesStoreTest` | ① 保存排队期间进入 `IMPORTING` → ticket 失效，旧快照未落盘；② `BLOCKED` 下 `beginWrite()` 返回 `Refused`；③ 旧 `epoch` 的失败回调不写 `persistenceError` |
 | `ReminderBootReadTest` | ① `IMPORTING` 时 `readForReminder()` 返回 `Deferred` 且未排程；② `BLOCKED` 时 `load()` 不覆盖内存（断言内存快照仍是旧对象）且未排程；③ `COMMITTED_PENDING_PUBLISH` 读到新数据但不排程 |
-| `ImportResultMappingTest` | 取消落在已提交窗口 → 结果为 `ImportedButBlocked` 而非 `NotImported`；`CommittedUnproven` → `NeedsUserAction` |
+| `ImportResultMappingTest` | 取消落在已提交窗口 → 结果为 `ImportedButBlocked` 而非 `NotImported`；`Quarantined` → `NeedsUserAction` |
