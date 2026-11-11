@@ -1,6 +1,8 @@
-7548efbf21bc28b59c113ca5cb0c6dec6f1ce93763b82ad5a59f7eceaacf498c *backup-safe-1a/INDEX.md
+db434999622fb10e0f0ca3ac33f803351648e45e540e92c30358553fa8269aef *backup-safe-1a/INDEX.md
 66a2b36a86d474429ca178b0ba9bf491e6c294de5cb5c38305501d138be6ab1a *backup-safe-1a/logs/compile.log
 f1c2911c496ea71ef7047ffcada6df03e08c5268e6f14a69bf7e5ce8b8473951 *backup-safe-1a/logs/full-androidtest.xml
+a1c86502ee75ba2696762f71edc530efaab1102f284feedd0210e622c2eee54a *backup-safe-1a/logs/rev2/compile.log
+2cc328e9e26b017fb8025f6d0d049944f5cacce2352910a1922fd8e5ab766bfb *backup-safe-1a/logs/rev2/full-androidtest.xml
 3659881eeb8bc56571ccf489891008e2d827dd811bd7308f3f65ea284b60ca55 *backup-safe-1a/rev0/BACKUP-SAFE-1A.diff
 72f8bac685cc26906571f46a486900eea9b9d2c8008af3226291f4b4df21d707 *backup-safe-1a/rev1/BACKUP-SAFE-1A-rev1.diff
 81bde09240e856ab0c188e5ba3a1eaa41a7f4dee32037d6b30f3a47bc26bae92 *backup-safe-1a/rev1/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
@@ -12,3 +14,14 @@ c3f8727c99f58b5a90045afb035a0553f81d7e2f86bf1c8076de322e96fe15f7 *backup-safe-1a
 68bc225f9a38ed7288fc0c8a1539922b3eee5d1b3cce7a53428a707b0c9f09b0 *backup-safe-1a/rev1/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
 3525bf2ae555e1165e508465db0e2b9d9f37dd4424fef323b723206ad7041a2e *backup-safe-1a/rev1/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
 87f46e04c962b332865a72e4572198425dba57fa177436bce35db6379926c3ea *backup-safe-1a/rev1/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupNotesParser.kt
+c258592c2938356aa5f9a0768fba0fa9b14b971255145169d2bb4db4645dbc34 *backup-safe-1a/rev2/BACKUP-SAFE-1A-rev2.diff
+e7ec15b502b49ec582baf3488b45c424fb7f5703455df4d19da590a82d4b8a4e *backup-safe-1a/rev2/NOTES.md
+6a392f1af0274a2fcb4ee22c243c5ab6be449901c4de0a99e28854ec647748e6 *backup-safe-1a/rev2/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
+d86d0271fecf1c62ad6ce1b11f5bde9da5d59f2d57527b0f1d7590c608716094 *backup-safe-1a/rev2/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterLimitsTest.kt
+b64441c89f17d598f87034113314da75ae34fd20f3f38a21f5dd285425a22c95 *backup-safe-1a/rev2/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
+67cb6bd1fe36a874b9f8863ffe38f57695e46f8ca7eb194f84a879630e6be2e2 *backup-safe-1a/rev2/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
+957b8489015d2b8b3c11e89dc48a4530bb49bcd8246a66e1ff26b11451f486e4 *backup-safe-1a/rev2/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
+9042231d23691d0aca78b24a01a520987b3a4cb4de3bd057ae449949c526575e *backup-safe-1a/rev2/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupFileOps.kt
+736524225d27b9cfab54da6d4b540b5116722db33ea179b5c8a2f060584f07d7 *backup-safe-1a/rev2/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
+4ebe4e795fbc292dc7b262d10f4f1d1c9f4845f78713de1604809b44f4cc98a5 *backup-safe-1a/rev2/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
+87f46e04c962b332865a72e4572198425dba57fa177436bce35db6379926c3ea *backup-safe-1a/rev2/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupNotesParser.kt

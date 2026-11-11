@@ -1,0 +1,852 @@
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
+index 69a083e..cdac4d2 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
+@@ -1,14 +1,20 @@
+ package com.example.myapplicationfirstapp.data
+ 
+ import android.net.Uri
++import android.os.Looper
+ import androidx.test.ext.junit.runners.AndroidJUnit4
+ import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.withTimeout
+ import org.junit.After
+ import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNotSame
+ import org.junit.Assert.assertNull
++import org.junit.Assert.assertSame
+ import org.junit.Assert.assertTrue
+ import org.junit.Before
+ import org.junit.Test
+@@ -142,17 +148,80 @@ class BackupImporterCancelTest {
+         assertFalse(File(sandbox.filesDir, "attachments").exists())
+     }
+ 
++    /**
++     * 真正跨调度器的交付窗口：调用方在自建调度器上，块在 IO 上，取消从第三个线程（测试线程）发出。
++     *
++     * 关闭顺序：启动协程 → 块执行完、交付续体被排进队列（此刻结果已构造、调用方还没拿到值）
++     * → 取消 → 才执行交付续体。只有这一步才真正踩到 `withContext` 的 resume 检查；
++     * 原来的用例是在块**内部**取消，验的是另一条路径，保留不动。
++     */
++    @Test
++    fun deliveryWindowCancellationAcrossDispatchers() = runBlocking {
++        val dispatcher = PausableDispatcher()
++        val ops = ThreadRecordingFileOps(RealBackupFileOps(sandbox))
++        val importer = BackupImporter(sandbox, ops)
++        val zip = buildBackupZip(
++            zipFile(),
++            ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()),
++            ZipPiece("attachments/a.jpg", ByteArray(32) { 1 })
++        )
++
++        var delivered: PrepareResult? = null
++        var cancelled: Throwable? = null
++        var jobCause: Throwable? = null
++        var callerThread: Thread? = null
++
++        val job = CoroutineScope(dispatcher).launch {
++            callerThread = Thread.currentThread()
++            try {
++                delivered = importer.prepare(Uri.fromFile(zip))
++            } catch (cancellation: CancellationException) {
++                cancelled = cancellation
++                throw cancellation
++            }
++        }
++        job.invokeOnCompletion { jobCause = it }
++
++        assertTrue("启动任务应当已入队", dispatcher.runNext())
++        assertTrue("交付续体未入队：块可能还没跑完", dispatcher.awaitResumeQueued())
++        assertNotNull("块必须在自己的线程上留下记录", ops.resultBuiltThread)
++        assertNotSame("块与调用方必须不在同一线程", callerThread, ops.resultBuiltThread)
++
++        // 到这里：暂存已建好、结果已构造、调用方还没拿到值
++        job.cancel()
++
++        // 取消之后可能排进不止一个续体（交付 + 取消收尾），必须泵到队列空；
++        // 只泵一次会让 join() 永远不返回——这正是本用例第一版踩到的坑。
++        var pumped = 0
++        while (!job.isCompleted && pumped < 20) {
++            if (!dispatcher.runNext(timeoutMs = 2_000)) break
++            pumped++
++        }
++        withTimeout(10_000) { job.join() }
++
++        assertTrue(job.isCancelled)
++        assertNull("交付窗口被取消时不能交出结果", delivered)
++        assertSame("抛出的必须是同一个取消实例", jobCause, cancelled)
++
++        val leftovers = File(sandbox.filesDir, ".import").listFiles()?.map { it.name } ?: emptyList()
++        assertTrue("交付窗口取消后暂存必须清空：$leftovers", leftovers.isEmpty())
++        assertNotSame("清理不能在主线程做 IO", Looper.getMainLooper().thread, ops.deleteThread)
++        assertFalse(File(sandbox.filesDir, "notes.json").exists())
++    }
++
+     /** 清理本身失败（抛异常）时，取消异常仍然是原来那一个，不被替换 */
+     @Test
+     fun cleanupFailureDoesNotReplaceCancellation() = runBlocking {
+         val blocking = BlockingFileOps(RealBackupFileOps(sandbox))
+-        val importer = BackupImporter(sandbox, ThrowingDeleteFileOps(blocking))
++        val ops = ThrowingDeleteFileOps(blocking)
++        val importer = BackupImporter(sandbox, ops)
+         val zip = buildBackupZip(
+             zipFile(),
+             ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray())
+         )
+ 
+         var cancelled: Throwable? = null
++        var jobCause: Throwable? = null
+         val job = launch(Dispatchers.IO) {
+             try {
+                 importer.prepare(Uri.fromFile(zip))
+@@ -161,6 +230,7 @@ class BackupImporterCancelTest {
+                 throw cancellation
+             }
+         }
++        job.invokeOnCompletion { jobCause = it }
+ 
+         assertTrue(blocking.started.await(10, TimeUnit.SECONDS))
+         job.cancel()
+@@ -168,9 +238,11 @@ class BackupImporterCancelTest {
+         job.join()
+ 
+         assertTrue(job.isCancelled)
+-        assertTrue("清理抛异常不能顶掉取消：$cancelled", cancelled is CancellationException)
++        assertSame("清理抛异常不能顶掉取消：$cancelled", jobCause, cancelled)
+         // 清理确实失败了，暂存只能留在原地（由下一次启动或用户清理），但不得影响取消语义
+         assertTrue(File(sandbox.filesDir, ".import").isDirectory)
++        // 清理确实被调用过，而且没有被取消打断
++        assertTrue("清理必须被调用", ops.deleteCalls > 0)
+     }
+ 
+     @Test
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
+index 586b7b4..cb59862 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
+@@ -1,13 +1,17 @@
+ package com.example.myapplicationfirstapp.data
+ 
+ import android.net.Uri
++import android.os.Looper
+ import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.runBlocking
+ import org.junit.After
+ import org.junit.Assert.assertEquals
+ import org.junit.Assert.assertFalse
+ import org.junit.Assert.assertNotEquals
+ import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNotSame
++import org.junit.Assert.assertNull
+ import org.junit.Assert.assertTrue
+ import org.junit.Assert.fail
+ import org.junit.Before
+@@ -219,7 +223,7 @@ class BackupImporterPrepareTest {
+     // ---------- 暂存生命周期 ----------
+ 
+     @Test
+-    fun stagingLivesUnderFilesAndDiscardRemovesIt() {
++    fun stagingLivesUnderFilesAndDiscardRemovesIt() = runBlocking {
+         val result = prepare(
+             ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray())
+         )
+@@ -284,8 +288,9 @@ class BackupImporterPrepareTest {
+     /**
+      * 归一化后的 [Note] 再序列化、再读回来，必须与原值逐字段相等。
+      *
+-     * 这条用例盯的是「归一」本身没有丢信息：原始文本 [PreparedBackup.notesJson] 用于 1B 写盘与
+-     * 摘要复核，[PreparedBackup.notes] 只用于告警和预览。两者职责不同，但后者不能是「读一次就变形」的。
++     * 这条用例只盯「归一」本身没有丢信息。注意 [PreparedBackup.notesJson] 在 rev2 之后
++     * **不用于写盘**（显式 null 会被现有读取路径读成 0），写盘走 [PreparedBackup.commitJson]；
++     * [PreparedBackup.notes] 仍然只服务告警与预览。
+      */
+     @Test
+     fun normalizedNotesSurviveSerializationRoundTrip() {
+@@ -311,10 +316,78 @@ class BackupImporterPrepareTest {
+         assertNotEquals(source, reserialized)
+     }
+ 
++    // ---------- 提交载荷契约 ----------
++
++    private val contractSource = """
++        [{"id":"a","title":"标题","content":"正文","createdAt":1,"updatedAt":2,"colorIndex":3,
++        "pinned":true,"tags":["x"],"images":[],"audio":[],"deletedAt":null,"remindAt":null,
++        "checklist":false,"todos":[],
++        "futureField":{"b":2,"a":[1,"two",true,null]},"schemaVersion":7},
++        {"id":"b","title":"回收站里","createdAt":10,"updatedAt":20,
++        "deletedAt":12345,"remindAt":67890,"futureField":{"nested":{"z":1}}}]
++    """.trimIndent().replace("\n", "")
++
++    /**
++     * 提交载荷必须同时做到两件事：**保留未知字段**，**修正 null 时间戳语义**。
++     *
++     * 修正方式是「删键」而不是「写 null」：现有读取路径 `noteFromJson` 对
++     * `{"deletedAt":null}` 给出 0，写 null 等于把笔记标成 1970 年删除。
++     */
++    @Test
++    fun commitPayloadKeepsUnknownFieldsAndDropsNullTimestamps() {
++        val prepared = ready(prepare(ZipPiece("notes.json", contractSource.toByteArray())))
++
++        // 归一视图：显式 null 仍然是「没有值」
++        assertNull(prepared.notes[0].deletedAt)
++        assertNull(prepared.notes[0].remindAt)
++        // 非 null 的时间戳原样保留
++        assertEquals(12345L, prepared.notes[1].deletedAt)
++        assertEquals(67890L, prepared.notes[1].remindAt)
++
++        // 未知字段一路带到提交载荷
++        assertTrue("笔记级未知字段必须保留", prepared.commitJson.contains("\"futureField\""))
++        assertTrue("未知标量字段必须保留", prepared.commitJson.contains("\"schemaVersion\":7"))
++        assertTrue("第二条的嵌套未知字段也必须保留", prepared.commitJson.contains("\"nested\""))
++
++        // null 时间戳不落成 null 键，也不落成 0
++        val first = prepared.commitJson.substringBefore("},{")
++        assertFalse("不能写成 \"deletedAt\":null：$first", first.contains("\"deletedAt\""))
++        assertFalse("不能写成 \"remindAt\":null：$first", first.contains("\"remindAt\""))
++        assertFalse("更不能写成 0：$first", first.contains("\"deletedAt\":0"))
++
++        // 用生产归一函数把载荷读回来，必须与归一视图逐字段相等
++        val reparsed = parseBackupArrayOrThrow(prepared.commitJson)
++        val reread = (0 until reparsed.length()).map { normalizeImportedNote(reparsed.getJSONObject(it)) }
++        assertEquals(prepared.notes, reread)
++
++        // 摘要对应的是载荷本身
++        assertEquals(sha256(prepared.commitBytes()), prepared.commitDigest)
++    }
++
++    /**
++     * 同一份输入两次准备，提交载荷必须逐字节相同（键序稳定，不随 HashMap 迭代顺序漂移）。
++     *
++     * 边界：输入必须自带 `createdAt` / `updatedAt`。两者缺失时 `noteFromJson` 按读取时刻补齐，
++     * 那是既有读取语义，本层不另造一套——这类旧备份的载荷不承诺跨次可复现。
++     */
++    @Test
++    fun commitPayloadIsByteStableAcrossRuns() {
++        val first = ready(prepare(ZipPiece("notes.json", contractSource.toByteArray())))
++        val second = ready(prepare(ZipPiece("notes.json", contractSource.toByteArray())))
++
++        assertEquals(first.commitJson, second.commitJson)
++        assertEquals(first.commitDigest, second.commitDigest)
++        // 键按字典序：content 在 createdAt 之前
++        assertTrue(
++            "键序应为字典序：${first.commitJson.take(80)}",
++            first.commitJson.indexOf("\"content\"") < first.commitJson.indexOf("\"createdAt\"")
++        )
++    }
++
+     // ---------- 丢弃的归属校验 ----------
+ 
+     @Test
+-    fun discardRefusesPathsOutsideItsOwnStagingRoot() {
++    fun discardRefusesPathsOutsideItsOwnStagingRoot() = runBlocking {
+         val prepared = ready(
+             prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
+         )
+@@ -337,7 +410,7 @@ class BackupImporterPrepareTest {
+     }
+ 
+     @Test
+-    fun discardIsIdempotent() {
++    fun discardIsIdempotent() = runBlocking {
+         val prepared = ready(
+             prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
+         )
+@@ -349,6 +422,89 @@ class BackupImporterPrepareTest {
+         assertTrue(importer.discard(prepared))
+     }
+ 
++    /**
++     * token 是**格式合法**的 UUID，但路径指向别处：不能因为「token 长得对」就当成自己的目录。
++     */
++    @Test
++    fun discardRejectsWellFormedTokenPointingElsewhere() = runBlocking {
++        val prepared = ready(
++            prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
++        )
++        val importer = BackupImporter(sandbox)
++        val elsewhere = File(sandbox.filesDir, "attachments").apply { mkdirs() }
++        File(elsewhere, "live.jpg").writeBytes(ByteArray(8) { 3 })
++
++        val forged = prepared.copy(
++            token = java.util.UUID.randomUUID().toString(),
++            stagingDir = elsewhere
++        )
++        assertFalse("token 格式不是所有权证明", importer.discard(forged))
++        assertTrue("别的目录不能被删", File(elsewhere, "live.jpg").isFile)
++        assertTrue("真正的暂存必须还在", prepared.stagingDir.isDirectory)
++    }
++
++    /**
++     * 路径替换：暂存根里放一个指向根外的符号链接，名字与 token 完全对得上。
++     *
++     * 只比字符串或只比 token 的实现在这里会把根外目录删掉；按规范路径核对父目录才拦得住。
++     */
++    @Test
++    fun discardRejectsSymlinkedStagingDirectory() = runBlocking {
++        val prepared = ready(
++            prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
++        )
++        val importer = BackupImporter(sandbox)
++        val root = File(sandbox.filesDir, ".import").apply { mkdirs() }
++        val outside = File(sandbox.filesDir, "outside-target").apply { mkdirs() }
++        val keep = File(outside, "keep.txt").apply { writeText("must survive") }
++
++        val token = java.util.UUID.randomUUID().toString()
++        createSymlink(File(root, "staging-$token"), outside)
++
++        assertFalse(
++            "暂存名指向根外的链接必须拒绝",
++            importer.discard(prepared.copy(token = token, stagingDir = File(root, "staging-$token")))
++        )
++        assertTrue("根外目录不能被删", keep.isFile)
++        assertTrue("真正的暂存必须还在", prepared.stagingDir.isDirectory)
++    }
++
++    /** 跨存储根：另一个沙箱（不同 filesDir）的实例，不能用同一个 token 删掉这边的目录 */
++    @Test
++    fun discardRefusesStagingFromAnotherStorageRoot() = runBlocking {
++        val prepared = ready(
++            prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
++        )
++        val other = isolatedStorage("backup-1a-discard-other")
++        try {
++            val foreign = BackupImporter(other)
++            assertFalse("跨存储根必须拒绝", foreign.discard(prepared))
++            assertTrue("这边的暂存不能被跨根删除", prepared.stagingDir.isDirectory)
++            assertTrue("另一个根下不应出现同名暂存", !File(other.filesDir, ".import").exists())
++        } finally {
++            assertTrue("另一个沙箱必须清理干净", other.dispose())
++        }
++    }
++
++    /** 主动 discard 的删除必须切到 IO 线程：调用方在主线程时不能做磁盘 IO */
++    @Test
++    fun discardDeletesOnIoThreadNotOnCaller() {
++        val prepared = ready(
++            prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
++        )
++        val ops = ThreadRecordingFileOps(RealBackupFileOps(sandbox))
++        val importer = BackupImporter(sandbox, ops)
++
++        val callerWasMain = runBlocking(Dispatchers.Main) {
++            val onMain = Looper.myLooper() == Looper.getMainLooper()
++            assertTrue("用例前提：discard 必须在主线程上调用", importer.discard(prepared))
++            onMain
++        }
++
++        assertTrue("用例前提：调用方确实在主线程", callerWasMain)
++        assertNotSame("删除不能留在主线程", Looper.getMainLooper().thread, ops.deleteThread)
++    }
++
+     // ---------- 清理失败不覆盖原始原因 ----------
+ 
+     @Test
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
+index f4cb748..ce223ed 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
+@@ -278,30 +278,48 @@ class BackupImporterValidationTest {
+ 
+     // ---------- 编码 ----------
+ 
++    /**
++     * 结构完全合法、坏字节只出现在字段值里的 notes.json。
++     *
++     * rev1 的用例把坏字节放在了 JSON 结构位置上，那种包即使是宽松解码也会解析失败，
++     * 于是「严格 UTF-8」和「JSON 坏了」两条路径分不开；放进 title 才逼出真正的编码判定。
++     */
++    private fun notesWithBrokenTitle(badBytes: ByteArray): ByteArray {
++        val out = java.io.ByteArrayOutputStream()
++        out.write("[{\"id\":\"n\",\"title\":\"".toByteArray())
++        out.write(badBytes)
++        out.write("\",\"content\":\"正文\"}]".toByteArray())
++        return out.toByteArray()
++    }
++
+     @Test
+     fun notesJsonMustBeValidUtf8() {
+-        // 结构上像个 JSON，但 0xC3 0x28 不是合法 UTF-8 序列。
+-        // 宽松解码会把它变成「C(」，JSON 解析失败后报 CorruptNotes；严格解码应直接指认编码问题。
+-        val broken = byteArrayOf(
+-            '['.code.toByte(), '"'.code.toByte(), 0xC3.toByte(), 0x28, '"'.code.toByte(), ']'.code.toByte()
++        // 0xC3 0x28 不是合法 UTF-8。宽松解码会把它变成「C(」，坏字节就悄悄进了标题，
++        // 之后的 JSON 解析反而会成功——所以必须在这里就拒绝。
++        assertInvalid(
++            prepare(ZipPiece("notes.json", notesWithBrokenTitle(byteArrayOf(0xC3.toByte(), 0x28)))),
++            InvalidReason.NotUtf8
+         )
+-        assertInvalid(prepare(ZipPiece("notes.json", broken)), InvalidReason.NotUtf8)
+     }
+ 
+     @Test
+     fun loneSurrogateEncodingIsRejected() {
+         // CESU-8 风格的孤立代理项（0xED 0xA0 0x80）在 UTF-8 里是非法的
+-        val broken = byteArrayOf(
+-            '['.code.toByte(), '"'.code.toByte(),
+-            0xED.toByte(), 0xA0.toByte(), 0x80.toByte(),
+-            '"'.code.toByte(), ']'.code.toByte()
++        assertInvalid(
++            prepare(
++                ZipPiece(
++                    "notes.json",
++                    notesWithBrokenTitle(byteArrayOf(0xED.toByte(), 0xA0.toByte(), 0x80.toByte()))
++                )
++            ),
++            InvalidReason.NotUtf8
+         )
+-        assertInvalid(prepare(ZipPiece("notes.json", broken)), InvalidReason.NotUtf8)
+     }
+ 
+     @Test
+     fun validUnicodeContentIsAcceptedVerbatim() {
+-        val title = "标题 🎉 café مرحبا ①"
++        // U+FFFD 是**合法字符**：只要字节是 EF BF BD，就必须原样收下，不能被当成编码错误
++        val title = "标题 🎉 café مرحبا ① �"
+         val content = "第一行\n第二行 — “引号”与…省略号\n组合字符 é"
+         val note = Note(id = "unicode", title = title, content = content)
+         val json = notesToJson(listOf(note))
+@@ -311,6 +329,9 @@ class BackupImporterValidationTest {
+         assertEquals(content, prepared.notes.single().content)
+         // 原始文本必须逐字保留，不能被解码/再编码改写过
+         assertEquals(json, prepared.notesJson)
++        // 提交载荷读回来也不能把 U+FFFD 弄丢
++        val reread = parseBackupArrayOrThrow(prepared.commitJson)
++        assertEquals(title, normalizeImportedNote(reread.getJSONObject(0)).title)
+     }
+ 
+     // ---------- 源不可读 ----------
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
+index fe7243e..2d0582e 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
+@@ -234,8 +234,14 @@ internal class RefusingDeleteFileOps(private val base: BackupFileOps) : BackupFi
+ 
+ /** 清理失败：`deleteTree` 直接抛异常 */
+ internal class ThrowingDeleteFileOps(private val base: BackupFileOps) : BackupFileOps by base {
+-    override fun deleteTree(dir: File): Boolean =
++    @Volatile
++    var deleteCalls = 0
++        private set
++
++    override fun deleteTree(dir: File): Boolean {
++        deleteCalls++
+         throw java.io.IOException("injected delete failure")
++    }
+ }
+ 
+ /**
+@@ -304,3 +310,55 @@ internal fun assertLiveSentinelsIntact(filesDir: File, sentinel: LiveSentinel):
+ 
+     return problems
+ }
++
++/**
++ * 可暂停的调度器：`dispatch` 只入队，由测试决定什么时候执行。
++ *
++ * 用来把「调用方线程」与块所在的 IO 线程分开，并把 **withContext 的交付续体**停在队列里：
++ * 结果已经构造完、调用方还没拿到值——取消正好落在这个窗口里，而且不靠 sleep。
++ */
++internal class PausableDispatcher : kotlinx.coroutines.CoroutineDispatcher() {
++    private val queue = java.util.concurrent.LinkedBlockingQueue<Runnable>()
++    private val dispatchCount = java.util.concurrent.atomic.AtomicInteger(0)
++    private val resumeQueued = CountDownLatch(1)
++
++    override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
++        queue.add(block)
++        // 第 1 次是启动协程，第 2 次就是交付续体入队
++        if (dispatchCount.incrementAndGet() >= 2) resumeQueued.countDown()
++    }
++
++    /** 等到「交付续体」已入队：此刻块已执行完、调用方尚未恢复 */
++    fun awaitResumeQueued(timeout: Long = 10, unit: TimeUnit = TimeUnit.SECONDS): Boolean =
++        resumeQueued.await(timeout, unit)
++
++    /** 只执行队列里的下一个任务，绝不多跑——多跑一步就把取消窗口放过去了 */
++    fun runNext(timeoutMs: Long = 10_000): Boolean {
++        val task = queue.poll(timeoutMs, TimeUnit.MILLISECONDS) ?: return false
++        task.run()
++        return true
++    }
++}
++
++/** 记录 `onResultBuilt` 与 `deleteTree` 发生在哪个线程上 */
++internal class ThreadRecordingFileOps(private val base: BackupFileOps) : BackupFileOps by base {
++    @Volatile
++    var resultBuiltThread: Thread? = null
++
++    @Volatile
++    var deleteThread: Thread? = null
++
++    override fun onResultBuilt(token: String) {
++        resultBuiltThread = Thread.currentThread()
++    }
++
++    override fun deleteTree(dir: File): Boolean {
++        deleteThread = Thread.currentThread()
++        return base.deleteTree(dir)
++    }
++}
++
++/** 建符号链接；失败就让用例明确失败，不静默跳过 */
++internal fun createSymlink(link: File, target: File) {
++    android.system.Os.symlink(target.absolutePath, link.absolutePath)
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
+index c778aba..f9073a1 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
+@@ -1,5 +1,7 @@
+ package com.example.myapplicationfirstapp.data
+ 
++import org.json.JSONArray
++import org.json.JSONObject
+ import java.io.File
+ 
+ /**
+@@ -172,14 +174,26 @@ internal data class ImportWarning(
+ /**
+  * 准备完成、等待提交的备份。
+  *
+- * 所有内容都落在这个对象引用的暂存目录里；1B 提交时必须按 [token] 重新从磁盘读取并复核
+- * [notesDigest]，不信任内存里的副本。
++ * 所有内容都落在这个对象引用的暂存目录里；1B 提交时必须按 [token] 重新从磁盘读取，
++ * 不信任内存里的副本。
+  *
+- * 三个和内容有关的字段职责**不同**，不能互相顶替：
+- * - [notesJson]：`notes.json` 原样文本（严格 UTF-8 解码后的结果），是这次备份的事实来源；
+- * - [notesDigest]：上述**原始字节**的 SHA-256，1B 重读磁盘后用它确认「还是同一份材料」；
+- * - [notes]：归一化后的 [Note]，只服务于告警文案和 1B 的界面预览。
+- *   [Note.toJson] 会丢掉未知字段与原始格式，所以**不能**拿它序列化回去当导入载荷。
++ * ## 提交契约
++ *
++ * 这里**没有**「原始文本直接写盘」这条路。四个和内容有关的字段职责不同，不能互相顶替：
++ *
++ * - [notesJson]：`notes.json` 的原始文本（严格 UTF-8 解码后的结果）。
++ *   **只用于诊断与差异对比，禁止写入正式存储。**
++ *   原因是它可能带显式 `null`（`"deletedAt": null`），而现有读取路径 `noteFromJson`
++ *   把「字段存在且为 null」读成 `0`——写回去就是把笔记标成「1970 年删除」。
++ * - [notes]：归一视图，只服务于告警文案与界面预览。
++ *   [Note.toJson] 会丢掉未知字段、也会省掉显式 null，所以**不能**拿它序列化回去当载荷。
++ * - [commitJson]：**1B 唯一允许写入 `notes.json` 的内容**。由每个原始元素与归一结果合并：
++ *   未知字段原样保留，已知字段取归一值，`deletedAt` / `remindAt` 为 null 时**删除该键**
++ *   （而不是写 null），键按字典序排列——因此同一份输入产出逐字节相同的载荷。
++ *   前提是输入自带 `createdAt` / `updatedAt`：两者缺失时 `noteFromJson` 会按读取时刻补齐，
++ *   这是既有读取语义，本层不另造一套，所以那种旧备份的载荷不承诺跨次可复现。
++ * - [notesDigest] / [commitDigest]：分别是**原始字节**与 [commitJson] 的 SHA-256。
++ *   前者只用于确认「暂存文件还是同一份材料」，后者供 1B 重建载荷后复核；两者都不参与准入判定。
+  */
+ internal data class PreparedBackup(
+     val token: String,
+@@ -189,12 +203,66 @@ internal data class PreparedBackup(
+     val notes: List<Note>,
+     val attachmentNames: List<String>,
+     val notesDigest: String,
++    val commitJson: String,
++    val commitDigest: String,
+     val warnings: List<ImportWarning>,
+     val zipBytes: Long,
+     val attachmentBytes: Long,
+     val entryCount: Int
+ ) {
+     val isEmpty: Boolean get() = notes.isEmpty()
++
++    /** 提交载荷的字节（UTF-8），1B 写盘用这个而不是 [notesJson] */
++    fun commitBytes(): ByteArray = commitJson.toByteArray(Charsets.UTF_8)
++}
++
++/**
++ * 确定性 JSON 序列化：对象键按字典序输出，数组保持原顺序。
++ *
++ * 用它而不是 `JSONObject.toString()`：后者的键序取决于内部 `HashMap` 的迭代顺序，
++ * 换一个 JVM 或换一批键就可能变；提交载荷要能按摘要复核，就必须逐字节稳定。
++ */
++internal object CanonicalJson {
++
++    fun write(value: Any?): String = StringBuilder().also { append(value, it) }.toString()
++
++    private fun append(value: Any?, out: StringBuilder) {
++        when (value) {
++            null, JSONObject.NULL -> out.append("null")
++            is JSONObject -> appendObject(value, out)
++            is JSONArray -> appendArray(value, out)
++            is String -> out.append(JSONObject.quote(value))
++            is Boolean -> out.append(if (value) "true" else "false")
++            is Number -> out.append(numberToString(value))
++            else -> out.append(JSONObject.quote(value.toString()))
++        }
++    }
++
++    private fun appendObject(value: JSONObject, out: StringBuilder) {
++        out.append('{')
++        val keys = value.keys().asSequence().sorted().toList()
++        keys.forEachIndexed { index, key ->
++            if (index > 0) out.append(',')
++            out.append(JSONObject.quote(key)).append(':')
++            append(value.opt(key), out)
++        }
++        out.append('}')
++    }
++
++    private fun appendArray(value: JSONArray, out: StringBuilder) {
++        out.append('[')
++        for (index in 0 until value.length()) {
++            if (index > 0) out.append(',')
++            append(value.opt(index), out)
++        }
++        out.append(']')
++    }
++
++    private fun numberToString(value: Number): String = try {
++        JSONObject.numberToString(value)
++    } catch (failure: Exception) {
++        value.toString()
++    }
+ }
+ 
+ /**
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
+index 8ec2728..f93e98e 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
+@@ -5,6 +5,7 @@ import android.net.Uri
+ import android.util.Log
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.NonCancellable
+ import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.withContext
+@@ -90,18 +91,46 @@ internal class BackupImporter(
+     /**
+      * 主动丢弃一次准备结果（用户取消确认、或 1B 提交完成后调用）。
+      *
+-     * 不直接信任 [PreparedBackup.stagingDir]：只按 [PreparedBackup.token] 重新算出预期目录，
+-     * 要求它与传入路径指向同一个文件，并且确实落在本实例的暂存根之下，才允许删除。
+-     * 越界 / token 不合法时返回 `false` 且**什么都不删**；目录已经不在了返回 `true`（幂等）。
++     * 必须在协程里调用：内部切到 IO 线程执行删除，调用方在主线程上也不会做磁盘 IO；
++     * 删除段用 [NonCancellable] 包住，调用方被取消时清理照样做完，返回值仍能说明结果。
++     *
++     * 所有权不靠 token 格式证明，而是按**真实路径**核对（见 [ownedStagingDir]）：
++     * 只按 [PreparedBackup.token] 重算预期目录，要求它的规范路径是暂存根的**直接子项**、
++     * 根本身在应用私有目录之内，且与传入路径指向同一个文件。任何一项不成立都返回 `false`
++     * 且**什么都不删**；目录已经不在了返回 `true`（幂等）。
+      */
+-    fun discard(prepared: PreparedBackup): Boolean =
++    suspend fun discard(prepared: PreparedBackup): Boolean =
+         discardStaging(prepared.token, prepared.stagingDir)
+ 
+-    private fun discardStaging(token: String, claimed: File): Boolean {
+-        if (!TOKEN_PATTERN.matches(token)) return false
++    private suspend fun discardStaging(token: String, claimed: File): Boolean =
++        withContext(NonCancellable + Dispatchers.IO) {
++            val owned = ownedStagingDir(token, claimed) ?: return@withContext false
++            fileOps.deleteTree(owned)
++        }
++
++    /**
++     * 判定 [claimed] 是不是本实例自己的暂存目录；是则返回真正要删的路径，否则返回 null。
++     *
++     * 四道检查缺一不可：
++     * 1. token 必须是 UUID 形式（只用来排除明显的拼接企图，**不当作所有权证明**）；
++     * 2. 暂存根的规范路径必须落在应用私有目录之内，根本身不能是私有目录本身；
++     * 3. 预期目录解析符号链接之后，仍然必须是根的直接子项，且名字没被改
++     *    —— 这一条拦的是「根里放一个指向根外的链接」；
++     * 4. 传入路径必须与预期目录指向同一个文件，否则视为被替换。
++     */
++    private fun ownedStagingDir(token: String, claimed: File): File? {
++        if (!TOKEN_PATTERN.matches(token)) return null
++
++        val root = canonicalOrNull(stagingRoot) ?: return null
++        val privateRoot = canonicalOrNull(appContext.filesDir) ?: return null
++        if (!root.isStrictlyUnder(privateRoot)) return null
++
+         val expected = File(stagingRoot, STAGING_PREFIX + token)
+-        if (!sameFile(expected, claimed)) return false
+-        return fileOps.deleteTree(expected)
++        val resolved = canonicalOrNull(expected) ?: return null
++        if (resolved.name != STAGING_PREFIX + token) return null
++        if (resolved.parentFile != root) return null
++        if (!sameFile(expected, claimed)) return null
++        return expected
+     }
+ 
+     /**
+@@ -110,8 +139,11 @@ internal class BackupImporter(
+      * 返回没能清掉的路径（空列表表示清干净了）。删除返回 false 或抛异常都只记录残留，
+      * 不改变调用方正在上报的原因：拒绝仍是原来的 reason/detail，取消仍是原来的
+      * CancellationException。
++     *
++     * 删除在 IO 线程、[NonCancellable] 段内完成：调用方已经被取消时清理不会半途而废，
++     * 也不会把取消结果换成清理异常。
+      */
+-    private fun cleanup(token: String, dir: File): List<String> = try {
++    private suspend fun cleanup(token: String, dir: File): List<String> = try {
+         if (discardStaging(token, dir)) emptyList() else listOf(dir.absolutePath)
+     } catch (failure: Exception) {
+         listOf("${dir.absolutePath} (${failure.javaClass.simpleName})")
+@@ -382,7 +414,7 @@ internal class BackupImporter(
+ 
+             validateNoteFields(element, index)?.let { throw Rejection(InvalidReason.WrongFieldType, it) }
+ 
+-            val note = normalizedNote(element)
++            val note = normalizeImportedNote(element)
+             if (!noteIds.add(note.id)) {
+                 throw Rejection(InvalidReason.DuplicateNoteId, note.id)
+             }
+@@ -410,6 +442,7 @@ internal class BackupImporter(
+         }
+ 
+         val warnings = buildWarnings(notes, scan.attachmentNames, scan.emptyAttachmentNames)
++        val commitJson = buildCommitPayload(array, notes)
+         val prepared = PreparedBackup(
+             token = token,
+             stagingDir = dir,
+@@ -418,6 +451,8 @@ internal class BackupImporter(
+             notes = notes,
+             attachmentNames = scan.attachmentNames,
+             notesDigest = sha256Hex(scan.notesBytes),
++            commitJson = commitJson,
++            commitDigest = sha256Hex(commitJson.toByteArray(Charsets.UTF_8)),
+             warnings = warnings,
+             zipBytes = backupFile.length(),
+             attachmentBytes = scan.attachmentBytes,
+@@ -428,22 +463,73 @@ internal class BackupImporter(
+     }
+ 
+     /**
+-     * 把 JSON 转成 [Note]，并修正 `null` 时间戳的语义。
++     * 构造 1B 的提交载荷。
+      *
+-     * `noteFromJson` 用的是 `optLong`：字段存在但值是 JSON `null` 时会得到 0，
+-     * 而 `deletedAt = 0` 意味着「1970 年删的」，会被当成回收站里的过期笔记清掉。
+-     * 导出代码永远只写非 null 值，所以这里把显式 `null` 还原成「没有该值」，
+-     * 不修改 `noteFromJson` 本身的兼容行为（普通读取路径仍按原样处理）。
++     * 逐个元素把「原始对象」与「归一结果」合并：原始对象先整份拷进来（未知字段因此得以保留），
++     * 再把已知字段覆盖成归一值。`deletedAt` / `remindAt` 为 null 时**删除键**而不是写 null——
++     * 现有读取路径 `noteFromJson` 会把「有键且为 null」读成 0，写 null 等于把笔记标成 1970 年删除。
++     *
++     * 输出走 [CanonicalJson]（键按字典序），同一份输入产出逐字节相同的载荷。
+      */
+-    private fun normalizedNote(json: JSONObject): Note {
+-        var note = noteFromJson(json)
+-        if (json.has("deletedAt") && json.opt("deletedAt") === JSONObject.NULL) {
+-            note = note.copy(deletedAt = null)
++    private fun buildCommitPayload(source: JSONArray, notes: List<Note>): String {
++        val out = StringBuilder("[")
++        for (index in notes.indices) {
++            if (index > 0) out.append(',')
++            val original = source.optJSONObject(index) ?: JSONObject()
++            out.append(CanonicalJson.write(mergeNote(original, notes[index])))
+         }
+-        if (json.has("remindAt") && json.opt("remindAt") === JSONObject.NULL) {
+-            note = note.copy(remindAt = null)
++        out.append(']')
++        return out.toString()
++    }
++
++    private fun mergeNote(original: JSONObject, note: Note): JSONObject {
++        val merged = JSONObject()
++        // 先整份拷贝：未知字段（含未来版本新增的）原样带到提交载荷里
++        for (key in original.keys()) {
++            merged.put(key, original.opt(key))
+         }
+-        return note
++
++        merged.put("id", note.id)
++        merged.put("title", note.title)
++        merged.put("content", note.content)
++        merged.put("createdAt", note.createdAt)
++        merged.put("updatedAt", note.updatedAt)
++        merged.put("colorIndex", note.colorIndex)
++        merged.put("pinned", note.pinned)
++        merged.put("tags", JSONArray(note.tags))
++        merged.put("images", JSONArray(note.images))
++
++        // 与 Note.toJson 的取舍保持一致：没有值就不写键，避免出现第三种「有键但为空」的形态
++        putOrRemove(merged, "audio", note.audio.takeIf { it.isNotEmpty() }?.let { JSONArray(it) })
++        putOrRemove(merged, "deletedAt", note.deletedAt)
++        putOrRemove(merged, "remindAt", note.remindAt)
++        putOrRemove(merged, "checklist", true.takeIf { note.checklist })
++        putOrRemove(merged, "todos", mergeTodos(original.optJSONArray("todos"), note.todos))
++
++        return merged
++    }
++
++    /** 待办项也按「原对象 + 归一值」合并，未知字段同样保留 */
++    private fun mergeTodos(original: JSONArray?, todos: List<TodoItem>): JSONArray? {
++        if (todos.isEmpty()) return null
++        val merged = JSONArray()
++        todos.forEachIndexed { index, todo ->
++            val item = JSONObject()
++            original?.optJSONObject(index)?.let { source ->
++                for (key in source.keys()) {
++                    item.put(key, source.opt(key))
++                }
++            }
++            item.put("id", todo.id)
++            item.put("text", todo.text)
++            item.put("done", todo.done)
++            merged.put(item)
++        }
++        return merged
++    }
++
++    private fun putOrRemove(target: JSONObject, key: String, value: Any?) {
++        if (value == null) target.remove(key) else target.put(key, value)
+     }
+ 
+     /**
+@@ -560,6 +646,20 @@ internal class BackupImporter(
+         false
+     }
+ 
++    private fun canonicalOrNull(file: File): File? = try {
++        file.canonicalFile
++    } catch (failure: Exception) {
++        null
++    }
++
++    /** 按**规范路径**判断严格包含（等于不算）；路径比较用分隔符兜底，避免 `/a/b` 误配 `/a/bc` */
++    private fun File.isStrictlyUnder(parent: File): Boolean {
++        if (this == parent) return false
++        val childPath = path
++        val parentPath = parent.path.trimEnd('/')
++        return childPath.startsWith("$parentPath/")
++    }
++
+     private fun looksLikeZip(file: File): Boolean {
+         if (file.length() < 4) return false
+         val header = ByteArray(4)
+@@ -621,3 +721,25 @@ internal class BackupImporter(
+         val STRING_ARRAY_FIELDS = listOf("tags", "images", "audio")
+     }
+ }
++
++/**
++ * 把一条备份 JSON 归一成 [Note]，并修正显式 `null` 时间戳的语义。
++ *
++ * `noteFromJson` 用的是 `optLong`：字段存在但值是 JSON `null` 时会得到 0，
++ * 而 `deletedAt = 0` 意味着「1970 年删的」，会被当成回收站里的过期笔记清掉。
++ * 导出代码永远只写非 null 值，所以这里把显式 `null` 还原成「没有该值」，
++ * 不修改 `noteFromJson` 本身的兼容行为（普通读取路径仍按原样处理）。
++ *
++ * 放在包级而不是 private，是为了让「提交载荷再读回来」的等价测试用**同一条规则**：
++ * 测试自己重写一遍归一逻辑，验的就不是生产路径了。
++ */
++internal fun normalizeImportedNote(json: JSONObject): Note {
++    var note = noteFromJson(json)
++    if (json.has("deletedAt") && json.opt("deletedAt") === JSONObject.NULL) {
++        note = note.copy(deletedAt = null)
++    }
++    if (json.has("remindAt") && json.opt("remindAt") === JSONObject.NULL) {
++        note = note.copy(remindAt = null)
++    }
++    return note
++}
