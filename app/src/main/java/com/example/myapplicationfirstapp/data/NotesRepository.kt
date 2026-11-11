@@ -36,17 +36,22 @@ class NotesRepository(context: Context) {
         runCatching { notesFromJson(file.readText()) }.getOrDefault(emptyList())
     }
 
-    /** 保存全部笔记 */
+    /** Write a unique temporary file; propagate failures without truncating the old file. */
     suspend fun save(notes: List<Note>) = withContext(Dispatchers.IO) {
-        runCatching {
-            val json = notesToJson(notes)
-            // 先写临时文件再改名：写到一半被杀死也不会把原文件写坏
-            val temp = File(file.parentFile, "$NOTES_FILE_NAME.tmp")
-            temp.writeText(json)
-            if (!temp.renameTo(file)) {
-                file.writeText(json)
-                temp.delete()
+        val json = notesToJson(notes).toByteArray(Charsets.UTF_8)
+        val parent = checkNotNull(file.parentFile)
+        check(parent.isDirectory || parent.mkdirs()) { "Cannot create notes directory" }
+        val temp = File.createTempFile("notes-", ".tmp", parent)
+        try {
+            temp.outputStream().use { output ->
+                output.write(json)
+                output.fd.sync()
             }
+            if (!temp.renameTo(file)) {
+                throw java.io.IOException("Cannot replace notes file")
+            }
+        } finally {
+            temp.delete()
         }
         Unit
     }

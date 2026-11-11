@@ -1244,12 +1244,31 @@ class NotesState(
 
 
 
+    /** Observable diagnostic only; UI presentation/retry is a separate integration task. */
+    var persistenceError by mutableStateOf<String?>(null)
+        private set
+
+    private val writeCoordinator = com.example.myapplicationfirstapp.data.NotesWriteCoordinator()
+    private var newestSaveTicket: com.example.myapplicationfirstapp.data.NotesWriteCoordinator.Ticket? = null
+
     private fun persist() {
-
         val snapshot = _notes.toList()
-
-        scope.launch { repository.save(snapshot) }
-
+        // No replace() calls are introduced in this patch. Before adding them,
+        // guard state mutations before they happen; never silently drop a save.
+        val ticket = checkNotNull(writeCoordinator.reserve()) { "Replacement is active" }
+        newestSaveTicket = ticket
+        scope.launch {
+            try {
+                val written = writeCoordinator.save(ticket) { repository.save(snapshot) }
+                if (written && newestSaveTicket === ticket) persistenceError = null
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (newestSaveTicket === ticket) {
+                    persistenceError = failure.message ?: "Saving notes failed"
+                }
+            }
+        }
     }
 
 
