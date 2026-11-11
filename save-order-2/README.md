@@ -3,25 +3,34 @@
 实验 worktree：`D:/SAVE-ORDER-1-wt`｜分支 `fix/backup-safe-1`｜源码基线 `26a5cd9669c76ce267b5eaaea2fafe64a9e92269`
 状态：**未提交、未推送、未合并 main**（只把文档与测试源码以 review 分支形式发布）
 
-本目录分四批：
+本目录分五批：
 
 | 批次 | 内容 | 生产代码 |
 | --- | --- | --- |
 | 第一批 | 两个真实文件测试（往返、顺序保护） | **零改动** |
 | 第二批 | 故障注入接缝 + 四项失败测试 | 新增 `NotesFileOps.kt`（42 行），`NotesRepository.kt` +13 −6 |
 | 第三批 | 收尾：seed 前置断言、精确轨迹、M1 口径修正、正常测试收尾、表述收窄 | **零改动** |
-| 第四批（本轮） | 真机验证：Redmi API 36 上跑全量 21 项 + 真实数据前后指纹 | **零改动** |
+| 第四批 | 真机验证：Redmi API 36 上跑全量 21 项 + 真实数据前后指纹 | **零改动** |
+| 第五批（本轮） | 证据收口：结论强度拆分、采样口径统一、回滚边界、APK 身份与字节码证据 | **零改动，无任何设备操作** |
 
 ## 阅读顺序
 
-**第四批（本轮，先看）**
+**第五批（本轮，先看；无新增设备操作，只做证据核对）**
 
 | 顺序 | 文件 | 内容 |
 | --- | --- | --- |
-| 1 | `REPORT-REALDEVICE.md` | 真机 21/21、三段指纹、21 条 started/finished 逐项明细、0.335 s 的核实过程 |
+| 1 | `REPORT-CLOSEOUT.md` | **收口报告（以此为准）**：三类结论拆分、4 次采样口径与缺失原始输出的如实标注、回滚能力边界与授权记录缺口、APK 完整 SHA-256 与字节码级变异还原证据、固化清单 |
+| 2 | `logs/main-apk-dex-save-trace.txt` | 主 APK 的 `save()` 字节码：`createTemp` 结果直接交给 `openStream`，中间无 `access$getFile`，证明 M1 变异未进包 |
+| 3 | `logs/SAVE-ORDER-2-final.diff` | 收口后现场重生成的完整 diff，与第三批存档逐字节相同（`645acf70…`，+802 −6） |
+
+**第四批（真机验证）**
+
+| 顺序 | 文件 | 内容 |
+| --- | --- | --- |
+| 1 | `REPORT-REALDEVICE.md` | 真机 21/21、三段指纹、21 条 started/finished 逐项明细、0.335 s 的核实过程（顶部已加修正横幅，正文保留原样） |
 | 2 | `logs/realdevice-am-instrument.log` | `am instrument` 原始输出 |
 | 3 | `logs/realdevice-logcat-testrunner.txt` | logcat 中 21 条 `started:` / ``finished:``、0 条失败 |
-| 4 | `logs/realdevice-fingerprint.txt` | 安装前 / 跑完 / 事后三段 `notes.json` 指纹与目录清单 |
+| 4 | `logs/realdevice-fingerprint.txt` | 三段指纹与目录清单（人工整理稿，非原始采样输出） |
 
 **第三批**
 
@@ -67,6 +76,21 @@
   指纹核验与沙箱清理在失败时也执行；`dispose()` 返回是否删净，清理失败会显式报出。
 - 表述统一为「路径隔离、前后指纹一致」，不再出现「一个字节都不会被碰到」。
 
+## 第五批结论（摘要）
+
+- 「数据零变化」拆成三类：`notes.json` **端点采样一致**（不证明中间态）、附件/录音**条目数一致**
+  （未逐个比哈希）、APK 与测试包状态**已改变**（主 `93c27b89…` / 测试 `b49eb23a…`）。
+- 采样次数统一为 **4 次**（备份前 / 安装前 / 安装后 / 跑完），原报告写「三次」漏记了备份前那次。
+  **4 次的 `sha256sum` 原始输出都没有落盘**，`realdevice-fingerprint.txt` 是人工整理稿，如实标为缺口。
+- 回滚边界：`files.tar`（255,684,096 B / 74 条目 / `7bcecefd…`）**只归档、未做恢复演练**；
+  **原 APK 未保存**，设备上那份无法导出 → 数据可回滚，**应用二进制不可回滚**。
+- 授权记录为会话内的选项确认，**无书面授权、无签名、无独立时间戳文件**，已在报告中标为缺失。
+- 变异还原证据从"文件没改过"升级到**字节码**：主 APK `classes5.dex → NotesRepository$save$2`
+  中 `createTemp → v2`、`openStream(v2)`，中间无 `access$getFile`；测试 APK 六个 dex 里
+  `m1TargetedCorruptionAfterValidV1` 命中 **0** 次。
+- 静默缺口：**设备端没有比对已安装 APK 的哈希**（需新的 adb 操作），所以"设备上跑的就是这一份"
+  依赖安装成功与构建顺序，不是设备端字节核对。
+
 ## 第四批结论（摘要）
 
 - 真机 Redmi `23078RKD5C`（corot，Android 16 / API 36，arm64-v8a）上 **`OK (21 tests)`**，
@@ -74,9 +98,11 @@
 - **没有**运行 `connectedDebugAndroidTest`：AGP 9 该任务结束会卸载应用，真机上会连带清空 `files/`。
   只用了 `adb install -r`（保留数据）+ `am instrument`（不卸载）。
   安装后应用与测试包仍在设备上，主应用未卸载。
-- 真实 `notes.json` 2793 B，安装前 / 跑完 / 事后三次均为
+- 真实 `notes.json` 2793 B，**4 次采样**（备份前 / 安装前 / 安装后 / 跑完）均为
   `83275cf129453228fb70d96202843b5969e2880ee3b2b038b5fd25446d1a4795`，长度与 mtime 未变；
-  attachments 9 → 9、recordings 57 → 57。
+  attachments 9 → 9、recordings 57 → 57（只比条目数）。
+- **应用状态已改变**：主 APK 与测试包都被本轮构建覆盖（`93c27b89…` / `b49eb23a…`），
+  主应用未卸载、数据目录保留。所以「零变化」只适用于 `files/` 内容，不适用于安装状态。
 - 证据强度高于模拟器：模拟器上真实 `files/` 没有 `notes.json`，指纹比对是 `<absent> == <absent>`；
   真机上是 2793 字节的真实笔记。但这仍只说明「路径隔离、测试前后指纹一致」，
   不等于「测试期间任何时刻绝对没有发生写入」。

@@ -1,0 +1,20 @@
+# 来源：app/build/outputs/apk/debug/app-debug.apk -> classes5.dex -> NotesRepository$save$2.invokeSuspend
+# 工具：build-tools/36.0.0/dexdump.exe -d
+# 目的：字节码层面确认安装到真机的 APK 把 createTemp 的返回值（v2）交给 openStream，
+#       而不是把字段 file 交给 openStream（后者是 M1 变异的形态）。
+
+0026: invoke-static {v1}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFile:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Ljava/io/File; // method@018a
+0043: invoke-static {v2}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0047: invoke-interface {v2, v1}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.createTemp:(Ljava/io/File;)Ljava/io/File; // method@0160
+004e: invoke-static {v3}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0052: invoke-interface {v3, v2}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.openStream:(Ljava/io/File;)Ljava/io/FileOutputStream; // method@0161
+005e: invoke-static {v4}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0062: invoke-interface {v7, v5, v0}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.write:(Ljava/io/FileOutputStream;[B)V // method@0164
+0065: invoke-static {v4}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0069: invoke-interface {v4, v5}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.sync:(Ljava/io/FileOutputStream;)V // method@0163
+0075: invoke-static {v3}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+007b: invoke-static {v4}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFile:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Ljava/io/File; // method@018a
+007f: invoke-interface {v3, v2, v4}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.rename:(Ljava/io/File;Ljava/io/File;)Z // method@0162
+0085: invoke-virtual {v2}, Ljava/io/File;.delete:()Z // method@02a9
+008f: const-string v4, "Cannot replace notes file" // string@0258
+009d: invoke-virtual {v2}, Ljava/io/File;.delete:()Z // method@02a9
