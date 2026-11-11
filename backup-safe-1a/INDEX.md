@@ -8,6 +8,8 @@
 
 **最新轮次：rev2**（`rev2/BACKUP-SAFE-1A-rev2.diff` + `rev2/NOTES.md` + `rev2/files/` + `logs/rev2/`）。rev0/rev1 原样保留。
 
+**固化状态：已固化**。rev2 通过限定范围评审后，九文件以 `26a0de3cc80636718059c118d5af6e4c6f179fc0`（父 `d252ed3`）提交到 `fix/backup-safe-1` 并普通推送。详见 `freeze/FREEZE-1A-26a0de3.md`。固化不等于 1B 已实施。
+
 ## 1. 目录结构
 
 ```
@@ -24,6 +26,7 @@ backup-safe-1a/
   logs/compile.log                  第 2 轮（rev1）编译日志（已脱敏）
   logs/rev2/full-androidtest.xml    第 3 轮（rev2）全量仪器测试结果
   logs/rev2/compile.log             第 3 轮（rev2）编译日志（已脱敏）
+  freeze/FREEZE-1A-26a0de3.md       源码固化记录（提交、blob、推送核对、测试口径、1B 待办）
 ```
 
 ## 2. 三轮材料的关系
@@ -111,11 +114,25 @@ blob 为 `git hash-object --no-filters` 的结果，SHA-256 与对应轮次 `fil
 
 ## 6. 状态边界
 
-- 准备层已可编译、可测，但**未接线**：`BackupImporter` / `PreparedBackup` / `PrepareResult` 在 `app/src/main` 中没有任何生产调用方，`NotesRepository`、`NotesState`、`MainActivity`、`NoteEditorScreen` 一行未改。
-- 整改源码**未固化**：`fix/backup-safe-1` 仍是 `d252ed3`，`main` 未变，未提交、未推送源码。
-- **未进入 1B**：提交、代次、回滚、跨代清理、状态三态分离等仍只是方案。
+- 准备层可编译、可测，九文件已固化到 `fix/backup-safe-1@26a0de3`（见 §8），但仍**未接线**：`BackupImporter` / `PreparedBackup` / `PrepareResult` 在 `app/src/main` 中没有任何生产调用方，`NotesRepository`、`NotesState`、`MainActivity`、`NoteEditorScreen` 一行未改，旧导入路径未删除。
+- 固化只处理九文件；评审当时的「未固化」状态已随 §8 结束，但**未进入 1B**：提交、代次、回滚、跨代清理、状态三态分离等仍只是方案。
 - 1A 不宣称导入风险已关闭。
 
 ## 7. 后续轮次
 
 rev3 及以后在本目录下新增独立子目录（`backup-safe-1a/rev3/`、`logs/rev3/`），保留 rev0/rev1/rev2 原样，不覆盖旧证据。每轮结束时 `MANIFEST.sha256` 全量重算。
+
+## 8. 源码固化
+
+| 项 | 值 |
+|---|---|
+| 源码分支 | `fix/backup-safe-1` |
+| 提交 SHA | `26a0de3cc80636718059c118d5af6e4c6f179fc0` |
+| 父提交 | `d252ed3c2a9780c305b7a1be515186695a8e9c72` |
+| 提交说明 | `feat: prepare and validate backup imports without touching live data` |
+| 范围 | 恰 9 个文件，`+2884 −3`，无额外文件 |
+| 推送 | 普通推送，退出码 0，未 force |
+
+提交的九文件 blob 与 §3.2 逐条相等（9/9），因此**内容与 rev2 测试对象一致**，测试引用原 87 项轮次（`logs/rev2/full-androidtest.xml`）；本轮为纯固化，**未重新运行测试**。
+
+完整记录（固化前检查、暂存核对、远端独立核对、测试口径、1B 两项待办）见 `freeze/FREEZE-1A-26a0de3.md`。
