@@ -1,0 +1,75 @@
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt
+index 9edd720..fdcd1d1 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt
+@@ -36,17 +36,22 @@ class NotesRepository(context: Context) {
+         runCatching { notesFromJson(file.readText()) }.getOrDefault(emptyList())
+     }
+ 
+-    /** 保存全部笔记 */
++    /** Write a unique temporary file; propagate failures without truncating the old file. */
+     suspend fun save(notes: List<Note>) = withContext(Dispatchers.IO) {
+-        runCatching {
+-            val json = notesToJson(notes)
+-            // 先写临时文件再改名：写到一半被杀死也不会把原文件写坏
+-            val temp = File(file.parentFile, "$NOTES_FILE_NAME.tmp")
+-            temp.writeText(json)
++        val json = notesToJson(notes).toByteArray(Charsets.UTF_8)
++        val parent = checkNotNull(file.parentFile)
++        check(parent.isDirectory || parent.mkdirs()) { "Cannot create notes directory" }
++        val temp = File.createTempFile("notes-", ".tmp", parent)
++        try {
++            temp.outputStream().use { output ->
++                output.write(json)
++                output.fd.sync()
++            }
+             if (!temp.renameTo(file)) {
+-                file.writeText(json)
+-                temp.delete()
++                throw java.io.IOException("Cannot replace notes file")
+             }
++        } finally {
++            temp.delete()
+         }
+         Unit
+     }
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
+index 0ab7f3f..e61287b 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
+@@ -1244,12 +1244,31 @@ class NotesState(
+ 
+ 
+ 
+-    private fun persist() {
+-
+-        val snapshot = _notes.toList()
++    /** Observable diagnostic only; UI presentation/retry is a separate integration task. */
++    var persistenceError by mutableStateOf<String?>(null)
++        private set
+ 
+-        scope.launch { repository.save(snapshot) }
++    private val writeCoordinator = com.example.myapplicationfirstapp.data.NotesWriteCoordinator()
++    private var newestSaveTicket: com.example.myapplicationfirstapp.data.NotesWriteCoordinator.Ticket? = null
+ 
++    private fun persist() {
++        val snapshot = _notes.toList()
++        // No replace() calls are introduced in this patch. Before adding them,
++        // guard state mutations before they happen; never silently drop a save.
++        val ticket = checkNotNull(writeCoordinator.reserve()) { "Replacement is active" }
++        newestSaveTicket = ticket
++        scope.launch {
++            try {
++                val written = writeCoordinator.save(ticket) { repository.save(snapshot) }
++                if (written && newestSaveTicket === ticket) persistenceError = null
++            } catch (cancelled: kotlinx.coroutines.CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                if (newestSaveTicket === ticket) {
++                    persistenceError = failure.message ?: "Saving notes failed"
++                }
++            }
++        }
+     }
+ 
+ 

@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="6" failures="0" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T05:17:14" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.data.BackupNotesParserTest" tests="6" failures="0" errors="0" skipped="0" time="0.088" timestamp="2026-11-11T05:17:14" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="acceptsEmptyArray" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.001" />
+    <testcase name="rejectsWrongRootAndInvalidElements" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.037" />
+    <testcase name="preservesLegacyOptionalDefaults" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.028" />
+    <testcase name="roundTripsCurrentNote" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.012" />
+    <testcase name="rejectsMalformedInput" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.005" />
+    <testcase name="rejectsTrailingContentButAcceptsWhitespace" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.005" />
+  </testsuite>
+</testsuites>

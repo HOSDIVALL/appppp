@@ -1,0 +1,47 @@
+Starting a Gradle Daemon, 1 incompatible and 1 stopped Daemons could not be reused, use --status for details
+Calculating task graph as no cached configuration is available for tasks: :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:preDebugAndroidTestBuild SKIPPED
+> Task :app:processDebugAndroidTestNavigationResources
+> Task :app:generateDebugResources
+> Task :app:extractDeepLinksDebug
+> Task :app:generateDebugAndroidTestResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:javaPreCompileDebug
+> Task :app:mapDebugSourceSetPaths
+> Task :app:packageDebugAndroidTestResources
+> Task :app:packageDebugResources
+> Task :app:parseDebugAndroidTestLocalResources
+> Task :app:generateDebugAndroidTestRFile
+> Task :app:processDebugNavigationResources
+> Task :app:compileDebugNavigationResources
+> Task :app:parseDebugLocalResources
+> Task :app:generateDebugRFile
+> Task :app:checkDebugAarMetadata
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+> Task :app:compileDebugKotlin
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/AudioPickSheet.kt:53:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt:770:13 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt:779:13 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/NotePickerSheet.kt:59:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:289:35 'fun InputField(query: String, onQueryChange: (String) -> Unit, onSearch: (String) -> Unit, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., colors: TextFieldColors = ..., interactionSource: MutableInteractionSource? = ...): Unit' is deprecated. Use SearchBarDefaults.InputField with TextFieldState and SearchBarState.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:756:44 'val Icons.Filled.Sort: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Sort.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/RecorderState.kt:379:9 'fun stopPlayback(): Unit' is deprecated. 保留旧名字，外部调用语义未变.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/RecordingActionSheet.kt:74:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/RecordingActionSheet.kt:150:41 'val Icons.Filled.NoteAdd: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.NoteAdd.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/ReminderSheet.kt:52:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/ReminderSheet.kt:173:5 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+w: file:///D:/SAVE-ORDER-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/SettingsScreen.kt:486:5 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:compileDebugAndroidTestKotlin
+
+BUILD SUCCESSFUL in 1m 50s
+25 actionable tasks: 25 executed
+Configuration cache entry stored.
