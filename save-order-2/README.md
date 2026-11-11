@@ -24,8 +24,6 @@
 | 2 | `DOC-CORRECTIONS.diff` | 11 行**语句级**对照（`-` 历史原文摘句 / `+` 采纳口径），**不是**可 apply 的文件 patch |
 | 3 | `logs/main-apk-dex-contiguous-fragment.txt` | `0x003f`–`0x00a1` 连续反汇编（含 `move-result-object`），本轮本地重新反汇编，不是历史原始输出 |
 
-## 阅读顺序
-
 **第五批（证据收口）**
 
 | 顺序 | 文件 | 内容 |
@@ -74,19 +72,6 @@
 | 2 | `FAULT-INJECTION-PLAN.md` | 当时的方案（已被评审修订，实际实施见第二批） |
 | 3 | `src/NotesRepositoryFileTest.kt`、`src/NotesWriteCoordinatorFileTest.kt` | 第一批测试源码（第三批已加 `@After` 收尾） |
 
-## 第三批结论（摘要）
-
-- `seedOldContent()` 现在先证明基准有效：非空、`JSONArray` 可解析、新实例读回整体等于 `oldNote()`，
-  才返回磁盘字节。空文件或坏文件不可能再被当成「旧文件」。
-- 四项测试的轨迹断言改为**条数 + 顺序 + 每步形态**精确匹配：
-  F1 三步、F2 四步、F3 五步、F4 三步（合计八步），且都在恢复重试之前断言。
-- M1 原证据（`expected.length=0`）**降级**为粗粒度路径破坏证据；另做 M1′：
-  先用 `notesToJson` 写出 173 字节有效 v1（`sha256=581f59cd…`），再施加同一变异，
-  破坏后文件 0 字节、`save()` 却返回成功，断言在 `kt:271` 的字节比对处失败。
-- `NotesRepositoryFileTest` / `NotesWriteCoordinatorFileTest` 补了 `@Before/@After`，
-  指纹核验与沙箱清理在失败时也执行；`dispose()` 返回是否删净，清理失败会显式报出。
-- 表述统一为「路径隔离、前后指纹一致」，不再出现「一个字节都不会被碰到」。
-
 ## 第六批结论（摘要）
 
 - 六文件固化为提交 `d252ed3c…`（父 `26a5cd96…`），`6 files changed, 802 insertions(+), 6 deletions(-)`；
@@ -134,6 +119,19 @@
   真机上是 2793 字节的真实笔记。但这仍只说明「路径隔离、测试前后指纹一致」，
   不等于「测试期间任何时刻绝对没有发生写入」。
 - `am instrument` 不产出 JUnit XML，本轮证据是 am 输出 + logcat 逐项明细 + 前后指纹。
+
+## 第三批结论（摘要）
+
+- `seedOldContent()` 现在先证明基准有效：非空、`JSONArray` 可解析、新实例读回整体等于 `oldNote()`，
+  才返回磁盘字节。空文件或坏文件不可能再被当成「旧文件」。
+- 四项测试的轨迹断言改为**条数 + 顺序 + 每步形态**精确匹配：
+  F1 三步、F2 四步、F3 五步、F4 三步（合计八步），且都在恢复重试之前断言。
+- M1 原证据（`expected.length=0`）**降级**为粗粒度路径破坏证据；另做 M1′：
+  先用 `notesToJson` 写出 173 字节有效 v1（`sha256=581f59cd…`），再施加同一变异，
+  破坏后文件 0 字节、`save()` 却返回成功，断言在 `kt:271` 的字节比对处失败。
+- `NotesRepositoryFileTest` / `NotesWriteCoordinatorFileTest` 补了 `@Before/@After`，
+  指纹核验与沙箱清理在失败时也执行；`dispose()` 返回是否删净，清理失败会显式报出。
+- 表述统一为「路径隔离、前后指纹一致」，不再出现「一个字节都不会被碰到」。
 
 ## 环境
 
