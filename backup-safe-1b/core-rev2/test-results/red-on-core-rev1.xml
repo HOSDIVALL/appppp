@@ -1,0 +1,453 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="111" failures="17" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T19:44:15" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" tests="5" failures="0" errors="0" skipped="0" time="1.451" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="cancelDuringReplacementRollsBackAndRethrowsSameException" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.711" />
+    <testcase name="ioFailureAtCredentialLeavesNoCredentialAndRollsBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.231" />
+    <testcase name="cancelInsideNonCancellableWindowCommitsAndDoesNotRollBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.189" />
+    <testcase name="cancelDuringBackupAlsoRollsBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.139" />
+    <testcase name="ioFailureAtNotesIsTreatedAsRollbackNotCancellation" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.181" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" tests="13" failures="0" errors="0" skipped="0" time="0.337" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="abortedWithOldNotesIsAborted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.027" />
+    <testcase name="applyingWithoutCredentialIsInterruptedEvenWhenNotesAlreadyNew" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.020" />
+    <testcase name="unreadableJournalWithMatchingCredentialIsCommitted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.025" />
+    <testcase name="preparedWithoutCommitMaterialIsStagingFailed" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.019" />
+    <testcase name="emptyRootIsIdle" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.020" />
+    <testcase name="rollingBackWithCredentialIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.022" />
+    <testcase name="abortedButNotesChangedIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.020" />
+    <testcase name="txnWithoutJournalOrCredentialIsQuarantinedAndKept" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.019" />
+    <testcase name="unreadableJournalWithoutCredentialIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.024" />
+    <testcase name="applyingWithCredentialButOldNotesIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.020" />
+    <testcase name="secondTxnDirectoryNextToActiveJournalIsNotSilentlyIgnored" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.061" />
+    <testcase name="applyingWithMatchingCredentialIsCommitted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.029" />
+    <testcase name="credentialWithWrongDigestIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.031" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" tests="9" failures="0" errors="0" skipped="0" time="2.069" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="ordinarySaveAfterCleanupIsNotMistakenForCorruption" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.051" />
+    <testcase name="journalDeleteFailureKeepsCredentialAndCommitFact" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.054" />
+    <testcase name="materialDeleteFailureStopsBeforeEvidence" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.046" />
+    <testcase name="credentialDeleteFailureKeepsJournalGoneAndMaterialsGone" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.044" />
+    <testcase name="resultsRemainQueryableByTxnIdAfterCleanup" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.060" />
+    <testcase name="resultsAreCappedAndDeduplicated" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="1.656" />
+    <testcase name="cleanupRefusesInterruptedStateAndKeepsMaterials" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.045" />
+    <testcase name="materialsAreNeverLeftWithoutEvidence" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.057" />
+    <testcase name="resultWriteFailureStopsBeforeAnyDeletion" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.056" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" tests="11" failures="0" errors="0" skipped="0" time="1.066" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="identicalNotesDifferentAttachmentsRollsBackAttachmentsOnly" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.217" />
+    <testcase name="unsafeTxnIdIsRejected" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.019" />
+    <testcase name="insufficientSpaceIsNotStarted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.059" />
+    <testcase name="happyPathCommitsReplacesAttachmentsAndCleansUp" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.236" />
+    <testcase name="unreadableNotesIsNotStarted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.067" />
+    <testcase name="activeJournalRefusesSecondCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.060" />
+    <testcase name="absentOldNotesIsCreatedWithoutCopy" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.140" />
+    <testcase name="materialChangedIsNotStartedAndTouchesNothing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.071" />
+    <testcase name="journalWriteFailureLeavesLiveDataUntouched" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.072" />
+    <testcase name="commitRefusesWhenGateIsBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.069" />
+    <testcase name="quarantinedTransactionBlocksNewCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.056" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" tests="9" failures="0" errors="0" skipped="0" time="0.161" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="journalWithDuplicateAttachmentNamesIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.028" />
+    <testcase name="resultsFileIsNotEvidence" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.024" />
+    <testcase name="journalRoundTripKeepsEveryField" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.008" />
+    <testcase name="journalWithWrongFieldTypeIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.023" />
+    <testcase name="credentialRequiresDigestAndTimestamp" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.017" />
+    <testcase name="journalWithUnknownStateIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.009" />
+    <testcase name="atomicWriteLeavesNoTemporaryFiles" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.016" />
+    <testcase name="resultsRequireConsumedFlag" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.017" />
+    <testcase name="tornJournalWriteIsUnreadableNotGuessed" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.019" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CancelTest" tests="2" failures="0" errors="0" skipped="0" time="0.273" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="cancelWhileCopyingOldAttachmentIsSettledByTheSameCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CancelTest" time="0.150" />
+    <testcase name="cancelWhileCopyingOldNotesIsSettledByTheSameCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CancelTest" time="0.123" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" tests="3" failures="0" errors="0" skipped="0" time="0.099" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="cleanupAfterAbortedAlsoChecksTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" time="0.027" />
+    <testcase name="wrongTxnIdDoesNotConsumeTheRealCleanup" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" time="0.040" />
+    <testcase name="cleanupWithWrongTxnIdTouchesNothing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" time="0.032" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" tests="11" failures="0" errors="0" skipped="0" time="0.189" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="journalWithTraversalTxnIdIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.016" />
+    <testcase name="journalWithTraversalAttachmentNameIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.016" />
+    <testcase name="unreadableCredentialIsNotTreatedAsAbsent" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.031" />
+    <testcase name="credentialWithMalformedDigestIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.024" />
+    <testcase name="attachmentWithoutOldFieldIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.016" />
+    <testcase name="attachmentWithoutNewFieldIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.013" />
+    <testcase name="journalWithMalformedDigestIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.008" />
+    <testcase name="journalWithoutOldNotesDigestIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.017" />
+    <testcase name="wellFormedJournalStillDecodes" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.008" />
+    <testcase name="credentialWithTraversalTxnIdIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.015" />
+    <testcase name="journalWithUnsafeTxnIdNeverReachesDisk" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.025" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" tests="8" failures="1" errors="0" skipped="0" time="1.513" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="recoverWaitsForInFlightSave" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="1.033" />
+    <testcase name="foreignTicketIsRefused" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.029" />
+    <testcase name="replayIsRefusedAsStaleNotBusy" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.085">
+      <failure>java.lang.AssertionError: expected:&lt;Current&gt; but was:&lt;Stale&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest$replayIsRefusedAsStaleNotBusy$1.invokeSuspend(ImportTxnRev1GateTest.kt:173)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest.replayIsRefusedAsStaleNotBusy(ImportTxnRev1GateTest.kt:161)
+</failure>
+    </testcase>
+    <testcase name="recoverAfterQuarantineKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.034" />
+    <testcase name="cleanupRefusedByStateStillKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.036" />
+    <testcase name="recoverAfterCorruptKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.010" />
+    <testcase name="commitWithUnfinishedCleanupKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.200" />
+    <testcase name="recoverAfterRollbackFailedKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.086" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" tests="11" failures="0" errors="0" skipped="0" time="0.530" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="rollbackRefusedWhenQuarantined" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.039" />
+    <testcase name="rollbackRefusedForDifferentTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.028" />
+    <testcase name="rollbackRefusedWhenApplyingButCredentialIsValid" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.036" />
+    <testcase name="rollbackStopsWhenManifestDisagrees" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.080" />
+    <testcase name="rollbackStopsWhenAttachmentContentIsNeitherOldNorNew" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.075" />
+    <testcase name="rollbackStopsWhenNotesIsNeitherOldNorNew" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.061" />
+    <testcase name="rollbackStopsWhenManifestIsMissing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.064" />
+    <testcase name="rollbackRefusedForUnsafeTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.032" />
+    <testcase name="rollbackRefusedWhenStateIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.033" />
+    <testcase name="rollbackWithoutAnyRestoreDoesNotNeedManifest" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.064" />
+    <testcase name="cleanupRefusedForUnsafeTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.018" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" tests="7" failures="6" errors="0" skipped="0" time="0.535" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="unreadableNotesWithNoOldCopyIsNotTreatedAsRestored" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.080">
+      <failure>java.lang.AssertionError: 读不出 notes 就不能宣称已回滚，实际=Restored
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest$unreadableNotesWithNoOldCopyIsNotTreatedAsRestored$1.invokeSuspend(ImportTxnRev2DigestTest.kt:57)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest.unreadableNotesWithNoOldCopyIsNotTreatedAsRestored(ImportTxnRev2DigestTest.kt:50)
+</failure>
+    </testcase>
+    <testcase name="directoryPlaceholderForNewAttachmentIsNotAbsent" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.093">
+      <failure>java.lang.AssertionError: 目录占位不等于文件不存在，实际=Restored
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest$directoryPlaceholderForNewAttachmentIsNotAbsent$1.invokeSuspend(ImportTxnRev2DigestTest.kt:110)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest.directoryPlaceholderForNewAttachmentIsNotAbsent(ImportTxnRev2DigestTest.kt:101)
+</failure>
+    </testcase>
+    <testcase name="unreadableNotesWithOldCopyReportsUnreadableNotMissing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.076">
+      <failure>java.lang.AssertionError: 原因必须是读不出来，而不是不存在：Failed(detail=notes-missing)
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest$unreadableNotesWithOldCopyReportsUnreadableNotMissing$1.invokeSuspend(ImportTxnRev2DigestTest.kt:75)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest.unreadableNotesWithOldCopyReportsUnreadableNotMissing(ImportTxnRev2DigestTest.kt:68)
+</failure>
+    </testcase>
+    <testcase name="healthySceneStillRollsBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.108" />
+    <testcase name="directoryPlaceholderForNotesIsNotAbsent" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.031">
+      <failure>java.lang.AssertionError: 目录占位必须报 unreadable：Corrupt(reason=prepared-but-notes-changed)
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest$directoryPlaceholderForNotesIsNotAbsent$1.invokeSuspend(ImportTxnRev2DigestTest.kt:139)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest.directoryPlaceholderForNotesIsNotAbsent(ImportTxnRev2DigestTest.kt:130)
+</failure>
+    </testcase>
+    <testcase name="unreadableNewAttachmentWithNoOldCopyStopsRollback" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.111">
+      <failure>java.lang.AssertionError: 读不出附件就不能判它不存在，实际=Restored
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest$unreadableNewAttachmentWithNoOldCopyStopsRollback$1.invokeSuspend(ImportTxnRev2DigestTest.kt:90)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest.unreadableNewAttachmentWithNoOldCopyStopsRollback(ImportTxnRev2DigestTest.kt:83)
+</failure>
+    </testcase>
+    <testcase name="classifierReportsUnreadableNotesNotChangedNotes" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.036">
+      <failure>java.lang.AssertionError: 原因必须是读不出来，而不是内容变了：Corrupt(reason=prepared-but-notes-changed)
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest$classifierReportsUnreadableNotesNotChangedNotes$1.invokeSuspend(ImportTxnRev2DigestTest.kt:123)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest.classifierReportsUnreadableNotesNotChangedNotes(ImportTxnRev2DigestTest.kt:116)
+</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" tests="3" failures="3" errors="0" skipped="0" time="0.056" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="ownSuccessKeepsItsCallbackCurrentWhileReplayIsRefused" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" time="0.010">
+      <failure>java.lang.AssertionError: 自身最新一次成功写入的回调必须仍然有效 expected:&lt;Current&gt; but was:&lt;Stale&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest$ownSuccessKeepsItsCallbackCurrentWhileReplayIsRefused$1.invokeSuspend(ImportTxnRev2GateTest.kt:31)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest.ownSuccessKeepsItsCallbackCurrentWhileReplayIsRefused(ImportTxnRev2GateTest.kt:26)
+</failure>
+    </testcase>
+    <testcase name="crossingGenerationRetiresCallbackWithoutANewerWrite" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" time="0.013">
+      <failure>java.lang.AssertionError: expected:&lt;Current&gt; but was:&lt;Stale&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest$crossingGenerationRetiresCallbackWithoutANewerWrite$1.invokeSuspend(ImportTxnRev2GateTest.kt:73)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest.crossingGenerationRetiresCallbackWithoutANewerWrite(ImportTxnRev2GateTest.kt:69)
+</failure>
+    </testcase>
+    <testcase name="newerCompletionRetiresThePreviousCallback" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" time="0.033">
+      <failure>java.lang.AssertionError: 新票还没写出内容，旧回调仍是最新的一次成功写入 expected:&lt;Current&gt; but was:&lt;Stale&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest$newerCompletionRetiresThePreviousCallback$1.invokeSuspend(ImportTxnRev2GateTest.kt:57)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest.newerCompletionRetiresThePreviousCallback(ImportTxnRev2GateTest.kt:51)
+</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" tests="5" failures="5" errors="0" skipped="0" time="0.276" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="symlinkedRootIsNotTreatedAsTheStorageRoot" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.040">
+      <failure>java.lang.AssertionError: 根是链接时不得当成可用存储根
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest$symlinkedRootIsNotTreatedAsTheStorageRoot$1.invokeSuspend(ImportTxnRev2LayoutTest.kt:132)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest.symlinkedRootIsNotTreatedAsTheStorageRoot(ImportTxnRev2LayoutTest.kt:125)
+</failure>
+    </testcase>
+    <testcase name="commitNeverWritesOutsideRootThroughSymlinkedImportDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.061">
+      <failure>java.lang.AssertionError: 布局不安全时不得落地材料，实际=Ready(txnId=t1, commitDigest=c8a053d75c2a82562d37bdcdaf712e73ed33fe43c6086edf6e7c19fb73572236)
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest$commitNeverWritesOutsideRootThroughSymlinkedImportDir$1.invokeSuspend(ImportTxnRev2LayoutTest.kt:113)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest.commitNeverWritesOutsideRootThroughSymlinkedImportDir(ImportTxnRev2LayoutTest.kt:104)
+</failure>
+    </testcase>
+    <testcase name="recoverNeverWritesThroughSymlinkedImportDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.069">
+      <failure>org.junit.ComparisonFailure: 根外 journal 被改写 expected:&lt;...version":1,"state":"[APPLYING","txnId":"t1","commitDigest":"c8a053d75c2a82562d37bdcdaf712e73ed33fe43c6086edf6e7c19fb73572236","oldNotesDigest":"57925eae8e3225ad4fe508251774ed1f190941a4657dd81f1f8bec498bf51dfb","attachments":[{"name":"a.jpg","old":"27ecd0a598e76f8a2fd264d427df0a119903e8eae384e478902541756f089dd1","new":"bb72b4e4eb29dc59328668f32e0511e3ac0e5ce4026b1591965216e49ca1f5d7"},{"name":"b.jpg","old":null,"new":"8655173af1ec080de2dae0c6d0a7a2da5ade8b2cf8117645da18b90aaefd0ee2"}],"failedAt":null]}&gt; but was:&lt;...version":1,"state":"[ROLLING_BACK","txnId":"t1","commitDigest":"c8a053d75c2a82562d37bdcdaf712e73ed33fe43c6086edf6e7c19fb73572236","oldNotesDigest":"57925eae8e3225ad4fe508251774ed1f190941a4657dd81f1f8bec498bf51dfb","attachments":[{"name":"a.jpg","old":"27ecd0a598e76f8a2fd264d427df0a119903e8eae384e478902541756f089dd1","new":"bb72b4e4eb29dc59328668f32e0511e3ac0e5ce4026b1591965216e49ca1f5d7"},{"name":"b.jpg","old":null,"new":"8655173af1ec080de2dae0c6d0a7a2da5ade8b2cf8117645da18b90aaefd0ee2"}],"failedAt":"notes-missing"]}&gt;
+	at org.junit.Assert.assertEquals(Assert.java:117)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest$recoverNeverWritesThroughSymlinkedImportDir$1.invokeSuspend(ImportTxnRev2LayoutTest.kt:95)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest.recoverNeverWritesThroughSymlinkedImportDir(ImportTxnRev2LayoutTest.kt:84)
+</failure>
+    </testcase>
+    <testcase name="cleanupNeverFollowsSymlinkedMaterialDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.060">
+      <failure>java.lang.AssertionError: 不得继续清理，实际=CleanupOutcome(cleaned=true, leftovers=[], stoppedAt=null)
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at org.junit.Assert.assertFalse(Assert.java:65)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest$cleanupNeverFollowsSymlinkedMaterialDir$1.invokeSuspend(ImportTxnRev2LayoutTest.kt:74)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest.cleanupNeverFollowsSymlinkedMaterialDir(ImportTxnRev2LayoutTest.kt:59)
+</failure>
+    </testcase>
+    <testcase name="discardNeverFollowsSymlinkedTxnDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.046">
+      <failure>java.lang.AssertionError: 不得声称已清除，实际=CleanupOutcome(cleaned=true, leftovers=[], stoppedAt=null)
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at org.junit.Assert.assertFalse(Assert.java:65)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest$discardNeverFollowsSymlinkedTxnDir$1.invokeSuspend(ImportTxnRev2LayoutTest.kt:48)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest.discardNeverFollowsSymlinkedTxnDir(ImportTxnRev2LayoutTest.kt:39)
+</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" tests="8" failures="0" errors="0" skipped="0" time="0.787" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="repeatedInterruptionsStillConverge" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.177" />
+    <testcase name="corruptedCopyWithCorrectDigestInJournalStopsWrite" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.081" />
+    <testcase name="notesReplacedWithoutCredentialRestoresOld" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.118" />
+    <testcase name="missingOldCopyStopsAndKeepsMaterials" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.081" />
+    <testcase name="rollbackThenCleanupLeavesNothingBehind" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.113" />
+    <testcase name="rollbackRefusesCommittedTransaction" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.040" />
+    <testcase name="onlyAppliedAttachmentsAreRestored" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.110" />
+    <testcase name="rollbackWithoutOldNotesDeletesTheFile" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.067" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.WriteGateTest" tests="6" failures="2" errors="0" skipped="0" time="0.085" timestamp="2026-11-11T19:44:15" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="olderTicketBecomesStaleAfterANewerWrite" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.013">
+      <failure>java.lang.AssertionError: 自身成功回调仍是最新的 expected:&lt;Current&gt; but was:&lt;Stale&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at com.example.myapplicationfirstapp.data.txn.WriteGateTest$olderTicketBecomesStaleAfterANewerWrite$1.invokeSuspend(WriteGateTest.kt:62)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.WriteGateTest.olderTicketBecomesStaleAfterANewerWrite(WriteGateTest.kt:56)
+</failure>
+    </testcase>
+    <testcase name="exclusiveIsRefusedWhenAlreadyImporting" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.013" />
+    <testcase name="exclusiveWriteClosesSavesAndInvalidatesCallbacksOnExit" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.019" />
+    <testcase name="writeAfterBlockingIsRefusedAndTicketStaysStale" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.014" />
+    <testcase name="refusedWhenNotOpenAndBlockNeverRuns" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.009" />
+    <testcase name="ticketIssuedAfterReopenIsWritable" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.017">
+      <failure>java.lang.AssertionError: 写完之后它才是最新的成功回调 expected:&lt;Current&gt; but was:&lt;Stale&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at com.example.myapplicationfirstapp.data.txn.WriteGateTest$ticketIssuedAfterReopenIsWritable$1.invokeSuspend(WriteGateTest.kt:52)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.txn.WriteGateTest.ticketIssuedAfterReopenIsWritable(WriteGateTest.kt:42)
+</failure>
+    </testcase>
+  </testsuite>
+</testsuites>
