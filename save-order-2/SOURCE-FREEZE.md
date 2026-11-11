@@ -130,6 +130,13 @@ d252ed3 test: verify note storage failures with real file operations
 即「远端一致」这一条**已确认成立**（远端确实还是 `26a5cd96`），失败发生在推送这一步的传输层，
 不是远端状态不符。等网络恢复后重跑同一条普通推送即可，无需任何额外操作。
 
+**补记（2026-11-11 15:36，交付文档前复核）**：又重跑了一次同一条普通推送
+`git push origin fix/backup-safe-1:fix/backup-safe-1`，仍然
+`fatal: unable to access 'https://github.com/HOSDIVALL/appppp.git/': CONNECT tunnel failed, response 502`。
+远端 `fix/backup-safe-1` 经只读核对仍为 `26a5cd96…`，未收到 `d252ed3`。
+除时间点外本节的结论与做法均不改变：未 force、未换 remote、未推 main、未建 PR、
+未用 Git Data API 改写源码分支引用。
+
 ---
 
 ## 6. 与已测内容的一致性 / 是否运行测试
