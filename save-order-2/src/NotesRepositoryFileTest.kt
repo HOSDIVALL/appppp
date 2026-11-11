@@ -3,9 +3,11 @@ package com.example.myapplicationfirstapp.data
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -16,15 +18,34 @@ import java.io.File
  * 说明清楚边界：
  * - 用的是**真实文件系统**（沙箱目录里的真 notes.json），不是内存字符串；
  * - 「重新读取」用的是**新的 NotesRepository 实例**，不是进程重启，
- *   所以本测试证明的是「写进文件、再从文件读回」，不证明进程被杀后的恢复行为。
+ *   所以本测试证明的是「写进文件、再从文件读回」，不证明进程被杀后的恢复行为；
+ * - 隔离是**路径隔离**：真实 notes.json 与沙箱路径不同，测试前后指纹比对一致。
+ *   本机真实 `files/` 里本来就没有 notes.json，前后都是 `<absent>`，
+ *   这证明隔离没有回落到真实路径，但不等于「进程内任何时刻都绝对没有触碰过真实路径」。
  */
 @RunWith(AndroidJUnit4::class)
 class NotesRepositoryFileTest {
 
+    private lateinit var sandbox: IsolatedAppContext
+    private var realBefore: String = "<unset>"
+
+    @Before
+    fun setUp() {
+        realBefore = realNotesFingerprint()
+        sandbox = isolatedStorage("round-trip")
+    }
+
+    /** 指纹核验与沙箱清理在**测试失败时也执行**；清理失败不会被静默忽略 */
+    @After
+    fun tearDown() {
+        if (!::sandbox.isInitialized) return
+        val violations = finishIsolatedTest(sandbox, realBefore)
+        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
+    }
+
     @Test
     fun repositorySaveReloadRoundTrip() = runBlocking {
-        val realBefore = realNotesFingerprint()
-        val context = isolatedStorage("round-trip")
+        val context = sandbox
         val filesDir = context.getFilesDir()
         val target = File(filesDir, "notes.json")
         assertFalse("沙箱里本不该有旧文件", target.exists())
@@ -110,8 +131,7 @@ class NotesRepositoryFileTest {
         // ---- 原子写的临时文件必须被清理 ----
         assertEquals("正常路径不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
 
-        // ---- 真实笔记文件一个字节都没被碰过 ----
-        assertEquals("沙箱测试不得改动真实 notes.json", realBefore, realNotesFingerprint())
+        // 真实 notes.json 的指纹比对在 @After 里做，测试失败时同样执行
 
         println("[SAVE-ORDER-2] round-trip ok: ${back.title}, ${back.todos.count { it.done }}/${back.todos.size} done")
     }

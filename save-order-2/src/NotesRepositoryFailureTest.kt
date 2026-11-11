@@ -2,10 +2,10 @@ package com.example.myapplicationfirstapp.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -25,6 +25,10 @@ import java.security.MessageDigest
  * - F2 的 `fd.sync()` 实际**没有**失败（真实实现被跳过），验证的是
  *   "内容已写满、还没 rename" 这个中间态下的保护；
  * - 临时文件、字节写入、fsync（F3）、删除都是真实文件操作。
+ *
+ * 隔离是**路径隔离**：真实 notes.json 与沙箱路径不同，测试前后指纹比对一致。
+ * 本机真实 `files/` 里本来就没有 notes.json，前后都是 `<absent>`，
+ * 这只能证明隔离没有回落到真实路径，不能推成「进程内任何时刻绝对没有写入真实路径」。
  */
 @RunWith(AndroidJUnit4::class)
 class NotesRepositoryFailureTest {
@@ -42,19 +46,12 @@ class NotesRepositoryFailureTest {
         sandbox = isolatedStorage("failure")
     }
 
+    /** 指纹核验与沙箱清理在**测试失败时也执行**；清理失败不会被静默忽略 */
     @After
     fun tearDown() {
-        try {
-            if (::sandbox.isInitialized) {
-                assertEquals(
-                    "路径隔离：真实 notes.json 指纹测试前后一致",
-                    realBefore,
-                    realNotesFingerprint()
-                )
-            }
-        } finally {
-            if (::sandbox.isInitialized) sandbox.dispose()
-        }
+        if (!::sandbox.isInitialized) return
+        val violations = finishIsolatedTest(sandbox, realBefore)
+        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
     }
 
     // ================= F1 =================
@@ -75,13 +72,15 @@ class NotesRepositoryFailureTest {
         )
         assertOldFileIntact(oldBytes)
 
-        // 轨迹：写完一半就炸，sync / rename 一步都没走到
-        val trace = ops.trace
-        assertTrue("应当已真实创建临时文件：$trace", trace.contains("createTemp"))
-        assertTrue("应当已真实打开输出流：$trace", trace.contains("openStream"))
-        assertTrue("应当已真实写入一半字节：$trace", trace.any { it.startsWith("write:partial") })
-        assertFalse("sync 不应被调用：$trace", trace.any { it.startsWith("sync") })
-        assertFalse("rename 不应被调用：$trace", trace.any { it.startsWith("rename") })
+        // 第一次尝试的轨迹必须是精确的这三步：建临时文件 → 打开流 → 半写后失败。
+        // 只检查"sync / rename 没出现"不够：重复事件、乱序、多写一次都逃得过去。
+        assertAttemptTrace(
+            "F1 第一次尝试",
+            ops.trace,
+            "createTemp",
+            "openStream",
+            "write(partial)"
+        )
 
         // 同一个 Repository 实例、同一路径恢复正常
         repository.save(listOf(newNote()))
@@ -106,13 +105,15 @@ class NotesRepositoryFailureTest {
         )
         assertOldFileIntact(oldBytes)
 
-        val trace = ops.trace
-        assertTrue(
-            "完整内容应已真实写入临时文件：$trace",
-            trace.any { it.startsWith("write(") && !it.contains("partial") }
+        // 精确四步：建临时文件 → 打开流 → 完整写 → sync 处注入失败。rename 一次都不该出现。
+        assertAttemptTrace(
+            "F2 第一次尝试",
+            ops.trace,
+            "createTemp",
+            "openStream",
+            "write(full)",
+            "sync-injected"
         )
-        assertTrue("sync 应被调用并在此注入失败：$trace", trace.any { it.startsWith("sync") })
-        assertFalse("rename 不应被调用：$trace", trace.any { it.startsWith("rename") })
 
         repository.save(listOf(newNote()))
         assertSavedNewContent(oldBytes)
@@ -133,13 +134,18 @@ class NotesRepositoryFailureTest {
         assertEquals("Cannot replace notes file", (error as IOException).message)
         assertOldFileIntact(oldBytes)
 
-        val trace = ops.trace
-        assertTrue(
-            "完整内容应已真实写入：$trace",
-            trace.any { it.startsWith("write(") && !it.contains("partial") }
+        // 精确五步，顺序固定、每步只允许一次：
+        // createTemp → openStream → 完整写 → **真实 fd.sync** → rename 注入返回 false。
+        // 仅断言"三个事件都出现过"是不够的：那放过重复、乱序、以及 rename 先于 sync 的实现错误。
+        assertAttemptTrace(
+            "F3 第一次尝试",
+            ops.trace,
+            "createTemp",
+            "openStream",
+            "write(full)",
+            "sync",
+            "rename-injected-false"
         )
-        assertTrue("真实 fd.sync 应已执行：$trace", trace.contains("sync"))
-        assertTrue("rename 应被调用并返回 false：$trace", trace.contains("rename-injected-false"))
 
         repository.save(listOf(newNote()))
         assertSavedNewContent(oldBytes)
@@ -160,6 +166,15 @@ class NotesRepositoryFailureTest {
         assertOldFileIntact(oldBytes)
         assertEquals("注入应恰好发生一次", 1, ops.injectedCount)
 
+        // 恢复重试**之前**，先把第一次尝试的轨迹钉死
+        assertAttemptTrace(
+            "F4 第一次尝试（恢复重试之前）",
+            ops.trace,
+            "createTemp",
+            "openStream",
+            "write(partial)"
+        )
+
         // 同一个 Repository 实例 + 同一个路径，第二次不再注入
         repository.save(listOf(newNote()))
 
@@ -168,23 +183,57 @@ class NotesRepositoryFailureTest {
         assertEquals("第二版正文", NotesRepository(sandbox).load().single().content)
         assertEquals("恢复后不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
 
-        val trace = ops.trace
-        assertEquals("两次保存各建一个临时文件：$trace", 2, trace.count { it == "createTemp" })
-        assertEquals(
-            "只有第二次写出了完整内容：$trace",
-            1,
-            trace.count { it.startsWith("write(") && !it.contains("partial") }
+        // 两次尝试拼起来的完整轨迹也逐项核对：2 次建临时文件、1 次半写、1 次完整写、1 次真实 sync、1 次真实 rename
+        assertAttemptTrace(
+            "F4 两次尝试合计",
+            ops.trace,
+            "createTemp",
+            "openStream",
+            "write(partial)",
+            "createTemp",
+            "openStream",
+            "write(full)",
+            "sync",
+            "rename(true)"
         )
-        assertEquals("第二次应真的 rename 成功：$trace", 1, trace.count { it == "rename(true)" })
     }
 
     // ================= 公共断言 =================
 
-    /** 用真实 IO 写入 v1，返回磁盘上的原始字节 */
+    /**
+     * 用真实 IO 写入 v1，并**先证明基准是有效的**再返回磁盘原始字节。
+     *
+     * 不允许拿空文件或坏文件当「旧文件保持不变」的基准：
+     * 一旦 v1 没写成功，后面的字节比对会毫无意义地通过。
+     */
     private suspend fun seedOldContent(): ByteArray {
         NotesRepository(sandbox).save(listOf(oldNote()))
+
         assertTrue("前置：v1 必须已落盘", target.isFile)
-        return target.readBytes()
+        assertTrue("前置：v1 不得为空文件，实际 ${target.length()} 字节", target.length() > 0L)
+
+        // 前置：磁盘上必须是可解析的 JSON（不是半截内容）
+        val raw = target.readText(Charsets.UTF_8)
+        val array = JSONArray(raw)
+        assertEquals("前置：磁盘上应当只有一条笔记", 1, array.length())
+        val json = array.getJSONObject(0)
+        assertEquals("note-v1", json.getString("id"))
+        assertEquals("v1 旧内容", json.getString("title"))
+        assertEquals("第一版正文", json.getString("content"))
+        assertEquals(1_760_000_100_000L, json.getLong("updatedAt"))
+
+        // 前置：新实例读回来的对象必须等于预期 v1（字段级 + 整体相等）
+        val reloaded = NotesRepository(sandbox).load()
+        assertEquals("前置：新实例应当读回一条 v1", 1, reloaded.size)
+        val back = reloaded.single()
+        assertEquals("v1 旧内容", back.title)
+        assertEquals("第一版正文", back.content)
+        assertEquals(1_760_000_100_000L, back.updatedAt)
+        assertEquals("前置：读回的笔记必须整体等于预期 v1", oldNote(), back)
+
+        val bytes = target.readBytes()
+        assertEquals("前置：读回字节长度应与文件一致", target.length(), bytes.size.toLong())
+        return bytes
     }
 
     /** 失败之后：旧文件逐字节不变、临时文件已清理、新实例仍能读到 v1 */
@@ -212,6 +261,35 @@ class NotesRepositoryFailureTest {
         assertEquals(1_760_000_200_000L, reloaded.single().updatedAt)
         assertNotEquals("恢复后哈希必须变化", oldBytes.sha256(), target.sha256Hex())
         assertEquals("恢复后不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
+    }
+
+    /**
+     * 精确断言一次（或一段）尝试的操作轨迹。
+     *
+     * 只检查"某些事件出现过"是不够的：重复、乱序、多做一步都会被放过。
+     * 这里同时钉住**条数**与**每一步的顺序和形态**：
+     * - `"createTemp"` / `"openStream"` / `"sync"` / `"sync-injected"` / `"rename(true)"` 等按字面精确匹配；
+     * - `"write(full)"` 匹配完整写入（形如 `write(86)`，且不是 partial）；
+     * - `"write(partial)"` 匹配半写后注入失败（形如 `write:partial(43/86)-injected`）。
+     */
+    private fun assertAttemptTrace(stage: String, actual: List<String>, vararg expected: String) {
+        assertEquals(
+            "$stage：轨迹条数必须精确，实际 ${actual.size} 步：$actual",
+            expected.size,
+            actual.size
+        )
+        expected.forEachIndexed { index, want ->
+            val got = actual[index]
+            val matched = when (want) {
+                "write(full)" -> got.startsWith("write(") && !got.contains("partial")
+                "write(partial)" -> got.startsWith("write:partial(") && got.endsWith("-injected")
+                else -> got == want
+            }
+            assertTrue(
+                "$stage：第 ${index + 1} 步应为 $want，实际为 $got；完整轨迹：$actual",
+                matched
+            )
+        }
     }
 
     private fun oldNote() = Note(

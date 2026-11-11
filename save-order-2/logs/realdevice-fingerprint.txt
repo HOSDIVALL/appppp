@@ -1,0 +1,19 @@
+captured: 2026-11-11 15:08:21 +0800
+device   : 6LZT7T7TM7NZL799  Redmi 23078RKD5C (corot)  Android 16 / API 36  arm64-v8a
+method   : adb install -r (data preserved) + am instrument, NOT connectedDebugAndroidTest
+
+[notes.json]
+  before install : 83275cf129453228fb70d96202843b5969e2880ee3b2b038b5fd25446d1a4795  len=2793
+  after  21 tests: 83275cf129453228fb70d96202843b5969e2880ee3b2b038b5fd25446d1a4795  len=2793
+  mtime          : 2026-11-10 18:54 (unchanged)
+
+[files/ inventory]
+  attachments : 9  -> 9
+  recordings  : 57 -> 57
+  asr/        : present -> present
+
+[sandbox]
+  cache/save-order-2 : exists, empty (UUID subdirs removed)
+
+[instrumentation]
+  OK (21 tests), 21 individual started + 1 summary line, 0 failed

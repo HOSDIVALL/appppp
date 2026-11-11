@@ -1,0 +1,14 @@
+
+com.example.myapplicationfirstapp.ExampleInstrumentedTest:.
+com.example.myapplicationfirstapp.data.BackupNotesParserTest:......
+com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest:....
+com.example.myapplicationfirstapp.data.NotesRepositoryFileTest:.
+com.example.myapplicationfirstapp.data.NotesWriteCoordinatorFileTest:.
+com.example.myapplicationfirstapp.data.NotesWriteCoordinatorTest:.....
+com.example.myapplicationfirstapp.ui.AttachmentImageLoaderTest:...
+
+Time: 0.335
+
+OK (21 tests)
+
+

@@ -1,0 +1,859 @@
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
+new file mode 100644
+index 0000000..890b627
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
+@@ -0,0 +1,113 @@
++package com.example.myapplicationfirstapp.data
++
++import android.content.Context
++import android.content.ContextWrapper
++import androidx.test.platform.app.InstrumentationRegistry
++import java.io.File
++import java.security.MessageDigest
++import java.util.UUID
++
++/**
++ * 测试专用：把 filesDir / cacheDir 重定向到 cacheDir 下的临时沙箱。
++ *
++ * 生产代码里 [NotesRepository] 读的是 `context.applicationContext.filesDir`，
++ * 所以只 override `getFilesDir()` 还不够 —— 默认实现会转发给真实 Application，
++ * 仍然指向真机上的笔记目录。这里让 wrapper 自己充当 applicationContext，
++ * `filesDir` 就落在沙箱里。
++ *
++ * 这带来的是**路径隔离**：真实 notes.json 与沙箱路径不同，测试前后的指纹比对应当一致。
++ * 它不构成「进程内任何时刻都绝对没有触碰真实路径」的证明，只是本仓库能达到的最强检查。
++ *
++ * 只在 androidTest 里使用，不进入生产代码。
++ */
++internal class IsolatedAppContext(base: Context, internal val rootDir: File) : ContextWrapper(base) {
++    private val isolatedFiles = File(rootDir, "files")
++    private val isolatedCache = File(rootDir, "cache")
++
++    override fun getApplicationContext(): Context = this
++
++    override fun getFilesDir(): File {
++        isolatedFiles.mkdirs()
++        return isolatedFiles
++    }
++
++    override fun getCacheDir(): File {
++        isolatedCache.mkdirs()
++        return isolatedCache
++    }
++
++    /**
++     * 只删本测试自己的 UUID 沙箱，公共父目录 `save-order-2/` 保留。
++     *
++     * 返回是否真的删干净了 —— 调用方必须检查，不允许静默忽略清理失败。
++     */
++    fun dispose(): Boolean {
++        rootDir.deleteRecursively()
++        return !rootDir.exists()
++    }
++}
++
++/** 每次调用都返回一个全新空沙箱，测试之间互不干扰 */
++internal fun isolatedStorage(tag: String): IsolatedAppContext {
++    val base = InstrumentationRegistry.getInstrumentation().targetContext
++    val root = File(base.cacheDir, "save-order-2/$tag-${UUID.randomUUID()}")
++    check(root.mkdirs() || root.isDirectory) { "Cannot create isolated root: $root" }
++    return IsolatedAppContext(base, root)
++}
++
++internal fun File.sha256Hex(): String {
++    val digest = MessageDigest.getInstance("SHA-256")
++    return digest.digest(readBytes()).joinToString("") { "%02x".format(it) }
++}
++
++/** 沙箱内残留的原子写临时文件（正常路径结束后必须为空） */
++internal fun File.listTempNotesFiles(): List<String> =
++    listFiles { f -> f.isFile && f.name.startsWith("notes-") && f.name.endsWith(".tmp") }
++        ?.map { it.name }
++        ?.sorted()
++        ?: emptyList()
++
++/**
++ * 真机/模拟器上「真实」笔记文件的指纹（不存在时返回 "<absent>"）。
++ * 测试前后各取一次并比对，用来证明沙箱测试没有落到应用真实路径上。
++ */
++internal fun realNotesFingerprint(): String {
++    val real = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "notes.json")
++    return if (real.isFile) real.sha256Hex() else "<absent>"
++}
++
++/**
++ * 统一收尾：先比对真实 notes.json 指纹，再删除本测试自己的 UUID 沙箱。
++ *
++ * 两步都必须在**测试失败时也执行**，所以这里不抛异常，而是把问题收集成清单返回，
++ * 由 `@After` 统一断言。清理失败不会被静默忽略。
++ */
++internal fun finishIsolatedTest(sandbox: IsolatedAppContext, realBefore: String): List<String> {
++    val violations = mutableListOf<String>()
++
++    try {
++        val after = realNotesFingerprint()
++        if (after != realBefore) {
++            violations += "路径隔离失效：真实 notes.json 指纹前后不一致（before=$realBefore after=$after）"
++        }
++    } catch (t: Throwable) {
++        violations += "读取真实 notes.json 指纹失败：$t"
++    }
++
++    var cleared = false
++    try {
++        cleared = sandbox.dispose()
++    } catch (t: Throwable) {
++        violations += "清理沙箱时抛异常：$t"
++    }
++    if (!cleared) {
++        violations += "本测试的 UUID 沙箱未被删除：${sandbox.rootDir}"
++    }
++
++    val parent = sandbox.rootDir.parentFile
++    if (parent == null || !parent.isDirectory) {
++        violations += "公共父目录 save-order-2/ 不得被删除：$parent"
++    }
++
++    return violations
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesRepositoryFailureTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesRepositoryFailureTest.kt
+new file mode 100644
+index 0000000..1e5242f
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesRepositoryFailureTest.kt
+@@ -0,0 +1,376 @@
++package com.example.myapplicationfirstapp.data
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.json.JSONArray
++import org.junit.After
++import org.junit.Assert.assertArrayEquals
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNotEquals
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++import java.io.FileOutputStream
++import java.io.IOException
++import java.security.MessageDigest
++
++/**
++ * SAVE-ORDER-2 / 故障注入：原子写失败时必须保住旧文件。
++ *
++ * 诚实边界（不得表述成真实故障）：
++ * - 这里注入的是**我们自己构造的 IOException** 或 `rename` 返回 false，
++ *   不是内核返回的 ENOSPC / EIO，也不是真实掉电；
++ * - F2 的 `fd.sync()` 实际**没有**失败（真实实现被跳过），验证的是
++ *   "内容已写满、还没 rename" 这个中间态下的保护；
++ * - 临时文件、字节写入、fsync（F3）、删除都是真实文件操作。
++ *
++ * 隔离是**路径隔离**：真实 notes.json 与沙箱路径不同，测试前后指纹比对一致。
++ * 本机真实 `files/` 里本来就没有 notes.json，前后都是 `<absent>`，
++ * 这只能证明隔离没有回落到真实路径，不能推成「进程内任何时刻绝对没有写入真实路径」。
++ */
++@RunWith(AndroidJUnit4::class)
++class NotesRepositoryFailureTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realBefore: String = "<unset>"
++
++    private val filesDir: File get() = sandbox.getFilesDir()
++    private val target: File get() = File(filesDir, "notes.json")
++
++    @Before
++    fun setUp() {
++        // 指纹在测试体之前取，失败时也在 @After 里再取一次做比对
++        realBefore = realNotesFingerprint()
++        sandbox = isolatedStorage("failure")
++    }
++
++    /** 指纹核验与沙箱清理在**测试失败时也执行**；清理失败不会被静默忽略 */
++    @After
++    fun tearDown() {
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realBefore)
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    // ================= F1 =================
++
++    @Test
++    fun tempWriteFailureKeepsOldFile() = runBlocking {
++        val oldBytes = seedOldContent()
++
++        val ops = InjectingFileOps(failAt = InjectingFileOps.Step.WRITE)
++        val repository = NotesRepository(sandbox, ops)
++
++        val error = runCatching { repository.save(listOf(newNote())) }.exceptionOrNull()
++
++        assertTrue("调用方必须收到 IOException，实际是 $error", error is IOException)
++        assertTrue(
++            "必须是写盘失败而不是别的路径，实际消息：${(error as IOException).message}",
++            error.message.orEmpty().contains("injected: write")
++        )
++        assertOldFileIntact(oldBytes)
++
++        // 第一次尝试的轨迹必须是精确的这三步：建临时文件 → 打开流 → 半写后失败。
++        // 只检查"sync / rename 没出现"不够：重复事件、乱序、多写一次都逃得过去。
++        assertAttemptTrace(
++            "F1 第一次尝试",
++            ops.trace,
++            "createTemp",
++            "openStream",
++            "write(partial)"
++        )
++
++        // 同一个 Repository 实例、同一路径恢复正常
++        repository.save(listOf(newNote()))
++        assertSavedNewContent(oldBytes)
++    }
++
++    // ================= F2 =================
++
++    @Test
++    fun syncFailureKeepsOldFile() = runBlocking {
++        val oldBytes = seedOldContent()
++
++        val ops = InjectingFileOps(failAt = InjectingFileOps.Step.SYNC)
++        val repository = NotesRepository(sandbox, ops)
++
++        val error = runCatching { repository.save(listOf(newNote())) }.exceptionOrNull()
++
++        assertTrue("调用方必须收到 IOException，实际是 $error", error is IOException)
++        assertTrue(
++            "必须停在 sync 步骤，实际消息：${(error as IOException).message}",
++            error.message.orEmpty().contains("injected: fsync")
++        )
++        assertOldFileIntact(oldBytes)
++
++        // 精确四步：建临时文件 → 打开流 → 完整写 → sync 处注入失败。rename 一次都不该出现。
++        assertAttemptTrace(
++            "F2 第一次尝试",
++            ops.trace,
++            "createTemp",
++            "openStream",
++            "write(full)",
++            "sync-injected"
++        )
++
++        repository.save(listOf(newNote()))
++        assertSavedNewContent(oldBytes)
++    }
++
++    // ================= F3 =================
++
++    @Test
++    fun renameFailureKeepsOldFile() = runBlocking {
++        val oldBytes = seedOldContent()
++
++        val ops = InjectingFileOps(failAt = InjectingFileOps.Step.RENAME)
++        val repository = NotesRepository(sandbox, ops)
++
++        val error = runCatching { repository.save(listOf(newNote())) }.exceptionOrNull()
++
++        assertTrue("调用方必须收到 IOException，实际是 $error", error is IOException)
++        assertEquals("Cannot replace notes file", (error as IOException).message)
++        assertOldFileIntact(oldBytes)
++
++        // 精确五步，顺序固定、每步只允许一次：
++        // createTemp → openStream → 完整写 → **真实 fd.sync** → rename 注入返回 false。
++        // 仅断言"三个事件都出现过"是不够的：那放过重复、乱序、以及 rename 先于 sync 的实现错误。
++        assertAttemptTrace(
++            "F3 第一次尝试",
++            ops.trace,
++            "createTemp",
++            "openStream",
++            "write(full)",
++            "sync",
++            "rename-injected-false"
++        )
++
++        repository.save(listOf(newNote()))
++        assertSavedNewContent(oldBytes)
++    }
++
++    // ================= F4 =================
++
++    @Test
++    fun retryAfterFailureSucceeds() = runBlocking {
++        val oldBytes = seedOldContent()
++
++        // 只失败一次的注入器
++        val ops = InjectingFileOps(failAt = InjectingFileOps.Step.WRITE)
++        val repository = NotesRepository(sandbox, ops)
++
++        val first = runCatching { repository.save(listOf(newNote())) }.exceptionOrNull()
++        assertTrue("第一次必须失败，实际是 $first", first is IOException)
++        assertOldFileIntact(oldBytes)
++        assertEquals("注入应恰好发生一次", 1, ops.injectedCount)
++
++        // 恢复重试**之前**，先把第一次尝试的轨迹钉死
++        assertAttemptTrace(
++            "F4 第一次尝试（恢复重试之前）",
++            ops.trace,
++            "createTemp",
++            "openStream",
++            "write(partial)"
++        )
++
++        // 同一个 Repository 实例 + 同一个路径，第二次不再注入
++        repository.save(listOf(newNote()))
++
++        assertEquals("第二次不应再注入", 1, ops.injectedCount)
++        assertEquals("v2 新内容", NotesRepository(sandbox).load().single().title)
++        assertEquals("第二版正文", NotesRepository(sandbox).load().single().content)
++        assertEquals("恢复后不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
++
++        // 两次尝试拼起来的完整轨迹也逐项核对：2 次建临时文件、1 次半写、1 次完整写、1 次真实 sync、1 次真实 rename
++        assertAttemptTrace(
++            "F4 两次尝试合计",
++            ops.trace,
++            "createTemp",
++            "openStream",
++            "write(partial)",
++            "createTemp",
++            "openStream",
++            "write(full)",
++            "sync",
++            "rename(true)"
++        )
++    }
++
++    // ================= 公共断言 =================
++
++    /**
++     * 用真实 IO 写入 v1，并**先证明基准是有效的**再返回磁盘原始字节。
++     *
++     * 不允许拿空文件或坏文件当「旧文件保持不变」的基准：
++     * 一旦 v1 没写成功，后面的字节比对会毫无意义地通过。
++     */
++    private suspend fun seedOldContent(): ByteArray {
++        NotesRepository(sandbox).save(listOf(oldNote()))
++
++        assertTrue("前置：v1 必须已落盘", target.isFile)
++        assertTrue("前置：v1 不得为空文件，实际 ${target.length()} 字节", target.length() > 0L)
++
++        // 前置：磁盘上必须是可解析的 JSON（不是半截内容）
++        val raw = target.readText(Charsets.UTF_8)
++        val array = JSONArray(raw)
++        assertEquals("前置：磁盘上应当只有一条笔记", 1, array.length())
++        val json = array.getJSONObject(0)
++        assertEquals("note-v1", json.getString("id"))
++        assertEquals("v1 旧内容", json.getString("title"))
++        assertEquals("第一版正文", json.getString("content"))
++        assertEquals(1_760_000_100_000L, json.getLong("updatedAt"))
++
++        // 前置：新实例读回来的对象必须等于预期 v1（字段级 + 整体相等）
++        val reloaded = NotesRepository(sandbox).load()
++        assertEquals("前置：新实例应当读回一条 v1", 1, reloaded.size)
++        val back = reloaded.single()
++        assertEquals("v1 旧内容", back.title)
++        assertEquals("第一版正文", back.content)
++        assertEquals(1_760_000_100_000L, back.updatedAt)
++        assertEquals("前置：读回的笔记必须整体等于预期 v1", oldNote(), back)
++
++        val bytes = target.readBytes()
++        assertEquals("前置：读回字节长度应与文件一致", target.length(), bytes.size.toLong())
++        return bytes
++    }
++
++    /** 失败之后：旧文件逐字节不变、临时文件已清理、新实例仍能读到 v1 */
++    private suspend fun assertOldFileIntact(before: ByteArray) {
++        assertTrue("旧文件必须还在", target.isFile)
++        assertArrayEquals("notes.json 字节必须逐字节不变", before, target.readBytes())
++        assertEquals("notes.json 长度必须不变", before.size.toLong(), target.length())
++        assertEquals("notes.json SHA-256 必须不变", before.sha256(), target.sha256Hex())
++
++        assertEquals("本次 notes-*.tmp 必须被清理", emptyList<String>(), filesDir.listTempNotesFiles())
++
++        val reloaded = NotesRepository(sandbox).load()
++        assertEquals("读回应当仍是一条 v1", 1, reloaded.size)
++        assertEquals("v1 旧内容", reloaded.single().title)
++        assertEquals("第一版正文", reloaded.single().content)
++        assertEquals(1_760_000_100_000L, reloaded.single().updatedAt)
++    }
++
++    /** 恢复保存之后：v2 落到磁盘，能被新实例读到，且没有残留 */
++    private suspend fun assertSavedNewContent(oldBytes: ByteArray) {
++        val reloaded = NotesRepository(sandbox).load()
++        assertEquals(1, reloaded.size)
++        assertEquals("v2 新内容", reloaded.single().title)
++        assertEquals("第二版正文", reloaded.single().content)
++        assertEquals(1_760_000_200_000L, reloaded.single().updatedAt)
++        assertNotEquals("恢复后哈希必须变化", oldBytes.sha256(), target.sha256Hex())
++        assertEquals("恢复后不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
++    }
++
++    /**
++     * 精确断言一次（或一段）尝试的操作轨迹。
++     *
++     * 只检查"某些事件出现过"是不够的：重复、乱序、多做一步都会被放过。
++     * 这里同时钉住**条数**与**每一步的顺序和形态**：
++     * - `"createTemp"` / `"openStream"` / `"sync"` / `"sync-injected"` / `"rename(true)"` 等按字面精确匹配；
++     * - `"write(full)"` 匹配完整写入（形如 `write(86)`，且不是 partial）；
++     * - `"write(partial)"` 匹配半写后注入失败（形如 `write:partial(43/86)-injected`）。
++     */
++    private fun assertAttemptTrace(stage: String, actual: List<String>, vararg expected: String) {
++        assertEquals(
++            "$stage：轨迹条数必须精确，实际 ${actual.size} 步：$actual",
++            expected.size,
++            actual.size
++        )
++        expected.forEachIndexed { index, want ->
++            val got = actual[index]
++            val matched = when (want) {
++                "write(full)" -> got.startsWith("write(") && !got.contains("partial")
++                "write(partial)" -> got.startsWith("write:partial(") && got.endsWith("-injected")
++                else -> got == want
++            }
++            assertTrue(
++                "$stage：第 ${index + 1} 步应为 $want，实际为 $got；完整轨迹：$actual",
++                matched
++            )
++        }
++    }
++
++    private fun oldNote() = Note(
++        id = "note-v1",
++        title = "v1 旧内容",
++        content = "第一版正文",
++        createdAt = 1_760_000_000_000L,
++        updatedAt = 1_760_000_100_000L
++    )
++
++    private fun newNote() = Note(
++        id = "note-v2",
++        title = "v2 新内容",
++        content = "第二版正文",
++        createdAt = 1_760_000_000_000L,
++        updatedAt = 1_760_000_200_000L
++    )
++
++    private fun ByteArray.sha256(): String =
++        MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { "%02x".format(it) }
++
++    /**
++     * 测试专用故障注入器：只失败一次，之后完全走 [RealNotesFileOps]。
++     * 所有真实步骤（建临时文件、写字节、fsync、rename）都委托给真实实现，
++     * 注入点只有"在哪一步抛"和"rename 返回 false"。
++     */
++    private class InjectingFileOps(
++        private val delegate: NotesFileOps = RealNotesFileOps,
++        private val failAt: Step
++    ) : NotesFileOps {
++
++        enum class Step { WRITE, SYNC, RENAME }
++
++        private val events = mutableListOf<String>()
++        val trace: List<String> get() = events.toList()
++
++        var injectedCount = 0
++            private set
++
++        override fun createTemp(parent: File): File {
++            events += "createTemp"
++            return delegate.createTemp(parent)
++        }
++
++        override fun openStream(temp: File): FileOutputStream {
++            events += "openStream"
++            return delegate.openStream(temp)
++        }
++
++        override fun write(out: FileOutputStream, bytes: ByteArray) {
++            if (failAt == Step.WRITE && injectedCount == 0) {
++                injectedCount++
++                val half = bytes.size / 2
++                delegate.write(out, bytes.copyOf(half))
++                out.flush()
++                events += "write:partial($half/${bytes.size})-injected"
++                throw IOException("injected: write failed after $half of ${bytes.size} bytes")
++            }
++            delegate.write(out, bytes)
++            events += "write(${bytes.size})"
++        }
++
++        override fun sync(out: FileOutputStream) {
++            if (failAt == Step.SYNC && injectedCount == 0) {
++                injectedCount++
++                events += "sync-injected"
++                throw IOException("injected: fsync failed")
++            }
++            delegate.sync(out)
++            events += "sync"
++        }
++
++        override fun rename(from: File, to: File): Boolean {
++            if (failAt == Step.RENAME && injectedCount == 0) {
++                injectedCount++
++                events += "rename-injected-false"
++                return false
++            }
++            val renamed = delegate.rename(from, to)
++            events += "rename($renamed)"
++            return renamed
++        }
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesRepositoryFileTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesRepositoryFileTest.kt
+new file mode 100644
+index 0000000..d31c6d5
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesRepositoryFileTest.kt
+@@ -0,0 +1,138 @@
++package com.example.myapplicationfirstapp.data
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.json.JSONArray
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * SAVE-ORDER-2 / 真实文件：整条 save() → notes.json → load() 链路。
++ *
++ * 说明清楚边界：
++ * - 用的是**真实文件系统**（沙箱目录里的真 notes.json），不是内存字符串；
++ * - 「重新读取」用的是**新的 NotesRepository 实例**，不是进程重启，
++ *   所以本测试证明的是「写进文件、再从文件读回」，不证明进程被杀后的恢复行为；
++ * - 隔离是**路径隔离**：真实 notes.json 与沙箱路径不同，测试前后指纹比对一致。
++ *   本机真实 `files/` 里本来就没有 notes.json，前后都是 `<absent>`，
++ *   这证明隔离没有回落到真实路径，但不等于「进程内任何时刻都绝对没有触碰过真实路径」。
++ */
++@RunWith(AndroidJUnit4::class)
++class NotesRepositoryFileTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realBefore: String = "<unset>"
++
++    @Before
++    fun setUp() {
++        realBefore = realNotesFingerprint()
++        sandbox = isolatedStorage("round-trip")
++    }
++
++    /** 指纹核验与沙箱清理在**测试失败时也执行**；清理失败不会被静默忽略 */
++    @After
++    fun tearDown() {
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realBefore)
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    @Test
++    fun repositorySaveReloadRoundTrip() = runBlocking {
++        val context = sandbox
++        val filesDir = context.getFilesDir()
++        val target = File(filesDir, "notes.json")
++        assertFalse("沙箱里本不该有旧文件", target.exists())
++
++        val note = Note(
++            id = "note-round-trip-1",
++            title = "周会要点",
++            content = "1. 保存链路需要串行\n2. 图片引用也要一起存\n![图片](img_1001.jpg)",
++            createdAt = 1_760_000_000_000L,
++            updatedAt = 1_760_000_900_000L,
++            colorIndex = 3,
++            pinned = true,
++            tags = listOf("工作", "复盘"),
++            images = listOf("img_1001.jpg", "img_1002.jpg"),
++            checklist = true,
++            todos = listOf(
++                TodoItem(id = "todo-1", text = "确认写盘顺序", done = true),
++                TodoItem(id = "todo-2", text = "补失败提示", done = false),
++                TodoItem(id = "todo-3", text = "回归图片引用", done = true)
++            ),
++            remindAt = 1_760_003_600_000L
++        )
++
++        NotesRepository(context).save(listOf(note))
++
++        // ---- 磁盘上真的有这个文件，且内容是完整 JSON ----
++        assertTrue("notes.json 应已落盘", target.isFile)
++        assertTrue("文件不应为空", target.length() > 0L)
++
++        val raw = target.readText(Charsets.UTF_8)
++        val array = JSONArray(raw)
++        assertEquals(1, array.length())
++        val json = array.getJSONObject(0)
++        assertEquals("note-round-trip-1", json.getString("id"))
++        assertEquals("周会要点", json.getString("title"))
++        assertEquals(note.content, json.getString("content"))
++        assertEquals(1_760_000_000_000L, json.getLong("createdAt"))
++        assertEquals(1_760_000_900_000L, json.getLong("updatedAt"))
++        assertEquals(3, json.getInt("colorIndex"))
++        assertTrue(json.getBoolean("pinned"))
++        assertTrue(json.getBoolean("checklist"))
++        assertEquals(1_760_003_600_000L, json.getLong("remindAt"))
++        assertFalse("deletedAt 为 null 时不应写出该字段", json.has("deletedAt"))
++        assertTrue("tags 必须写进文件", json.has("tags"))
++        assertTrue("images 必须写进文件", json.has("images"))
++        assertTrue("todos 必须写进文件", json.has("todos"))
++
++        val rawImages = json.getJSONArray("images")
++        assertEquals(2, rawImages.length())
++        assertEquals("img_1001.jpg", rawImages.getString(0))
++        assertEquals("img_1002.jpg", rawImages.getString(1))
++
++        val rawTodos = json.getJSONArray("todos")
++        assertEquals(3, rawTodos.length())
++        assertEquals("todo-2", rawTodos.getJSONObject(1).getString("id"))
++        assertEquals("补失败提示", rawTodos.getJSONObject(1).getString("text"))
++        assertFalse("第二项未勾选", rawTodos.getJSONObject(1).getBoolean("done"))
++        assertTrue("第三项已勾选", rawTodos.getJSONObject(2).getBoolean("done"))
++
++        // ---- 新实例读回（不是同一个 repository 的内存缓存，也不是进程重启） ----
++        val reloaded = NotesRepository(context).load()
++
++        assertEquals(1, reloaded.size)
++        val back = reloaded.single()
++        assertEquals(note.id, back.id)
++        assertEquals(note.title, back.title)
++        assertEquals(note.content, back.content)
++        assertEquals(note.createdAt, back.createdAt)
++        assertEquals(note.updatedAt, back.updatedAt)
++        assertEquals(note.colorIndex, back.colorIndex)
++        assertEquals(note.pinned, back.pinned)
++        assertEquals(note.tags, back.tags)
++        assertEquals(note.images, back.images)
++        assertEquals(note.checklist, back.checklist)
++        assertEquals(note.remindAt, back.remindAt)
++        assertEquals(note.deletedAt, back.deletedAt)
++        assertEquals("待办的 id / 文本 / 勾选状态都要原样回来", note.todos, back.todos)
++        assertEquals(note, back)
++
++        // 正文里的图片引用仍然能被解析出来
++        assertEquals(listOf("img_1001.jpg"), back.inlineImages)
++
++        // ---- 原子写的临时文件必须被清理 ----
++        assertEquals("正常路径不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
++
++        // 真实 notes.json 的指纹比对在 @After 里做，测试失败时同样执行
++
++        println("[SAVE-ORDER-2] round-trip ok: ${back.title}, ${back.todos.count { it.done }}/${back.todos.size} done")
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesWriteCoordinatorFileTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesWriteCoordinatorFileTest.kt
+new file mode 100644
+index 0000000..78c7151
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/NotesWriteCoordinatorFileTest.kt
+@@ -0,0 +1,120 @@
++package com.example.myapplicationfirstapp.data
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * SAVE-ORDER-2 / 真实文件：协调器的顺序判断必须作用在**磁盘上**，而不是内存变量。
++ *
++ * 这里 [NotesWriteCoordinator.save] 的写回调调用的是真实的 [NotesRepository.save]，
++ * 断言也落在真实 notes.json 的字节与哈希上；重新读取走新的 Repository 实例。
++ *
++ * 隔离是**路径隔离**：真实 notes.json 与沙箱路径不同，测试前后指纹比对一致；
++ * 不等于「进程内任何时刻都绝对没有触碰过真实路径」。
++ */
++@RunWith(AndroidJUnit4::class)
++class NotesWriteCoordinatorFileTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realBefore: String = "<unset>"
++
++    @Before
++    fun setUp() {
++        realBefore = realNotesFingerprint()
++        sandbox = isolatedStorage("coordinator-file")
++    }
++
++    /** 指纹核验与沙箱清理在**测试失败时也执行**；清理失败不会被静默忽略 */
++    @After
++    fun tearDown() {
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realBefore)
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    @Test
++    fun coordinatorPersistsNewestSnapshotToRealFile() = runBlocking {
++        val context = sandbox
++        val filesDir = context.getFilesDir()
++        val target = File(filesDir, "notes.json")
++
++        val repository = NotesRepository(context)
++        val coordinator = NotesWriteCoordinator()
++
++        // 起点：磁盘上先有一份「基线」内容（直接写，不经过协调器）
++        repository.save(listOf(snapshot("基线标题", "基线正文", 1_760_000_000_000L)))
++        assertTrue(target.isFile)
++        val baselineHash = target.sha256Hex()
++
++        // 调度之前就把两个快照和它们的 ticket 都留好
++        val staleNotes = listOf(snapshot("旧快照", "旧的正文，绝不能覆盖新内容", 1_760_000_100_000L))
++        val freshNotes = listOf(snapshot("新快照", "新的正文，来自后发生的编辑", 1_760_000_200_000L))
++        val staleTicket = coordinator.reserve()
++            ?: error("coordinator refused to reserve stale ticket")
++        val freshTicket = coordinator.reserve()
++            ?: error("coordinator refused to reserve fresh ticket")
++
++        // 1) 新快照先经协调器、走真实 Repository 写盘
++        val freshSaved = coordinator.save(freshTicket) { repository.save(freshNotes) }
++        assertTrue("新快照应当写入成功", freshSaved)
++
++        assertTrue(target.isFile)
++        val freshHash = target.sha256Hex()
++        assertTrue("磁盘内容应当已经变了", freshHash != baselineHash)
++        val freshRaw = target.readText(Charsets.UTF_8)
++        assertTrue("磁盘上应是新内容", freshRaw.contains("新快照"))
++        assertFalse("磁盘上不该再有基线内容", freshRaw.contains("基线标题"))
++
++        // 2) 再执行旧快照的保存请求：必须被跳过
++        var staleWriteRan = false
++        val staleSaved = coordinator.save(staleTicket) {
++            staleWriteRan = true
++            repository.save(staleNotes)
++        }
++
++        assertFalse("旧快照必须被判定为过期", staleSaved)
++        assertFalse("被跳过的请求不能真的去写盘", staleWriteRan)
++
++        // 3) 磁盘没有被旧快照动过：字节哈希不变，且读回来仍是新内容
++        assertEquals("旧请求之后 notes.json 必须逐字节不变", freshHash, target.sha256Hex())
++        val rawAfterStale = target.readText(Charsets.UTF_8)
++        assertFalse("旧内容不得出现在文件里", rawAfterStale.contains("旧快照"))
++        assertEquals(freshRaw, rawAfterStale)
++
++        val reloaded = NotesRepository(context).load()
++        assertEquals(1, reloaded.size)
++        assertEquals("新快照", reloaded.single().title)
++        assertEquals("新的正文，来自后发生的编辑", reloaded.single().content)
++        assertEquals(1_760_000_200_000L, reloaded.single().updatedAt)
++
++        // 4) 协调器没有被卡住：之后的新 ticket 仍能正常写盘
++        val laterTicket = coordinator.reserve() ?: error("coordinator stuck after skip")
++        val laterSaved = coordinator.save(laterTicket) {
++            repository.save(listOf(snapshot("再后来", "后续编辑", 1_760_000_300_000L)))
++        }
++        assertTrue(laterSaved)
++        assertEquals("再后来", NotesRepository(context).load().single().title)
++        assertEquals("正常路径不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
++        // 真实 notes.json 的指纹比对在 @After 里做，测试失败时同样执行
++
++        println("[SAVE-ORDER-2] coordinator file test ok: stale skipped, disk kept newest, later save recovered")
++    }
++
++    private fun snapshot(title: String, content: String, updatedAt: Long) = Note(
++        id = "note-$title",
++        title = title,
++        content = content,
++        createdAt = 1_759_999_000_000L,
++        updatedAt = updatedAt,
++        checklist = false,
++        todos = emptyList()
++    )
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/NotesFileOps.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/NotesFileOps.kt
+new file mode 100644
+index 0000000..002c814
+--- /dev/null
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/NotesFileOps.kt
+@@ -0,0 +1,42 @@
++package com.example.myapplicationfirstapp.data
++
++import java.io.File
++import java.io.FileOutputStream
++
++/**
++ * notes.json 原子写的五个真实 IO 步骤。
++ *
++ * [RealNotesFileOps] 就是 `save()` 原先直接调用的那几行，行为完全等价；
++ * 把步骤拆出来只为让测试能在**指定的一步**注入失败，生产默认路径不做任何模拟。
++ *
++ * 只在本模块与 androidTest 之间可见，不对外暴露。
++ */
++internal interface NotesFileOps {
++    /** 在 [parent] 下建一个唯一的临时文件 */
++    fun createTemp(parent: File): File
++
++    /** 打开临时文件的输出流（会截断已有内容） */
++    fun openStream(temp: File): FileOutputStream
++
++    /** 写入完整字节数组 */
++    fun write(out: FileOutputStream, bytes: ByteArray)
++
++    /** 把已写入的内容刷到存储介质 */
++    fun sync(out: FileOutputStream)
++
++    /** 原子替换：把临时文件移到正式路径，成功返回 true */
++    fun rename(from: File, to: File): Boolean
++}
++
++/** 生产实现：真实建文件、真实写、真实 fsync、真实 rename。 */
++internal object RealNotesFileOps : NotesFileOps {
++    override fun createTemp(parent: File): File = File.createTempFile("notes-", ".tmp", parent)
++
++    override fun openStream(temp: File): FileOutputStream = FileOutputStream(temp)
++
++    override fun write(out: FileOutputStream, bytes: ByteArray) = out.write(bytes)
++
++    override fun sync(out: FileOutputStream) = out.fd.sync()
++
++    override fun rename(from: File, to: File): Boolean = from.renameTo(to)
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt
+index fdcd1d1..df37920 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/NotesRepository.kt
+@@ -21,8 +21,15 @@ import java.util.zip.ZipOutputStream
+  * 3. 备份 —— 把 1 + 2 打进一个 zip，交给系统文件选择器保存
+  *
+  * 目录都在 /data/data/<包名>/files/ 下，只有本 App 能访问，卸载时系统自动清理。
++ *
++ * [fileOps] 是原子写步骤的接缝，默认 [RealNotesFileOps] 就是真实的文件操作；
++ * 主构造函数是 internal，公开入口仍是单参数的 `NotesRepository(context)`。
+  */
+-class NotesRepository(context: Context) {
++class NotesRepository internal constructor(
++    context: Context,
++    private val fileOps: NotesFileOps
++) {
++    constructor(context: Context) : this(context, RealNotesFileOps)
+ 
+     private val appContext = context.applicationContext
+     private val file: File get() = File(appContext.filesDir, NOTES_FILE_NAME)
+@@ -41,13 +48,13 @@ class NotesRepository(context: Context) {
+         val json = notesToJson(notes).toByteArray(Charsets.UTF_8)
+         val parent = checkNotNull(file.parentFile)
+         check(parent.isDirectory || parent.mkdirs()) { "Cannot create notes directory" }
+-        val temp = File.createTempFile("notes-", ".tmp", parent)
++        val temp = fileOps.createTemp(parent)
+         try {
+-            temp.outputStream().use { output ->
+-                output.write(json)
+-                output.fd.sync()
++            fileOps.openStream(temp).use { output ->
++                fileOps.write(output, json)
++                fileOps.sync(output)
+             }
+-            if (!temp.renameTo(file)) {
++            if (!fileOps.rename(temp, file)) {
+                 throw java.io.IOException("Cannot replace notes file")
+             }
+         } finally {

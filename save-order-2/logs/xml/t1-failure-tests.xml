@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="4" failures="0" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T06:58:13" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" tests="4" failures="0" errors="0" skipped="0" time="3.379" timestamp="2026-11-11T06:58:13" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="renameFailureKeepsOldFile" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" time="2.933" />
+    <testcase name="syncFailureKeepsOldFile" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" time="0.146" />
+    <testcase name="retryAfterFailureSucceeds" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" time="0.149" />
+    <testcase name="tempWriteFailureKeepsOldFile" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" time="0.151" />
+  </testsuite>
+</testsuites>

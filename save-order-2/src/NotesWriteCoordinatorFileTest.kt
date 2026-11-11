@@ -2,9 +2,11 @@ package com.example.myapplicationfirstapp.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -14,14 +16,33 @@ import java.io.File
  *
  * 这里 [NotesWriteCoordinator.save] 的写回调调用的是真实的 [NotesRepository.save]，
  * 断言也落在真实 notes.json 的字节与哈希上；重新读取走新的 Repository 实例。
+ *
+ * 隔离是**路径隔离**：真实 notes.json 与沙箱路径不同，测试前后指纹比对一致；
+ * 不等于「进程内任何时刻都绝对没有触碰过真实路径」。
  */
 @RunWith(AndroidJUnit4::class)
 class NotesWriteCoordinatorFileTest {
 
+    private lateinit var sandbox: IsolatedAppContext
+    private var realBefore: String = "<unset>"
+
+    @Before
+    fun setUp() {
+        realBefore = realNotesFingerprint()
+        sandbox = isolatedStorage("coordinator-file")
+    }
+
+    /** 指纹核验与沙箱清理在**测试失败时也执行**；清理失败不会被静默忽略 */
+    @After
+    fun tearDown() {
+        if (!::sandbox.isInitialized) return
+        val violations = finishIsolatedTest(sandbox, realBefore)
+        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
+    }
+
     @Test
     fun coordinatorPersistsNewestSnapshotToRealFile() = runBlocking {
-        val realBefore = realNotesFingerprint()
-        val context = isolatedStorage("coordinator-file")
+        val context = sandbox
         val filesDir = context.getFilesDir()
         val target = File(filesDir, "notes.json")
 
@@ -82,7 +103,7 @@ class NotesWriteCoordinatorFileTest {
         assertTrue(laterSaved)
         assertEquals("再后来", NotesRepository(context).load().single().title)
         assertEquals("正常路径不应残留 .tmp", emptyList<String>(), filesDir.listTempNotesFiles())
-        assertEquals("沙箱测试不得改动真实 notes.json", realBefore, realNotesFingerprint())
+        // 真实 notes.json 的指纹比对在 @After 里做，测试失败时同样执行
 
         println("[SAVE-ORDER-2] coordinator file test ok: stale skipped, disk kept newest, later save recovered")
     }
