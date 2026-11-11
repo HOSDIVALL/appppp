@@ -1,0 +1,2787 @@
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCancelTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCancelTest.kt
+new file mode 100644
+index 0000000..4f33574
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCancelTest.kt
+@@ -0,0 +1,186 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertSame
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++import java.util.concurrent.TimeUnit
++
++/**
++ * 取消与 IO 异常必须分开处理：
++ *
++ * - 可取消段内取消 → 回滚后重抛**同一个** `CancellationException`；
++ * - 不可取消段内取消 → 延迟投递，事务按已提交处理，不回滚；
++ * - rename/凭据的 IO 异常 → 回滚，且异常不得被包装成取消。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class ImportTxnCancelTest : TxnKernelTestBase() {
++
++    private val oldNotes = """[{"id":"n1","title":"旧"}]"""
++    private val newNotes = """[{"id":"n1","title":"新"}]"""
++    private val oldA = byteArrayOf(1, 1, 1)
++    private val newA = byteArrayOf(2, 2, 2)
++    private val newB = byteArrayOf(3, 3)
++
++    private fun seed() {
++        sandbox.writeNotes(oldNotes)
++        sandbox.writeAttachment("a.jpg", oldA)
++    }
++
++    private suspend fun materialize(kernel: ImportTxnKernel): String {
++        val result = kernel.materialize(
++            "t1",
++            newNotes.toByteArray(),
++            mapOf("a.jpg" to newA, "b.jpg" to newB)
++        )
++        assertTrue("材料落地失败：$result", result is MaterializeOutcome.Ready)
++        return (result as MaterializeOutcome.Ready).commitDigest
++    }
++
++    @Test
++    fun cancelDuringReplacementRollsBackAndRethrowsSameException() = runBlocking {
++        seed()
++        val ops = FaultyOps()
++        val kernel = sandbox.kernel(ops)
++        val digest = materialize(kernel)
++        // 必须在物化之后设置：materialize 也走同一个注入点名字
++        ops.blockAt = "new-attachment:b.jpg"
++
++        var caught: Throwable? = null
++        var jobCause: Throwable? = null
++        val job = launch(Dispatchers.IO) {
++            try {
++                kernel.commit(MaterialRef("t1", digest))
++            } catch (failure: Throwable) {
++                caught = failure
++                throw failure
++            }
++        }
++        job.invokeOnCompletion { jobCause = it }
++
++        assertTrue("未到达取消窗口", ops.blocked.await(10, TimeUnit.SECONDS))
++        job.cancel()
++        ops.release.countDown()
++        job.join()
++
++        val thrown = caught
++        assertTrue("必须是取消，实际=$thrown", thrown is CancellationException)
++        assertSame("必须重抛同一个取消实例", jobCause, thrown)
++
++        sandbox.expectNotes(oldNotes, "取消后必须回到旧笔记")
++        sandbox.expectAttachments(mapOf("a.jpg" to oldA), "取消后必须回到旧附件")
++        assertNotNull(
++            "回滚要留下记录：results=${sandbox.results()} import=${File(sandbox.root, ".import").list()?.toList()}",
++            sandbox.results().firstOrNull { it.txnId == "t1" }
++        )
++        assertEquals(DiskState.Aborted("t1"), kernel.inspect())
++
++        kernel.recover()
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun cancelInsideNonCancellableWindowCommitsAndDoesNotRollBack() = runBlocking {
++        seed()
++        val ops = FaultyOps()
++        val kernel = sandbox.kernel(ops)
++        val digest = materialize(kernel)
++        ops.blockAt = TxnStep.NOTES
++
++        var outcome: CommitOutcome? = null
++        var failure: Throwable? = null
++        val job = launch(Dispatchers.IO) {
++            try {
++                outcome = kernel.commit(MaterialRef("t1", digest))
++            } catch (thrown: Throwable) {
++                failure = thrown
++                throw thrown
++            }
++        }
++
++        assertTrue("未到达不可取消段", ops.blocked.await(10, TimeUnit.SECONDS))
++        job.cancel()
++        ops.release.countDown()
++        job.join()
++
++        // 取消是在提交点之后才投递的：返回值可能拿不到，但磁盘必须已经是已提交状态
++        assertTrue("必须以取消结束，实际=$outcome", job.isCancelled)
++        assertTrue("收到的应是取消，实际=$failure", failure is CancellationException)
++        sandbox.expectNotes(newNotes, "不可取消段一旦开始就必须走完")
++        sandbox.expectAttachments(mapOf("a.jpg" to newA, "b.jpg" to newB), "附件应为新内容")
++        assertEquals(DiskState.Idle, kernel.inspect())
++        assertEquals(ResultOutcome.COMMITTED, sandbox.results().single().outcome)
++    }
++
++    @Test
++    fun ioFailureAtNotesIsTreatedAsRollbackNotCancellation() = runBlocking {
++        seed()
++        val ops = FaultyOps().apply { failOnce += TxnStep.NOTES }
++        val kernel = sandbox.kernel(ops)
++        val digest = materialize(kernel)
++
++        val outcome = kernel.commit(MaterialRef("t1", digest))
++        assertTrue("应回滚，实际=$outcome", outcome is CommitOutcome.Failed)
++
++        sandbox.expectNotes(oldNotes, "notes 写失败必须回滚到旧内容")
++        sandbox.expectAttachments(mapOf("a.jpg" to oldA), "附件必须回滚")
++        assertEquals(DiskState.Idle, kernel.inspect())
++        assertEquals(ResultOutcome.ABORTED, sandbox.results().single().outcome)
++    }
++
++    @Test
++    fun ioFailureAtCredentialLeavesNoCredentialAndRollsBack() = runBlocking {
++        seed()
++        val ops = FaultyOps().apply { failOnce += TxnStep.CREDENTIAL }
++        val kernel = sandbox.kernel(ops)
++        val digest = materialize(kernel)
++
++        val outcome = kernel.commit(MaterialRef("t1", digest))
++        assertTrue("应回滚，实际=$outcome", outcome is CommitOutcome.Failed)
++
++        assertFalse("凭据不得存在", sandbox.credentialFile().exists())
++        sandbox.expectNotes(oldNotes, "凭据写失败必须回滚")
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun cancelDuringBackupAlsoRollsBack() = runBlocking {
++        seed()
++        val ops = FaultyOps()
++        val kernel = sandbox.kernel(ops)
++        val digest = materialize(kernel)
++        ops.blockAt = TxnStep.OLD_NOTES
++
++        var caught: Throwable? = null
++        var jobCause: Throwable? = null
++        val job = launch(Dispatchers.IO) {
++            try {
++                kernel.commit(MaterialRef("t1", digest))
++            } catch (failure: Throwable) {
++                caught = failure
++                throw failure
++            }
++        }
++        job.invokeOnCompletion { jobCause = it }
++
++        assertTrue(ops.blocked.await(10, TimeUnit.SECONDS))
++        job.cancel()
++        ops.release.countDown()
++        job.join()
++
++        assertTrue("必须是取消，实际=$caught", caught is CancellationException)
++        assertSame("备份阶段取消也必须重抛同一实例", jobCause, caught)
++        sandbox.expectNotes(oldNotes, "备份阶段取消时正式数据未动")
++        kernel.recover()
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnClassifyTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnClassifyTest.kt
+new file mode 100644
+index 0000000..1139310
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnClassifyTest.kt
+@@ -0,0 +1,154 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * `classify()` 的判定表。只看磁盘，不看内存。
++ *
++ * 重点覆盖两条与旧表不同的规则：
++ * 1. `APPLYING` 没有终态证据时，**不看** notes 是否已经等于新载荷，一律 `Interrupted`；
++ * 2. 没有 journal、没有凭据的 `txn-*` 一律 `Quarantined`，不按摘要推断「可删」。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class ImportTxnClassifyTest : TxnKernelTestBase() {
++
++    private val oldNotes = """[{"id":"n1","title":"旧"}]"""
++    private val newNotes = """[{"id":"n1","title":"新"}]"""
++    private val oldBytes = mapOf("a.jpg" to byteArrayOf(1, 1, 1))
++    private val newBytes = mapOf("a.jpg" to byteArrayOf(2, 2, 2))
++
++    private fun spec(txnId: String = "t1") = PlantedTxn(
++        txnId = txnId,
++        oldNotes = oldNotes,
++        newNotes = newNotes,
++        oldAttachments = oldBytes,
++        newAttachments = newBytes
++    )
++
++    @Test
++    fun emptyRootIsIdle() = runBlocking {
++        assertEquals(DiskState.Idle, sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun txnWithoutJournalOrCredentialIsQuarantinedAndKept() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeJournal = false)
++
++        val kernel = sandbox.kernel()
++        val state = kernel.inspect()
++        assertTrue("无 journal/凭据必须隔离，实际=$state", state is DiskState.Quarantined)
++        assertEquals(listOf("txn-t1"), (state as DiskState.Quarantined).txnDirs)
++
++        // 即便 notes 已经是载荷内容，也不能据此删除材料
++        val recovered = kernel.recover()
++        assertTrue(recovered is RecoverOutcome.Stopped)
++        assertTrue("事务材料被删了", sandbox.txnDir("t1").isDirectory)
++        assertTrue("不应产生结果记录", sandbox.results().isEmpty())
++    }
++
++    @Test
++    fun applyingWithoutCredentialIsInterruptedEvenWhenNotesAlreadyNew() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeCredential = false)
++
++        assertEquals(DiskState.Interrupted("t1"), sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun applyingWithMatchingCredentialIsCommitted() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeCredential = true)
++
++        assertEquals(DiskState.Committed("t1"), sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun applyingWithCredentialButOldNotesIsCorrupt() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.OLD, writeCredential = true)
++
++        assertTrue(sandbox.kernel().inspect() is DiskState.Corrupt)
++    }
++
++    @Test
++    fun abortedWithOldNotesIsAborted() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.OLD, journalState = JournalState.ABORTED)
++
++        assertEquals(DiskState.Aborted("t1"), sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun abortedButNotesChangedIsCorrupt() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, journalState = JournalState.ABORTED)
++
++        assertTrue(sandbox.kernel().inspect() is DiskState.Corrupt)
++    }
++
++    @Test
++    fun unreadableJournalWithMatchingCredentialIsCommitted() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeJournal = false, writeCredential = false)
++        sandbox.writeJournalRaw("{not-json")
++        sandbox.credentialFile().writeText(
++            TxnCodec.encodeCredential(CommitCredential("t1", newNotes.toByteArray().sha256(), 1))
++        )
++
++        assertEquals(DiskState.Committed("t1"), sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun unreadableJournalWithoutCredentialIsCorrupt() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeJournal = false)
++        sandbox.writeJournalRaw("{not-json")
++
++        assertTrue(sandbox.kernel().inspect() is DiskState.Corrupt)
++    }
++
++    @Test
++    fun preparedWithoutCommitMaterialIsStagingFailed() = runBlocking {
++        sandbox.plant(
++            spec(),
++            notesState = NotesState.OLD,
++            journalState = JournalState.PREPARED,
++            writeNewMaterial = false
++        )
++
++        assertEquals(DiskState.StagingFailed("t1"), sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun rollingBackWithCredentialIsCorrupt() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, journalState = JournalState.ROLLING_BACK, writeCredential = true)
++
++        assertTrue(sandbox.kernel().inspect() is DiskState.Corrupt)
++    }
++
++    @Test
++    fun credentialWithWrongDigestIsCorrupt() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeJournal = false)
++        sandbox.credentialFile().writeText(
++            TxnCodec.encodeCredential(CommitCredential("t1", "0".repeat(64), 1))
++        )
++
++        assertTrue(sandbox.kernel().inspect() is DiskState.Corrupt)
++    }
++
++    @Test
++    fun secondTxnDirectoryNextToActiveJournalIsNotSilentlyIgnored() = runBlocking {
++        sandbox.plant(spec("t1"), notesState = NotesState.NEW, writeCredential = true)
++        File(sandbox.root, ".import/txn-t2").mkdirs()
++
++        val kernel = sandbox.kernel()
++        // 有证据 → 已提交；多余目录不改变提交事实
++        assertEquals(DiskState.Committed("t1"), kernel.inspect())
++
++        // 但清理完成、证据删除之后，剩下的目录必须变成隔离态，而不是被当成垃圾删掉
++        kernel.recover()
++        val state = kernel.inspect()
++        assertTrue("多余事务目录必须被隔离，实际=$state", state is DiskState.Quarantined)
++        assertEquals(listOf("txn-t2"), (state as DiskState.Quarantined).txnDirs)
++        assertTrue(File(sandbox.root, ".import/txn-t2").isDirectory)
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupTest.kt
+new file mode 100644
+index 0000000..498aba6
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupTest.kt
+@@ -0,0 +1,195 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/**
++ * 清理：顺序固定（结果 → 材料 → 目录 → journal → 凭据），关键步骤失败即停。
++ *
++ * 每个中断点都必须满足同一件事：**结论仍是已提交**，不能被重新解释成需要回滚。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class ImportTxnCleanupTest : TxnKernelTestBase() {
++
++    private val oldNotes = """[{"id":"n1","title":"旧"}]"""
++    private val newNotes = """[{"id":"n1","title":"新"}]"""
++    private val oldA = byteArrayOf(1, 1, 1)
++    private val newA = byteArrayOf(2, 2, 2)
++
++    private fun plantCommitted(txnId: String = "t1") {
++        sandbox.plant(
++            PlantedTxn(txnId, oldNotes, newNotes, mapOf("a.jpg" to oldA), mapOf("a.jpg" to newA)),
++            notesState = NotesState.NEW,
++            journalState = JournalState.COMMITTED,
++            writeCredential = true
++        )
++    }
++
++    @Test
++    fun journalDeleteFailureKeepsCredentialAndCommitFact() = runBlocking {
++        plantCommitted()
++        val ops = FaultyOps().apply { failOnce += TxnStep.JOURNAL }
++        val kernel = sandbox.kernel(ops)
++
++        val outcome = kernel.recover()
++        assertTrue(outcome is RecoverOutcome.Settled)
++        assertEquals("journal", (outcome as RecoverOutcome.Settled).cleanup?.stoppedAt)
++        assertEquals(DiskState.Committed("t1"), kernel.inspect())
++        assertTrue("journal 应仍在", sandbox.journalFile().isFile)
++        assertTrue("凭据应仍在", sandbox.credentialFile().isFile)
++        assertFalse("材料应已删完", sandbox.txnDir("t1").exists())
++        sandbox.expectNotes(newNotes, "已提交的笔记不得被回滚")
++
++        val second = kernel.recover()
++        assertTrue((second as RecoverOutcome.Settled).cleanup?.cleaned == true)
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun credentialDeleteFailureKeepsJournalGoneAndMaterialsGone() = runBlocking {
++        plantCommitted()
++        val ops = FaultyOps().apply { failOnce += TxnStep.CREDENTIAL }
++        val kernel = sandbox.kernel(ops)
++
++        val outcome = kernel.recover()
++        assertEquals("credential", (outcome as RecoverOutcome.Settled).cleanup?.stoppedAt)
++        assertEquals(DiskState.Committed("t1"), kernel.inspect())
++        assertFalse("journal 已删", sandbox.journalFile().exists())
++        assertTrue("凭据仍在", sandbox.credentialFile().isFile)
++        assertFalse(sandbox.txnDir("t1").exists())
++
++        kernel.recover()
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun materialDeleteFailureStopsBeforeEvidence() = runBlocking {
++        plantCommitted()
++        val ops = FaultyOps().apply { failOnce += "delete-material:old-attachments/a.jpg" }
++        val kernel = sandbox.kernel(ops)
++
++        val outcome = kernel.recover()
++        assertEquals("materials", (outcome as RecoverOutcome.Settled).cleanup?.stoppedAt)
++        assertEquals(DiskState.Committed("t1"), kernel.inspect())
++        assertTrue("journal 必须保留", sandbox.journalFile().isFile)
++        assertTrue("凭据必须保留", sandbox.credentialFile().isFile)
++        assertTrue("材料仍在", sandbox.txnDir("t1").isDirectory)
++
++        kernel.recover()
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun materialsAreNeverLeftWithoutEvidence() = runBlocking {
++        plantCommitted()
++        val ops = FaultyOps().apply { alwaysFail += "delete-material:old-attachments/a.jpg" }
++        val kernel = sandbox.kernel(ops)
++
++        repeat(3) { kernel.recover() }
++
++        // 材料删不掉时，绝不能把 journal/凭据删掉——否则会退化成无法判定的隔离态
++        assertTrue(sandbox.txnDir("t1").isDirectory)
++        assertTrue(sandbox.journalFile().isFile)
++        assertTrue(sandbox.credentialFile().isFile)
++        assertEquals(DiskState.Committed("t1"), kernel.inspect())
++
++        ops.alwaysFail.clear()
++        kernel.recover()
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun resultWriteFailureStopsBeforeAnyDeletion() = runBlocking {
++        plantCommitted()
++        val ops = FaultyOps().apply { alwaysFail += TxnStep.RESULTS }
++        val kernel = sandbox.kernel(ops)
++
++        val outcome = kernel.recover()
++        assertEquals("results", (outcome as RecoverOutcome.Settled).cleanup?.stoppedAt)
++        assertEquals(DiskState.Committed("t1"), kernel.inspect())
++        assertTrue("结果没写成就不能开始删", sandbox.txnDir("t1").isDirectory)
++        assertTrue(sandbox.journalFile().isFile)
++        assertTrue(sandbox.credentialFile().isFile)
++
++        ops.alwaysFail.clear()
++        kernel.recover()
++        assertEquals(DiskState.Idle, kernel.inspect())
++        assertNotNull(sandbox.results().firstOrNull { it.txnId == "t1" })
++    }
++
++    @Test
++    fun cleanupRefusesInterruptedStateAndKeepsMaterials() = runBlocking {
++        sandbox.plant(
++            PlantedTxn("t1", oldNotes, newNotes, mapOf("a.jpg" to oldA), mapOf("a.jpg" to newA)),
++            notesState = NotesState.NEW
++        )
++        val kernel = sandbox.kernel()
++
++        val outcome = kernel.cleanup("t1")
++        assertFalse(outcome.cleaned)
++        assertEquals("state", outcome.stoppedAt)
++        assertTrue(sandbox.txnDir("t1").isDirectory)
++        assertTrue(sandbox.journalFile().isFile)
++        assertEquals(DiskState.Interrupted("t1"), kernel.inspect())
++    }
++
++    @Test
++    fun resultsRemainQueryableByTxnIdAfterCleanup() = runBlocking {
++        plantCommitted()
++        val kernel = sandbox.kernel()
++
++        kernel.recover()
++        assertEquals(DiskState.Idle, kernel.inspect())
++        assertTrue("结果留存不得被清理删掉", sandbox.resultsFile().isFile)
++
++        val record = kernel.currentResult("t1")
++        assertNotNull(record)
++        assertEquals(ResultOutcome.COMMITTED, record!!.outcome)
++        assertFalse(record.consumed)
++        assertTrue(kernel.markConsumed("t1"))
++        assertTrue(kernel.currentResult("t1")!!.consumed)
++    }
++
++    @Test
++    fun ordinarySaveAfterCleanupIsNotMistakenForCorruption() = runBlocking {
++        plantCommitted()
++        val kernel = sandbox.kernel()
++        kernel.recover()
++
++        // 用户在导入之后继续编辑并保存：内容与旧事务摘要不同，但这不是损坏
++        sandbox.writeNotes("""[{"id":"n1","title":"导入后再编辑"}]""")
++        assertEquals(DiskState.Idle, kernel.inspect())
++        assertNotNull("历史结果仍应可查", kernel.currentResult("t1"))
++    }
++
++    @Test
++    fun resultsAreCappedAndDeduplicated() = runBlocking {
++        val kernel = sandbox.kernel()
++        sandbox.writeNotes(oldNotes)
++
++        for (index in 1..10) {
++            val txnId = "t$index"
++            val materialized = kernel.materialize(txnId, newNotes.toByteArray(), mapOf("a.jpg" to newA))
++            val digest = (materialized as MaterializeOutcome.Ready).commitDigest
++            val outcome = kernel.commit(MaterialRef(txnId, digest))
++            assertTrue("第 $index 次提交失败：$outcome", outcome is CommitOutcome.Committed)
++        }
++
++        val records = kernel.results()
++        assertEquals("结果留存上限", 8, records.size)
++        assertEquals("最新的在最前", "t10", records.first().txnId)
++
++        val again = kernel.materialize("t1", newNotes.toByteArray(), mapOf("a.jpg" to newA))
++        kernel.commit(MaterialRef("t1", (again as MaterializeOutcome.Ready).commitDigest))
++        val after = kernel.results()
++        assertEquals(8, after.size)
++        assertEquals("同一 txnId 不应重复", 1, after.count { it.txnId == "t1" })
++        assertEquals("t1", after.first().txnId)
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitTest.kt
+new file mode 100644
+index 0000000..6c55d58
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitTest.kt
+@@ -0,0 +1,187 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * 提交路径：材料校验、备份、替换、不可取消段、清理。
++ *
++ * 失败注入一律是 `injected-io-failure:<step>`，用来把「第几步失败」固定下来；
++ * 它证明的是内核在这一点上的处置，不等价于真实磁盘故障。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class ImportTxnCommitTest : TxnKernelTestBase() {
++
++    private val oldNotes = """[{"id":"n1","title":"旧"}]"""
++    private val newNotes = """[{"id":"n1","title":"新"},{"id":"n2","title":"第二"}]"""
++    private val oldAttachment = mapOf("a.jpg" to byteArrayOf(1, 1, 1, 1))
++    private val newAttachment = mapOf("a.jpg" to byteArrayOf(2, 2, 2, 2), "b.jpg" to byteArrayOf(3, 3))
++
++    private suspend fun commit(
++        ops: FaultyOps,
++        txnId: String = "t1",
++        notes: String = newNotes,
++        attachments: Map<String, ByteArray> = newAttachment,
++        expected: String? = null
++    ): CommitOutcome {
++        val kernel = sandbox.kernel(ops)
++        val materialized = kernel.materialize(txnId, notes.toByteArray(), attachments)
++        assertTrue("材料落地失败：$materialized", materialized is MaterializeOutcome.Ready)
++        val digest = (materialized as MaterializeOutcome.Ready).commitDigest
++        return kernel.commit(MaterialRef(txnId, expected ?: digest))
++    }
++
++    private fun seed() {
++        sandbox.writeNotes(oldNotes)
++        oldAttachment.forEach { (name, bytes) -> sandbox.writeAttachment(name, bytes) }
++    }
++
++    @Test
++    fun happyPathCommitsReplacesAttachmentsAndCleansUp() = runBlocking {
++        seed()
++        val ops = FaultyOps()
++        val outcome = commit(ops)
++
++        assertTrue("应已提交，实际=$outcome", outcome is CommitOutcome.Committed)
++        assertEquals(2, (outcome as CommitOutcome.Committed).count)
++        assertTrue(outcome.cleanup.cleaned)
++
++        sandbox.expectNotes(newNotes, "笔记应为新载荷")
++        sandbox.expectAttachments(newAttachment, "附件应为新内容")
++        assertFalse("journal 应已清理", sandbox.journalFile().exists())
++        assertFalse("凭据应已清理", sandbox.credentialFile().exists())
++        assertFalse("事务目录应已清理", sandbox.txnDir("t1").exists())
++        assertTrue("临时文件未清干净：${sandbox.tempFiles()}", sandbox.tempFiles().isEmpty())
++
++        val record = sandbox.results().single()
++        assertEquals(ResultOutcome.COMMITTED, record.outcome)
++        assertEquals("t1", record.txnId)
++        assertEquals(DiskState.Idle, sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun materialChangedIsNotStartedAndTouchesNothing() = runBlocking {
++        seed()
++        val outcome = commit(FaultyOps(), expected = "0".repeat(64))
++
++        assertTrue("应拒绝，实际=$outcome", outcome is CommitOutcome.NotStarted)
++        assertEquals("material-changed", (outcome as CommitOutcome.NotStarted).reason)
++        sandbox.expectNotes(oldNotes, "笔记不得被改动")
++        assertFalse(sandbox.journalFile().exists())
++    }
++
++    @Test
++    fun journalWriteFailureLeavesLiveDataUntouched() = runBlocking {
++        seed()
++        val ops = FaultyOps().apply { failOnce += TxnStep.JOURNAL }
++        val outcome = commit(ops)
++
++        assertTrue(outcome is CommitOutcome.NotStarted)
++        assertEquals("journal-write-failed", (outcome as CommitOutcome.NotStarted).reason)
++        sandbox.expectNotes(oldNotes, "笔记不得被改动")
++        assertTrue("附件不得被改动", sandbox.attachment("a.jpg").readBytes().contentEquals(oldAttachment.getValue("a.jpg")))
++    }
++
++    @Test
++    fun unreadableNotesIsNotStarted() = runBlocking {
++        // 让 notes.json 变成一个目录：存在但读不出来，必须拒绝而不是当成「没有笔记」
++        sandbox.notesFile().mkdirs()
++        val outcome = commit(FaultyOps())
++
++        assertTrue(outcome is CommitOutcome.NotStarted)
++        assertEquals("notes-unreadable", (outcome as CommitOutcome.NotStarted).reason)
++    }
++
++    @Test
++    fun insufficientSpaceIsNotStarted() = runBlocking {
++        seed()
++        val ops = FaultyOps().apply { forcedUsableSpace = 0L }
++        val outcome = commit(ops)
++
++        assertTrue(outcome is CommitOutcome.NotStarted)
++        assertEquals("insufficient-space", (outcome as CommitOutcome.NotStarted).reason)
++        sandbox.expectNotes(oldNotes, "笔记不得被改动")
++    }
++
++    @Test
++    fun unsafeTxnIdIsRejected() = runBlocking {
++        seed()
++        val outcome = sandbox.kernel().commit(MaterialRef("../escape"))
++
++        assertTrue(outcome is CommitOutcome.NotStarted)
++        assertEquals("unsafe-txn-id", (outcome as CommitOutcome.NotStarted).reason)
++    }
++
++    @Test
++    fun identicalNotesDifferentAttachmentsRollsBackAttachmentsOnly() = runBlocking {
++        // 反例：新旧 notes 字节完全相同，只有附件不同。回滚不能因为「notes 已经是新内容」就跳过，
++        // 也不能因为「notes 没变」就以为事务没发生过。
++        sandbox.writeNotes(oldNotes)
++        sandbox.writeAttachment("a.jpg", byteArrayOf(1, 1, 1, 1))
++        val ops = FaultyOps().apply { failOnce += TxnStep.NOTES }
++        val outcome = commit(ops, notes = oldNotes, attachments = mapOf("a.jpg" to byteArrayOf(9, 9), "b.jpg" to byteArrayOf(8)))
++
++        assertTrue("应回滚，实际=$outcome", outcome is CommitOutcome.Failed)
++        sandbox.expectNotes(oldNotes, "新旧 notes 相同，字节必须保持")
++        sandbox.expectAttachments(mapOf("a.jpg" to byteArrayOf(1, 1, 1, 1)), "附件必须回到旧内容，新增附件必须删掉")
++        assertEquals(DiskState.Idle, sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun absentOldNotesIsCreatedWithoutCopy() = runBlocking {
++        val ops = FaultyOps()
++        val outcome = commit(ops, notes = newNotes, attachments = mapOf("a.jpg" to byteArrayOf(7)))
++
++        assertTrue(outcome is CommitOutcome.Committed)
++        sandbox.expectNotes(newNotes, "旧文件不存在时应新建")
++        assertFalse(
++            "旧 notes 不存在时不应产生副本",
++            ops.sawCheckpoint(TxnStep.OLD_NOTES)
++        )
++        assertEquals(DiskState.Idle, sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun activeJournalRefusesSecondCommit() = runBlocking {
++        sandbox.plant(
++            PlantedTxn("t0", oldNotes, newNotes, oldAttachment, newAttachment),
++            notesState = NotesState.OLD
++        )
++        val outcome = commit(FaultyOps(), txnId = "t1")
++
++        assertTrue(outcome is CommitOutcome.NotStarted)
++        assertTrue(
++            "应说明已有事务，实际=${(outcome as CommitOutcome.NotStarted).reason}",
++            outcome.reason.startsWith("journal-present")
++        )
++    }
++
++    @Test
++    fun quarantinedTransactionBlocksNewCommit() = runBlocking {
++        File(sandbox.root, ".import/txn-zombie").mkdirs()
++        val outcome = commit(FaultyOps(), txnId = "t1")
++
++        assertTrue(outcome is CommitOutcome.NotStarted)
++        assertEquals("quarantined:txn-zombie", (outcome as CommitOutcome.NotStarted).reason)
++        assertTrue("隔离目录不得被顺带删掉", File(sandbox.root, ".import/txn-zombie").isDirectory)
++    }
++
++    @Test
++    fun commitRefusesWhenGateIsBlocked() = runBlocking {
++        seed()
++        val gate = WriteGate().apply { enter(WriteGate.Mode.BLOCKED) }
++        val kernel = sandbox.kernel(gate = gate)
++        val materialized = kernel.materialize("t1", newNotes.toByteArray(), newAttachment)
++        val digest = (materialized as MaterializeOutcome.Ready).commitDigest
++
++        val outcome = kernel.commit(MaterialRef("t1", digest))
++        assertTrue("写前应被拒，实际=$outcome", outcome is CommitOutcome.Refused)
++        sandbox.expectNotes(oldNotes, "被拒时不得有任何写入")
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnJournalTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnJournalTest.kt
+new file mode 100644
+index 0000000..273930f
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnJournalTest.kt
+@@ -0,0 +1,111 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/**
++ * journal / 凭据 / 结果留存的编码与"谁能当证据"。
++ *
++ * 解码是严格的：半读出来的 journal 会让回滚目标变成猜出来的值，所以任何类型不对都判不可读。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class ImportTxnJournalTest : TxnKernelTestBase() {
++
++    private val journal = Journal(
++        state = JournalState.APPLYING,
++        txnId = "t1",
++        commitDigest = "aa".repeat(32),
++        oldNotesDigest = null,
++        attachments = listOf(
++            JournalAttachment("a.jpg", old = null, new = "bb".repeat(32)),
++            JournalAttachment("b.jpg", old = "cc".repeat(32), new = "dd".repeat(32))
++        )
++    )
++
++    @Test
++    fun journalRoundTripKeepsEveryField() {
++        val decoded = TxnCodec.decodeJournal(TxnCodec.encodeJournal(journal))
++        assertEquals(journal, decoded)
++    }
++
++    @Test
++    fun journalWithUnknownStateIsUnreadable() {
++        val text = TxnCodec.encodeJournal(journal).replace("\"APPLYING\"", "\"HALF_APPLIED\"")
++        assertNull(TxnCodec.decodeJournal(text))
++    }
++
++    @Test
++    fun journalWithWrongFieldTypeIsUnreadable() {
++        val text = TxnCodec.encodeJournal(journal).replace("\"txnId\":\"t1\"", "\"txnId\":7")
++        assertNull(TxnCodec.decodeJournal(text))
++    }
++
++    @Test
++    fun journalWithDuplicateAttachmentNamesIsUnreadable() {
++        val duplicate = journal.copy(
++            attachments = journal.attachments + JournalAttachment("a.jpg", null, "ee".repeat(32))
++        )
++        assertNull(TxnCodec.decodeJournal(TxnCodec.encodeJournal(duplicate)))
++    }
++
++    @Test
++    fun credentialRequiresDigestAndTimestamp() {
++        val credential = CommitCredential("t1", "aa".repeat(32), 1_700_000_000_000)
++        assertEquals(credential, TxnCodec.decodeCredential(TxnCodec.encodeCredential(credential)))
++
++        val missing = """{"version":1,"txnId":"t1","committedAt":1}"""
++        assertNull(TxnCodec.decodeCredential(missing))
++
++        val wrongType = """{"version":1,"txnId":"t1","commitDigest":"aa","committedAt":"soon"}"""
++        assertNull(TxnCodec.decodeCredential(wrongType))
++    }
++
++    @Test
++    fun resultsRequireConsumedFlag() {
++        val record = ResultRecord("t1", ResultOutcome.COMMITTED, 2, 1_700_000_000_000, null, false)
++        assertEquals(listOf(record), TxnCodec.decodeResults(TxnCodec.encodeResults(listOf(record))))
++
++        val missing = """{"version":1,"records":[{"txnId":"t1","outcome":"COMMITTED","count":2,"at":1}]}"""
++        assertNull(TxnCodec.decodeResults(missing))
++    }
++
++    @Test
++    fun tornJournalWriteIsUnreadableNotGuessed() = runBlocking {
++        sandbox.writeNotes("""[{"id":"n1"}]""")
++        sandbox.writeJournalRaw("""{"version":1,"state":"APPLY""")
++
++        val state = sandbox.kernel().inspect()
++        assertTrue("截断的 journal 必须不可读，实际=$state", state is DiskState.Corrupt)
++    }
++
++    @Test
++    fun resultsFileIsNotEvidence() = runBlocking {
++        sandbox.writeNotes("""[{"id":"n1"}]""")
++        // 只伪造一条"已提交"的结果记录，没有任何 journal/凭据
++        sandbox.resultsFile().parentFile?.mkdirs()
++        sandbox.resultsFile().writeText(
++            TxnCodec.encodeResults(
++                listOf(ResultRecord("t9", ResultOutcome.COMMITTED, 1, 1, null, false))
++            )
++        )
++
++        assertEquals("结果留存不能当提交证据", DiskState.Idle, sandbox.kernel().inspect())
++    }
++
++    @Test
++    fun atomicWriteLeavesNoTemporaryFiles() = runBlocking {
++        sandbox.writeNotes("""[{"id":"n1"}]""")
++        sandbox.writeJournalRaw(TxnCodec.encodeJournal(journal))
++
++        assertTrue("不应留下临时文件：${sandbox.tempFiles()}", sandbox.tempFiles().isEmpty())
++        assertNotNull(sandbox.journal())
++        assertFalse(sandbox.credentialFile().exists())
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRollbackTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRollbackTest.kt
+new file mode 100644
+index 0000000..6b920be
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRollbackTest.kt
+@@ -0,0 +1,152 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * 回滚：只从 `APPLYING` / `ROLLING_BACK` 进入，逐文件比较「当前 vs 目标」，重复中断可收敛。
++ *
++ * 现场用 [TxnSandbox.plant] 直接摆盘，不靠让 `commit` 崩溃来制造半应用状态。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class ImportTxnRollbackTest : TxnKernelTestBase() {
++
++    private val oldNotes = """[{"id":"n1","title":"旧"}]"""
++    private val newNotes = """[{"id":"n1","title":"新"}]"""
++    private val oldA = byteArrayOf(1, 1, 1)
++    private val newA = byteArrayOf(2, 2, 2)
++    private val newB = byteArrayOf(3, 3)
++
++    private fun spec() = PlantedTxn(
++        txnId = "t1",
++        oldNotes = oldNotes,
++        newNotes = newNotes,
++        oldAttachments = mapOf("a.jpg" to oldA),
++        newAttachments = mapOf("a.jpg" to newA, "b.jpg" to newB)
++    )
++
++    @Test
++    fun notesReplacedWithoutCredentialRestoresOld() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeCredential = false)
++        val kernel = sandbox.kernel()
++        assertEquals(DiskState.Interrupted("t1"), kernel.inspect())
++
++        val outcome = kernel.recover()
++        assertTrue("应收敛，实际=$outcome", outcome is RecoverOutcome.Settled)
++        sandbox.expectNotes(oldNotes, "笔记必须回滚到旧内容")
++        sandbox.expectAttachments(mapOf("a.jpg" to oldA), "附件必须回滚，新增附件必须删除")
++        assertEquals(DiskState.Idle, kernel.inspect())
++        assertEquals(ResultOutcome.ABORTED, sandbox.results().single().outcome)
++    }
++
++    @Test
++    fun rollbackWithoutOldNotesDeletesTheFile() = runBlocking {
++        sandbox.plant(
++            PlantedTxn("t1", null, newNotes, emptyMap(), mapOf("a.jpg" to newA)),
++            notesState = NotesState.NEW
++        )
++        val kernel = sandbox.kernel()
++
++        kernel.recover()
++        assertNull("旧 notes 不存在时，回滚目标是删除", sandbox.notesText())
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun onlyAppliedAttachmentsAreRestored() = runBlocking {
++        // a.jpg 已替换，b.jpg 还没来得及写：回滚只恢复 a，b 本来就不存在
++        sandbox.plant(
++            spec().copy(appliedAttachments = mapOf("a.jpg" to newA)),
++            notesState = NotesState.NEW
++        )
++        val kernel = sandbox.kernel()
++
++        kernel.recover()
++        sandbox.expectAttachments(mapOf("a.jpg" to oldA), "只应恢复已应用的附件")
++    }
++
++    @Test
++    fun repeatedInterruptionsStillConverge() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW)
++        val ops = FaultyOps()
++        val kernel = sandbox.kernel(ops)
++
++        ops.failOnce += "old-attachment:a.jpg"
++        val first = kernel.recover()
++        assertTrue("第一次应停在回滚失败，实际=$first", first is RecoverOutcome.Stopped)
++        val journalAfterFirst = sandbox.journal()
++        assertNotNull(journalAfterFirst)
++        assertEquals(JournalState.ROLLING_BACK, journalAfterFirst!!.state)
++        assertNotNull("失败位置要落盘", journalAfterFirst.failedAt)
++
++        ops.failOnce += "delete-material:attachments/b.jpg"
++        val second = kernel.recover()
++        assertTrue("第二次仍应停在回滚失败，实际=$second", second is RecoverOutcome.Stopped)
++        assertTrue("第一次已恢复的附件不应被改回去", sandbox.attachment("a.jpg").readBytes().contentEquals(oldA))
++
++        val third = kernel.recover()
++        assertTrue("第三次应收敛，实际=$third", third is RecoverOutcome.Settled)
++        sandbox.expectNotes(oldNotes, "最终必须回到旧笔记")
++        sandbox.expectAttachments(mapOf("a.jpg" to oldA), "最终必须回到旧附件")
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++
++    @Test
++    fun missingOldCopyStopsAndKeepsMaterials() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW)
++        File(sandbox.txnDir("t1"), "old-notes.json").delete()
++
++        val kernel = sandbox.kernel()
++        val outcome = kernel.recover()
++
++        assertTrue("必须停写，实际=$outcome", outcome is RecoverOutcome.Stopped)
++        assertTrue((outcome as RecoverOutcome.Stopped).state is DiskState.RollbackFailed)
++        sandbox.expectNotes(newNotes, "副本损坏时不得猜测，正式数据保持原样")
++        assertTrue("材料必须保留", sandbox.txnDir("t1").isDirectory)
++        assertTrue("journal 必须保留", sandbox.journalFile().isFile)
++        assertEquals(JournalState.ROLLING_BACK, sandbox.journal()?.state)
++    }
++
++    @Test
++    fun corruptedCopyWithCorrectDigestInJournalStopsWrite() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW)
++        // 副本内容被改坏，journal 里记的仍是原始摘要
++        File(sandbox.txnDir("t1"), "old-notes.json").writeText("""[{"id":"n1","title":"被改过的"}]""")
++
++        val outcome = sandbox.kernel().recover()
++        assertTrue(outcome is RecoverOutcome.Stopped)
++        sandbox.expectNotes(newNotes, "副本摘要不符时不得写回")
++        assertTrue(sandbox.txnDir("t1").isDirectory)
++    }
++
++    @Test
++    fun rollbackRefusesCommittedTransaction() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW, writeCredential = true, journalState = JournalState.COMMITTED)
++
++        val outcome = sandbox.kernel().rollback("t1")
++        assertTrue("已提交不得回滚，实际=$outcome", outcome is RollbackOutcome.Failed)
++        sandbox.expectNotes(newNotes, "已提交的笔记不得被回滚")
++        assertTrue(sandbox.credentialFile().isFile)
++    }
++
++    @Test
++    fun rollbackThenCleanupLeavesNothingBehind() = runBlocking {
++        sandbox.plant(spec(), notesState = NotesState.NEW)
++        val kernel = sandbox.kernel()
++
++        kernel.recover()
++        assertFalse(sandbox.txnDir("t1").exists())
++        assertFalse(sandbox.journalFile().exists())
++        assertFalse(sandbox.credentialFile().exists())
++        assertTrue("临时文件未清干净：${sandbox.tempFiles()}", sandbox.tempFiles().isEmpty())
++        assertEquals(DiskState.Idle, kernel.inspect())
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/TxnTestSupport.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/TxnTestSupport.kt
+new file mode 100644
+index 0000000..0922613
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/TxnTestSupport.kt
+@@ -0,0 +1,292 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.platform.app.InstrumentationRegistry
++import com.example.myapplicationfirstapp.data.realDataFingerprint
++import java.io.File
++import java.io.IOException
++import java.security.MessageDigest
++import java.util.UUID
++import java.util.concurrent.CountDownLatch
++import java.util.concurrent.TimeUnit
++
++/**
++ * BACKUP-SAFE-1B-CORE 测试支撑。
++ *
++ * 每个用例一个 UUID 沙箱，内核只拿到这个根；测试**不**通过 Context 取 `filesDir`，
++ * 也不构造会回落到真实目录的包装器。真实数据仍按 1A 的方式取指纹，前后比对。
++ *
++ * 注入的异常一律叫 `injected-io-failure`：这是代码级注入，不是「真实磁盘故障」的证明。
++ */
++
++internal class TxnSandbox(val tag: String) {
++
++    private val base = InstrumentationRegistry.getInstrumentation().targetContext.cacheDir
++    val root: File = File(base, "backup-1b-core/$tag-${UUID.randomUUID()}").apply {
++        check(mkdirs() || isDirectory) { "cannot create sandbox: $path" }
++    }
++
++    private var disposed = false
++
++    fun kernel(ops: TxnFileOps = RealTxnFileOps(), gate: WriteGate = WriteGate()): ImportTxnKernel =
++        ImportTxnKernel(root, ops, gate)
++
++    fun dispose(): Boolean {
++        disposed = true
++        root.deleteRecursively()
++        val parent = root.parentFile
++        return !root.exists() && parent != null && parent.isDirectory
++    }
++
++    fun wasDisposed(): Boolean = disposed
++}
++
++internal fun String.sha256(): String {
++    val digest = MessageDigest.getInstance("SHA-256").digest(toByteArray(Charsets.UTF_8))
++    return digest.joinToString("") { "%02x".format(it) }
++}
++
++internal fun ByteArray.sha256(): String {
++    val digest = MessageDigest.getInstance("SHA-256").digest(this)
++    return digest.joinToString("") { "%02x".format(it) }
++}
++
++internal fun File.sha256(): String = readBytes().sha256()
++
++internal fun realFingerprint(): String {
++    val fingerprint = realDataFingerprint()
++    return "${fingerprint.notes}|${fingerprint.attachments}|${fingerprint.recordings}"
++}
++
++// ================= 文件布局 =================
++
++internal fun TxnSandbox.txnDir(txnId: String): File = File(root, ".import/txn-$txnId")
++internal fun TxnSandbox.journalFile(): File = File(root, ".import/journal.json")
++internal fun TxnSandbox.credentialFile(): File = File(root, ".import/committed.json")
++internal fun TxnSandbox.resultsFile(): File = File(root, ".import/results.json")
++internal fun TxnSandbox.notesFile(): File = File(root, "notes.json")
++internal fun TxnSandbox.attachmentsDir(): File = File(root, "attachments")
++
++internal fun TxnSandbox.attachment(name: String): File = File(attachmentsDir(), name)
++
++internal fun TxnSandbox.tempFiles(): List<String> = root.walkTopDown()
++    .filter { it.isFile && it.name.endsWith(".tmp") }
++    .map { it.relativeTo(root).path }
++    .sorted()
++    .toList()
++
++internal fun TxnSandbox.writeNotes(text: String) {
++    notesFile().parentFile?.mkdirs()
++    notesFile().writeText(text)
++}
++
++internal fun TxnSandbox.writeAttachment(name: String, bytes: ByteArray) {
++    attachmentsDir().mkdirs()
++    attachment(name).writeBytes(bytes)
++}
++
++internal fun TxnSandbox.notesText(): String? = if (notesFile().isFile) notesFile().readText() else null
++
++internal fun TxnSandbox.attachmentNames(): List<String> =
++    attachmentsDir().listFiles()?.filter { it.isFile }?.map { it.name }?.sorted() ?: emptyList()
++
++// ================= 故障注入 =================
++
++/**
++ * 按步骤名注入失败或阻塞。
++ *
++ * - [failOnce]：命中一次后自动移除，命中时抛 IOException（不是 Error，不冒充崩溃）。
++ * - [alwaysFail]：每次都抛。
++ * - [blockAt]：在该步骤阻塞，测试用来把取消固定在确定性窗口。
++ */
++internal class FaultyOps(private val base: TxnFileOps = RealTxnFileOps()) : TxnFileOps by base {
++
++    val failOnce = mutableSetOf<String>()
++    val alwaysFail = mutableSetOf<String>()
++
++    @Volatile
++    var blockAt: String? = null
++
++    val blocked = CountDownLatch(1)
++    val release = CountDownLatch(1)
++
++    @Volatile
++    var checkpoints: MutableList<String> = mutableListOf()
++
++    @Volatile
++    var forcedUsableSpace: Long? = null
++
++    override fun checkpoint(name: String) {
++        synchronized(this) { checkpoints += name }
++        if (name == blockAt) {
++            blocked.countDown()
++            release.await(10, TimeUnit.SECONDS)
++        }
++        val fail = synchronized(this) { alwaysFail.contains(name) || failOnce.remove(name) }
++        if (fail) throw IOException("injected-io-failure:$name")
++    }
++
++    override fun usableSpace(dir: File): Long = forcedUsableSpace ?: base.usableSpace(dir)
++
++    fun sawCheckpoint(name: String): Boolean = synchronized(this) { checkpoints.contains(name) }
++}
++
++// ================= 直接摆盘（不经 commit） =================
++
++/**
++ * 一条「已经动过正式数据」的事务现场。
++ *
++ * 用直接写文件的方式构造，而不是靠让 `commit` 崩溃：前者只依赖磁盘布局，
++ * 不依赖代码里的异常路径，读起来也更接近真正的重启现场。
++ */
++internal data class PlantedTxn(
++    val txnId: String,
++    val oldNotes: String?,
++    val newNotes: String,
++    val oldAttachments: Map<String, ByteArray>,
++    val newAttachments: Map<String, ByteArray>,
++    /** 正式目录里当前的附件内容；默认是「全部新」，可只给一部分来模拟部分应用 */
++    val appliedAttachments: Map<String, ByteArray> = newAttachments
++)
++
++internal fun TxnSandbox.plant(
++    spec: PlantedTxn,
++    notesState: NotesState = NotesState.NEW,
++    writeJournal: Boolean = true,
++    journalState: JournalState = JournalState.APPLYING,
++    writeCredential: Boolean = false,
++    writeOldCopies: Boolean = true,
++    writeNewMaterial: Boolean = true
++) {
++    root.mkdirs()
++    notesFile().delete()
++    when (notesState) {
++        NotesState.OLD -> spec.oldNotes?.let { writeNotes(it) }
++        NotesState.NEW -> writeNotes(spec.newNotes)
++    }
++
++    attachmentsDir().deleteRecursively()
++    attachmentsDir().mkdirs()
++    spec.appliedAttachments.forEach { (name, bytes) -> writeAttachment(name, bytes) }
++
++    val dir = txnDir(spec.txnId)
++    dir.mkdirs()
++    if (writeNewMaterial) {
++        File(dir, "commit.json").writeText(spec.newNotes)
++        File(dir, "new-attachments").mkdirs()
++        spec.newAttachments.forEach { (name, bytes) ->
++            File(dir, "new-attachments/$name").writeBytes(bytes)
++        }
++    }
++    if (writeOldCopies) {
++        spec.oldNotes?.let { File(dir, "old-notes.json").writeText(it) }
++        File(dir, "old-attachments").mkdirs()
++        spec.oldAttachments.forEach { (name, bytes) ->
++            File(dir, "old-attachments/$name").writeBytes(bytes)
++        }
++    }
++
++    val entries = (spec.oldAttachments.keys + spec.newAttachments.keys).map { name ->
++        JournalAttachment(
++            name = name,
++            old = spec.oldAttachments[name]?.sha256(),
++            new = (spec.newAttachments[name] ?: spec.oldAttachments.getValue(name)).sha256()
++        )
++    }
++    val journal = Journal(
++        state = journalState,
++        txnId = spec.txnId,
++        commitDigest = spec.newNotes.toByteArray().sha256(),
++        oldNotesDigest = spec.oldNotes?.let { it.toByteArray().sha256() },
++        attachments = entries
++    )
++    if (writeJournal) {
++        journalFile().parentFile?.mkdirs()
++        writeJournalRaw(TxnCodec.encodeJournal(journal))
++    }
++    if (writeCredential) {
++        credentialFile().parentFile?.mkdirs()
++        credentialFile().writeText(
++            TxnCodec.encodeCredential(
++                CommitCredential(spec.txnId, journal.commitDigest, 1_700_000_000_000)
++            )
++        )
++    }
++}
++
++internal enum class NotesState { OLD, NEW }
++
++internal fun TxnSandbox.writeJournalRaw(text: String) {
++    journalFile().parentFile?.mkdirs()
++    journalFile().writeText(text)
++}
++
++internal fun TxnSandbox.journal(): Journal? {
++    if (!journalFile().isFile) return null
++    return TxnCodec.decodeJournal(journalFile().readText())
++}
++
++internal fun TxnSandbox.credential(): CommitCredential? {
++    if (!credentialFile().isFile) return null
++    return TxnCodec.decodeCredential(credentialFile().readText())
++}
++
++internal fun TxnSandbox.results(): List<ResultRecord> {
++    if (!resultsFile().isFile) return emptyList()
++    return TxnCodec.decodeResults(resultsFile().readText()) ?: emptyList()
++}
++
++// ================= 断言辅助 =================
++
++internal fun expectTrue(condition: Boolean, message: String) {
++    if (!condition) throw AssertionError(message)
++}
++
++internal fun expectEquals(expected: Any?, actual: Any?, message: String) {
++    if (expected != actual) throw AssertionError("$message：expected=$expected actual=$actual")
++}
++
++internal fun TxnSandbox.expectNotes(expected: String?, message: String) {
++    expectEquals(expected, notesText(), message)
++}
++
++internal fun TxnSandbox.expectAttachments(expected: Map<String, ByteArray>, message: String) {
++    expectEquals(expected.keys.sorted(), attachmentNames(), "$message（文件名）")
++    expected.forEach { (name, bytes) ->
++        expectTrue(attachment(name).readBytes().contentEquals(bytes), "$message：$name 内容不符")
++    }
++}
++
++/**
++ * 每个用例的固定收尾：
++ * 1. 真实 `files/notes.json`、`attachments/`、`recordings/` 的指纹必须与开跑前一致；
++ * 2. 本用例的 UUID 沙箱必须被删掉，公共父目录保留。
++ *
++ * 两条都在失败时也执行，问题收集成清单一次性抛出，不静默。
++ */
++internal abstract class TxnKernelTestBase {
++
++    protected lateinit var sandbox: TxnSandbox
++    private var realBefore: String = ""
++
++    @org.junit.Before
++    fun createSandbox() {
++        realBefore = realFingerprint()
++        sandbox = TxnSandbox(javaClass.simpleName)
++    }
++
++    @org.junit.After
++    fun disposeSandbox() {
++        val problems = mutableListOf<String>()
++        try {
++            if (realFingerprint() != realBefore) problems += "真实数据指纹被改动"
++        } catch (failure: Throwable) {
++            problems += "读取真实数据指纹失败：$failure"
++        }
++        try {
++            if (!sandbox.dispose()) problems += "沙箱未删除：${sandbox.root}"
++        } catch (failure: Throwable) {
++            problems += "删除沙箱抛异常：$failure"
++        }
++        if (problems.isNotEmpty()) throw AssertionError(problems.joinToString("; "))
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/WriteGateTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/WriteGateTest.kt
+new file mode 100644
+index 0000000..8f6a56a
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/WriteGateTest.kt
+@@ -0,0 +1,94 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/**
++ * 写入资格：`epoch` + `sequence` + writer 锁。
++ *
++ * 关键是把**写前拒绝**（`Refused`，没有任何 IO）与**写后旧回调失效**（`Stale`，可能已落盘）
++ * 分开断言，不能都叫「保存失败」。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class WriteGateTest {
++
++    @Test
++    fun refusedWhenNotOpenAndBlockNeverRuns() {
++        val gate = WriteGate().apply { enter(WriteGate.Mode.BLOCKED) }
++        var ran = 0
++
++        val admission = gate.beginWrite()
++        assertTrue(admission is WriteGate.Admission.Refused)
++        assertEquals(WriteGate.Refusal.NotOpen, (admission as WriteGate.Admission.Refused).refusal)
++        assertEquals("写前拒绝不得执行任何写入", 0, ran)
++    }
++
++    @Test
++    fun writeAfterBlockingIsRefusedAndTicketStaysStale() = runBlocking {
++        val gate = WriteGate()
++        val ticket = (gate.beginWrite() as WriteGate.Admission.Granted).ticket
++        gate.enter(WriteGate.Mode.BLOCKED)
++
++        assertEquals(WriteGate.Freshness.Stale, gate.freshness(ticket))
++        val run = gate.write(ticket) { 1 }
++        assertTrue("状态已变，锁内必须降级为拒绝", run is WriteGate.WriteRun.Refused)
++    }
++
++    @Test
++    fun freshTicketAfterReopenIsCurrent() = runBlocking {
++        val gate = WriteGate()
++        gate.enter(WriteGate.Mode.BLOCKED)
++        gate.enter(WriteGate.Mode.OPEN)
++
++        val ticket = (gate.beginWrite() as WriteGate.Admission.Granted).ticket
++        assertEquals(WriteGate.Freshness.Current, gate.freshness(ticket))
++        val run = gate.write(ticket) { 7 }
++        assertTrue(run is WriteGate.WriteRun.Completed)
++        assertEquals(7, (run as WriteGate.WriteRun.Completed).value)
++    }
++
++    @Test
++    fun olderTicketBecomesStaleAfterANewerWrite() = runBlocking {
++        val gate = WriteGate()
++        val first = (gate.beginWrite() as WriteGate.Admission.Granted).ticket
++        val second = (gate.beginWrite() as WriteGate.Admission.Granted).ticket
++
++        gate.write(first) { }
++        assertEquals("已落盘的票不能再用", WriteGate.Freshness.Stale, gate.freshness(first))
++        assertEquals(WriteGate.Freshness.Current, gate.freshness(second))
++
++        val replay = gate.write(first) { }
++        assertTrue("同一张旧票不能重放", replay is WriteGate.WriteRun.Refused)
++    }
++
++    @Test
++    fun exclusiveWriteClosesSavesAndInvalidatesCallbacksOnExit() = runBlocking {
++        val gate = WriteGate()
++        val exclusive = (gate.beginExclusive() as WriteGate.Admission.Granted).ticket
++        assertEquals(WriteGate.Mode.IMPORTING, gate.mode())
++
++        val admission = gate.beginWrite()
++        assertTrue("导入期间必须拒绝普通保存", admission is WriteGate.Admission.Refused)
++        assertEquals(WriteGate.Refusal.NotOpen, (admission as WriteGate.Admission.Refused).refusal)
++
++        gate.endExclusive(exclusive)
++        assertEquals(WriteGate.Mode.OPEN, gate.mode())
++        assertEquals("导入结束，旧回调必须失效", WriteGate.Freshness.Stale, gate.freshness(exclusive))
++        assertTrue(gate.beginWrite() is WriteGate.Admission.Granted)
++    }
++
++    @Test
++    fun exclusiveIsRefusedWhenAlreadyImporting() = runBlocking {
++        val gate = WriteGate()
++        val first = gate.beginExclusive()
++        assertTrue(first is WriteGate.Admission.Granted)
++        gate.endExclusive((first as WriteGate.Admission.Granted).ticket)
++
++        gate.enter(WriteGate.Mode.RECOVERING)
++        assertTrue(gate.beginExclusive() is WriteGate.Admission.Refused)
++    }
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt
+new file mode 100644
+index 0000000..a65f2b5
+--- /dev/null
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt
+@@ -0,0 +1,779 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.NonCancellable
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withContext
++import org.json.JSONArray
++import org.json.JSONObject
++import java.io.File
++import java.io.IOException
++
++/**
++ * BACKUP-SAFE-1B-CORE：隔离事务内核。
++ *
++ * 只接受两样东西：**调用方指定的存储根**与**已经物化好的材料**（`txn-<txnId>/commit.json`
++ * 与 `new-attachments/`）。它不读 Context、不解析 Uri、不补 ID/时间戳、不碰 UI，
++ * 因此在测试里可以把根指到一个 UUID 沙箱，跑完整的提交/回滚/清理。
++ *
++ * ## 并发契约
++ *
++ * 同一个内核实例（同一个存储根）的所有写操作都由 [mutex] 串行：`commit` / `recover` /
++ * `cleanup` / `rollback` / `discardQuarantined` / `materialize`。`inspect` 也拿同一把锁，
++ * 所以它不会读到「清理删到一半」的中间态。跨实例共享同一个根**不受保护**——
++ * 生产上只应该有一个实例（后批的 `NotesStore`），测试里每个沙箱一个实例。
++ *
++ * `WriteGate` 是第二层：写权限（epoch/sequence）与「同根串行」是两件事，
++ * 前者决定「这次能不能写」，后者决定「两次写不会交错」。
++ *
++ * ## 本批不做什么
++ *
++ * - 不接线 `NotesRepository` / `NotesState` / `MainActivity` / `ReminderReceiver`；
++ * - 不 prune 未被引用的旧附件（删除用户文件需要接线批的确认流程）；
++ * - 不做 prepare 的 ID/时间戳物化，只把调用方给的字节落成事务材料。
++ */
++internal class ImportTxnKernel(
++    val root: File,
++    private val ops: TxnFileOps = RealTxnFileOps(),
++    private val gate: WriteGate = WriteGate(),
++    private val clock: () -> Long = System::currentTimeMillis,
++    private val io: CoroutineDispatcher = Dispatchers.IO
++) {
++
++    private val mutex = Mutex()
++
++    private val notesFile = File(root, NOTES)
++    private val attachmentsDir = File(root, ATTACHMENTS)
++    private val importDir = File(root, IMPORT_DIR)
++    private val journalFile = File(importDir, JOURNAL)
++    private val credentialFile = File(importDir, CREDENTIAL)
++    private val resultsFile = File(importDir, RESULTS)
++
++    // ================= 只读判定 =================
++
++    suspend fun inspect(): DiskState = mutex.withLock {
++        withContext(io) { classifyLocked() }
++    }
++
++    /**
++     * 从磁盘重建状态。只看磁盘，不看内存、不看上一次返回值。
++     *
++     * 判定顺序：先判提交事实（证据 + 摘要），再判事务阶段，最后判材料是否足以支撑动作。
++     * 材料够不够由 `rollback` 在推进每个文件时判定，这里不预判。
++     */
++    private fun classifyLocked(): DiskState {
++        val txnDirs = txnDirs()
++        return when (val journal = readJournal()) {
++            JournalRead.Unreadable -> {
++                // journal 存在但读不出来：只有凭据能救，且必须与正式数据对得上
++                val credential = readCredential()
++                if (credential is CredentialRead.Present && notesDigest() == credential.value.commitDigest) {
++                    DiskState.Committed(credential.value.txnId)
++                } else {
++                    DiskState.Corrupt("journal-unreadable")
++                }
++            }
++
++            JournalRead.Absent -> when (val credential = readCredential()) {
++                CredentialRead.Unreadable -> DiskState.Corrupt("credential-unreadable")
++                is CredentialRead.Present ->
++                    if (notesDigest() == credential.value.commitDigest) {
++                        DiskState.Committed(credential.value.txnId)
++                    } else {
++                        DiskState.Corrupt("credential-digest-mismatch")
++                    }
++
++                // 没有 journal 也没有凭据：只要还剩事务材料，生命周期就无法确定。
++                // 不按 notes 摘要推断「可以删」——摘要相同不代表附件没被动过。
++                CredentialRead.Absent ->
++                    if (txnDirs.isEmpty()) DiskState.Idle else DiskState.Quarantined(txnDirs.map { it.name })
++            }
++
++            is JournalRead.Present -> judge(journal.value, readCredential())
++        }
++    }
++
++    private fun judge(journal: Journal, credential: CredentialRead): DiskState {
++        val digest = notesDigest()
++        return when (journal.state) {
++            JournalState.COMMITTED -> when {
++                credential is CredentialRead.Present &&
++                    (credential.value.txnId != journal.txnId || credential.value.commitDigest != journal.commitDigest) ->
++                    DiskState.Corrupt("credential-journal-conflict")
++
++                digest != journal.commitDigest -> DiskState.Corrupt("notes-digest-mismatch")
++                else -> DiskState.Committed(journal.txnId)
++            }
++
++            JournalState.APPLYING -> when {
++                // 终态证据成立 → 已提交
++                credential is CredentialRead.Present && credential.value.txnId == journal.txnId &&
++                    credential.value.commitDigest == journal.commitDigest && digest == journal.commitDigest ->
++                    DiskState.Committed(journal.txnId)
++
++                credential is CredentialRead.Present -> DiskState.Corrupt("credential-inconsistent")
++                // 没有终态证据：无论 notes 是否已经等于新载荷，都只能回滚
++                else -> DiskState.Interrupted(journal.txnId)
++            }
++
++            JournalState.ROLLING_BACK -> when {
++                credential is CredentialRead.Present -> DiskState.Corrupt("credential-on-rolling-back")
++                // 上一次回滚失败过：仍然可以重跑同一套状态机，只是先如实报告失败位置
++                journal.failedAt != null -> DiskState.RollbackFailed(journal.txnId, journal.failedAt)
++                else -> DiskState.RollingBack(journal.txnId)
++            }
++
++            JournalState.ABORTED -> when {
++                credential is CredentialRead.Present -> DiskState.Corrupt("credential-on-aborted")
++                digest == journal.oldNotesDigest -> DiskState.Aborted(journal.txnId)
++                else -> DiskState.Corrupt("aborted-but-notes-changed")
++            }
++
++            JournalState.PREPARED -> when {
++                credential is CredentialRead.Present -> DiskState.Corrupt("credential-on-prepared")
++                digest != journal.oldNotesDigest -> DiskState.Corrupt("prepared-but-notes-changed")
++                !commitMaterialExists(journal.txnId) -> DiskState.StagingFailed(journal.txnId)
++                else -> DiskState.Prepared(journal.txnId)
++            }
++        }
++    }
++
++    // ================= 材料落地 =================
++
++    /**
++     * 把调用方已经算好的载荷与附件字节落成事务材料。
++     *
++     * 只做「写文件 + 算摘要」，不补默认值、不解析笔记；返回的 `commitDigest` 必须被调用方
++     * 原样带走，提交时再用 [MaterialRef.expectedCommitDigest] 校验，防止材料被改。
++     */
++    suspend fun materialize(
++        txnId: String,
++        commitBytes: ByteArray,
++        attachments: Map<String, ByteArray>
++    ): MaterializeOutcome = mutex.withLock {
++        withContext(io) {
++            if (!isSafeName(txnId)) return@withContext MaterializeOutcome.Rejected("unsafe-txn-id")
++            val dir = txnDir(txnId)
++            if (ops.exists(dir)) return@withContext MaterializeOutcome.Rejected("txn-exists")
++            if (!ops.mkdirs(dir)) return@withContext MaterializeOutcome.Rejected("mkdir-failed")
++            attachments.keys.forEach { name ->
++                if (!isSafeName(name)) {
++                    ops.deleteTree(dir)
++                    return@withContext MaterializeOutcome.Rejected("unsafe-name:$name")
++                }
++            }
++            return@withContext try {
++                ops.writeAtomic(File(dir, COMMIT_JSON), commitBytes)
++                val newDir = File(dir, NEW_ATTACHMENTS)
++                if (!ops.mkdirs(newDir)) throw IOException("cannot create new-attachments")
++                attachments.forEach { (name, bytes) ->
++                    ops.checkpoint(TxnStep.newAttachment(name))
++                    ops.writeAtomic(File(newDir, name), bytes)
++                }
++                MaterializeOutcome.Ready(txnId, ops.digestBytes(commitBytes))
++            } catch (failure: IOException) {
++                ops.deleteTree(dir)
++                MaterializeOutcome.Rejected("materialize-failed")
++            }
++        }
++    }
++
++    // ================= 提交 =================
++
++    /**
++     * 提交一份已物化材料。
++     *
++     * 失败语义：
++     * - [CommitOutcome.NotStarted]：没动正式数据（材料缺失、材料变了、空间不足、已有活跃事务）。
++     * - [CommitOutcome.Refused]：写前被拒，同样没有 IO。
++     * - [CommitOutcome.Failed]：动过但已回滚（或停在可判定的失败态），[detail] 只用于日志。
++     *
++     * 取消：可取消段内取消 → 回滚后**重抛同一个** `CancellationException`；
++     * 不可取消段（notes rename + 凭据）内取消被延迟，事务按已提交处理，不抛取消。
++     */
++    suspend fun commit(ref: MaterialRef): CommitOutcome = mutex.withLock {
++        withContext(io) {
++            val admission = gate.beginExclusive()
++            if (admission is WriteGate.Admission.Refused) {
++                return@withContext CommitOutcome.Refused(admission.refusal)
++            }
++            val ticket = (admission as WriteGate.Admission.Granted).ticket
++            try {
++                commitUnderLock(ref)
++            } finally {
++                gate.endExclusive(ticket)
++            }
++        }
++    }
++
++    private suspend fun commitUnderLock(ref: MaterialRef): CommitOutcome {
++        val txnId = ref.txnId
++        if (!isSafeName(txnId)) return CommitOutcome.NotStarted("unsafe-txn-id")
++
++        when (val journal = readJournal()) {
++            is JournalRead.Present -> return CommitOutcome.NotStarted("journal-present:${journal.value.state}")
++            JournalRead.Unreadable -> return CommitOutcome.NotStarted("journal-unreadable")
++            JournalRead.Absent -> Unit
++        }
++        when (readCredential()) {
++            CredentialRead.Absent -> Unit
++            else -> return CommitOutcome.NotStarted("credential-present")
++        }
++        val others = txnDirs().filter { it.name != txnDirName(txnId) }
++        if (others.isNotEmpty()) {
++            // 生命周期不明的事务必须先把处置掉，不能越过它开始新事务
++            return CommitOutcome.NotStarted("quarantined:${others.joinToString(",") { it.name }}")
++        }
++
++        val dir = txnDir(txnId)
++        if (!ops.isDirectory(dir)) return CommitOutcome.NotStarted("material-missing")
++        val commitBytes = readOrNull(File(dir, COMMIT_JSON)) ?: return CommitOutcome.NotStarted("material-missing")
++        val commitDigest = ops.digestBytes(commitBytes)
++        if (ref.expectedCommitDigest != null && ref.expectedCommitDigest != commitDigest) {
++            return CommitOutcome.NotStarted("material-changed")
++        }
++
++        val notesRead = readNotes()
++        if (notesRead is NotesRead.Unreadable) return CommitOutcome.NotStarted("notes-unreadable")
++        val oldNotesBytes = (notesRead as? NotesRead.Present)?.bytes
++        val oldNotesDigest = oldNotesBytes?.let { ops.digestBytes(it) }
++
++        val newFiles = ops.list(File(dir, NEW_ATTACHMENTS)).filter { !it.isDirectory }
++        newFiles.forEach {
++            if (!isSafeName(it.name)) return CommitOutcome.NotStarted("unsafe-material-name:${it.name}")
++        }
++        val entries = ArrayList<JournalAttachment>(newFiles.size)
++        var requiredBytes = commitBytes.size.toLong() + (oldNotesBytes?.size?.toLong() ?: 0L)
++        for (file in newFiles) {
++            val newDigest = ops.digest(file)
++            val target = File(attachmentsDir, file.name)
++            val oldDigest = if (ops.exists(target)) ops.digest(target) else null
++            entries += JournalAttachment(file.name, oldDigest, newDigest)
++            requiredBytes += ops.length(file) + (if (oldDigest != null) ops.length(target) else 0L)
++        }
++        if (ops.usableSpace(root) < requiredBytes) return CommitOutcome.NotStarted("insufficient-space")
++
++        val journal = Journal(
++            state = JournalState.APPLYING,
++            txnId = txnId,
++            commitDigest = commitDigest,
++            oldNotesDigest = oldNotesDigest,
++            attachments = entries
++        )
++        try {
++            writeJournal(journal)
++        } catch (failure: IOException) {
++            return CommitOutcome.NotStarted("journal-write-failed")
++        }
++
++        // 备份：副本先落地，才允许改第一个正式文件
++        try {
++            if (oldNotesBytes != null) {
++                ops.checkpoint(TxnStep.OLD_NOTES)
++                ops.writeAtomic(File(dir, OLD_NOTES), oldNotesBytes)
++            }
++            for (entry in entries) {
++                currentCoroutineContext().ensureActive()
++                if (entry.old == null) continue
++                ops.checkpoint(TxnStep.oldAttachment(entry.name))
++                val source = File(attachmentsDir, entry.name)
++                ops.writeAtomic(File(dir, "$OLD_ATTACHMENTS/${entry.name}"), ops.readBytes(source))
++            }
++            ops.checkpoint(TxnStep.OLD_MANIFEST)
++            ops.writeAtomic(File(dir, OLD_MANIFEST), oldManifest(oldNotesDigest, entries).toByteArray())
++        } catch (failure: IOException) {
++            return settleAfterFailure(txnId, failure)
++        }
++
++        // 可取消段：附件替换。取消到这里为止都必须回滚。
++        try {
++            for (entry in entries) {
++                currentCoroutineContext().ensureActive()
++                val bytes = ops.readBytes(File(dir, "$NEW_ATTACHMENTS/${entry.name}"))
++                ops.checkpoint(TxnStep.newAttachment(entry.name))
++                ops.writeAtomic(File(attachmentsDir, entry.name), bytes)
++            }
++            currentCoroutineContext().ensureActive()
++        } catch (cancellation: CancellationException) {
++            withContext(NonCancellable) { rollbackLocked(txnId) }
++            throw cancellation
++        } catch (failure: IOException) {
++            return settleAfterFailure(txnId, failure)
++        }
++
++        // 提交点：这两步一旦开始就必须走完，否则会停在「数据换了但没凭据」的不可判状态。
++        // 注意 `withContext(NonCancellable)` 退出时仍可能收到**延迟**的取消：那时凭据已经写了，
++        // 事务是已提交，绝不能回滚，只能把取消标记下来继续收尾。
++        try {
++            withContext(NonCancellable) {
++                ops.checkpoint(TxnStep.NOTES)
++                ops.writeAtomic(notesFile, commitBytes)
++                ops.checkpoint(TxnStep.CREDENTIAL)
++                ops.writeAtomic(
++                    credentialFile,
++                    TxnCodec.encodeCredential(CommitCredential(txnId, commitDigest, clock())).toByteArray()
++                )
++            }
++        } catch (cancellation: CancellationException) {
++            // 提交点之后才到的取消：磁盘已经提交，**不能回滚**。
++            // 这里不把它转成返回值——取消语义由 Job 保留，调用方会在下一个挂起点收到；
++            // 收到之后必须查磁盘（currentResult/inspect）而不是按失败处理。
++        } catch (failure: IOException) {
++            return settleAfterFailure(txnId, failure)
++        }
++
++        val count = countNotes(commitBytes)
++        appendResult(ResultRecord(txnId, ResultOutcome.COMMITTED, count, clock()))
++        runCatching {
++            writeJournal(journal.copy(state = JournalState.COMMITTED))
++        }
++        val cleanup = cleanupLocked(txnId)
++        return CommitOutcome.Committed(count, cleanup)
++    }
++
++    /** 提交中途失败：回滚到旧状态并清理；回滚失败则停在 `RollbackFailed` 并保留材料 */
++    private suspend fun settleAfterFailure(txnId: String, failure: IOException): CommitOutcome {
++        val rollback = withContext(NonCancellable) { rollbackLocked(txnId) }
++        return when (rollback) {
++            RollbackOutcome.Restored -> {
++                cleanupLocked(txnId)
++                CommitOutcome.Failed(classifyLocked(), failure.message ?: "apply-failed")
++            }
++
++            is RollbackOutcome.Failed -> CommitOutcome.Failed(
++                DiskState.RollbackFailed(txnId, rollback.detail),
++                failure.message ?: "apply-failed"
++            )
++        }
++    }
++
++    // ================= 回滚 =================
++
++    /**
++     * 显式回滚。只对 `APPLYING` / `ROLLING_BACK` 有效，已提交的事务一律拒绝。
++     *
++     * 每个文件单独比较「当前状态」与「目标状态」：摘要相同就跳过，不同才从副本恢复，
++     * 恢复后再校验一次。因此重复中断任意次都能收敛。
++     */
++    suspend fun rollback(txnId: String): RollbackOutcome = mutex.withLock {
++        withContext(io) { rollbackLocked(txnId) }
++    }
++
++    private fun rollbackLocked(txnId: String): RollbackOutcome {
++        val journal = (readJournal() as? JournalRead.Present)?.value
++            ?: return RollbackOutcome.Failed("journal-unreadable")
++        if (journal.txnId != txnId) return RollbackOutcome.Failed("txn-mismatch")
++        if (journal.state == JournalState.COMMITTED) return RollbackOutcome.Failed("refuse-rollback-committed")
++
++        var current = journal.copy(state = JournalState.ROLLING_BACK)
++        runCatching { writeJournal(current) }
++
++        val nowDigest = notesDigest()
++        if (current.oldNotesDigest != null) {
++            // 目标：notes.json 的字节 == Dold。当前已经等于 Dold 时不需要副本。
++            if (nowDigest != current.oldNotesDigest) {
++                val copy = readOrNull(File(txnDir(txnId), OLD_NOTES))
++                    ?: return failRollback(current, "old-notes-missing")
++                if (ops.digestBytes(copy) != current.oldNotesDigest) {
++                    return failRollback(current, "old-notes-corrupt")
++                }
++                if (!attempt {
++                        ops.checkpoint(TxnStep.NOTES)
++                        ops.writeAtomic(notesFile, copy)
++                    }
++                ) {
++                    return failRollback(current, "notes-restore-io")
++                }
++                if (notesDigest() != current.oldNotesDigest) {
++                    return failRollback(current, "notes-restore-verify")
++                }
++            }
++        } else if (nowDigest != null) {
++            // 目标：文件不存在。只删「自己写的」那一份。
++            if (nowDigest != current.commitDigest) return failRollback(current, "notes-not-from-txn")
++            if (!attempt {
++                    ops.checkpoint(TxnStep.NOTES)
++                    ops.delete(notesFile)
++                }
++            ) return failRollback(current, "notes-delete-io")
++            if (notesDigest() != null) return failRollback(current, "notes-delete-verify")
++        }
++
++        for (entry in current.attachments) {
++            val target = File(attachmentsDir, entry.name)
++            val onDisk = readOrNull(target)?.let { ops.digestBytes(it) }
++            if (entry.old == null) {
++                if (onDisk == null) continue
++                if (onDisk != entry.new) return failRollback(current, "unexpected-attachment:${entry.name}")
++                if (!attempt {
++                        ops.checkpoint(TxnStep.deleteMaterial("$ATTACHMENTS/${entry.name}"))
++                        ops.delete(target)
++                    }
++                ) {
++                    return failRollback(current, "attachment-delete-io")
++                }
++                if (ops.exists(target)) return failRollback(current, "attachment-delete-verify")
++            } else {
++                if (onDisk == entry.old) continue
++                val copy = readOrNull(File(txnDir(txnId), "$OLD_ATTACHMENTS/${entry.name}"))
++                    ?: return failRollback(current, "old-attachment-missing:${entry.name}")
++                if (ops.digestBytes(copy) != entry.old) {
++                    return failRollback(current, "old-attachment-corrupt:${entry.name}")
++                }
++                if (!attempt {
++                        ops.checkpoint(TxnStep.oldAttachment(entry.name))
++                        ops.writeAtomic(target, copy)
++                    }
++                ) {
++                    return failRollback(current, "attachment-restore-io")
++                }
++                if (readOrNull(target)?.let { ops.digestBytes(it) } != entry.old) {
++                    return failRollback(current, "attachment-restore-verify")
++                }
++            }
++        }
++
++        current = current.copy(state = JournalState.ABORTED, failedAt = null)
++        runCatching { writeJournal(current) }
++        appendResult(ResultRecord(txnId, ResultOutcome.ABORTED, 0, clock(), reason = "rolled-back"))
++        return RollbackOutcome.Restored
++    }
++
++    private fun failRollback(journal: Journal, detail: String): RollbackOutcome {
++        runCatching {
++            writeJournal(journal.copy(state = JournalState.ROLLING_BACK, failedAt = detail))
++        }
++        return RollbackOutcome.Failed(detail)
++    }
++
++    // ================= 清理 =================
++
++    /**
++     * 清理事务件。只删 `.import/` 下的东西，绝不动正式数据。
++     *
++     * 顺序固定：结果留存 → 材料 → 目录 → journal → 凭据。
++     * **材料没删干净就不删证据**：否则会退化成「有材料、没凭据」的隔离态。
++     */
++    suspend fun cleanup(txnId: String): CleanupOutcome = mutex.withLock {
++        withContext(io) { cleanupLocked(txnId) }
++    }
++
++    private fun cleanupLocked(txnId: String): CleanupOutcome {
++        val state = classifyLocked()
++        val outcome = when (state) {
++            is DiskState.Committed -> ResultOutcome.COMMITTED
++            is DiskState.Aborted -> ResultOutcome.ABORTED
++            is DiskState.StagingFailed -> ResultOutcome.NOT_STARTED
++            // 其他状态没有「已终结」的事实可清理：停手，保留现场
++            else -> return CleanupOutcome(false, listOf("state:${state::class.simpleName}"), stoppedAt = "state")
++        }
++
++        if (currentResultLocked(txnId) == null && !appendResult(ResultRecord(txnId, outcome, 0, clock()))) {
++            return CleanupOutcome(false, listOf(RESULTS), stoppedAt = "results")
++        }
++
++        val leftovers = mutableListOf<String>()
++        val dir = txnDir(txnId)
++        if (ops.isDirectory(dir)) {
++            for (child in listOf(OLD_ATTACHMENTS, NEW_ATTACHMENTS)) {
++                val childDir = File(dir, child)
++                for (file in ops.list(childDir).filter { !it.isDirectory }) {
++                    if (!attempt {
++                            ops.checkpoint(TxnStep.deleteMaterial("$child/${file.name}"))
++                            ops.delete(file)
++                        }
++                    ) {
++                        leftovers += "$child/${file.name}"
++                        return CleanupOutcome(false, leftovers, stoppedAt = "materials")
++                    }
++                }
++                if (ops.exists(childDir)) {
++                    if (!attempt { ops.deleteTree(childDir) }) {
++                        leftovers += child
++                        return CleanupOutcome(false, leftovers, stoppedAt = "materials")
++                    }
++                }
++            }
++            for (name in listOf(COMMIT_JSON, OLD_NOTES, OLD_MANIFEST)) {
++                val file = File(dir, name)
++                if (!ops.exists(file)) continue
++                if (!attempt {
++                        ops.checkpoint(TxnStep.deleteMaterial(name))
++                        ops.delete(file)
++                    }
++                ) {
++                    leftovers += name
++                    return CleanupOutcome(false, leftovers, stoppedAt = "materials")
++                }
++            }
++            if (!attempt { ops.deleteTree(dir) }) {
++                leftovers += dir.name
++                return CleanupOutcome(false, leftovers, stoppedAt = "materials")
++            }
++        }
++
++        // 门禁：材料目录必须已经不在了，才允许删证据
++        if (ops.exists(dir)) return CleanupOutcome(false, leftovers + dir.name, stoppedAt = "gate")
++
++        if (ops.exists(journalFile)) {
++            if (!attempt {
++                    ops.checkpoint(TxnStep.JOURNAL)
++                    ops.delete(journalFile)
++                }
++            ) {
++                return CleanupOutcome(false, leftovers + JOURNAL, stoppedAt = "journal")
++            }
++        }
++        if (ops.exists(credentialFile)) {
++            if (!attempt {
++                    ops.checkpoint(TxnStep.CREDENTIAL)
++                    ops.delete(credentialFile)
++                }
++            ) {
++                return CleanupOutcome(false, leftovers + CREDENTIAL, stoppedAt = "credential")
++            }
++        }
++        return CleanupOutcome(true, leftovers)
++    }
++
++    /**
++     * 处置一个生命周期不明的 `txn-*`。**只能显式调用**，`recover()` 永不自动删。
++     */
++    suspend fun discardQuarantined(txnId: String): CleanupOutcome = mutex.withLock {
++        withContext(io) {
++            val state = classifyLocked()
++            if (state !is DiskState.Quarantined || state.txnDirs.none { it == txnDirName(txnId) }) {
++                return@withContext CleanupOutcome(false, listOf("not-quarantined"), stoppedAt = "state")
++            }
++            val dir = txnDir(txnId)
++            ops.checkpoint(TxnStep.deleteMaterial(dir.name))
++            val cleared = attempt { ops.deleteTree(dir) } && !ops.exists(dir)
++            CleanupOutcome(cleared, if (cleared) emptyList() else listOf(dir.name), if (cleared) null else "quarantine")
++        }
++    }
++
++    // ================= 恢复 =================
++
++    /**
++     * 启动恢复。按 `classify()` 的结论收尾：
++     *
++     * - `Interrupted` / `RollingBack` → 回滚 → 清理；
++     * - `Aborted` / `StagingFailed` → 清理；
++     * - `Committed` → 补结果与终态 → 清理；
++     * - `Quarantined` / `Corrupt` / `RollbackFailed` / `Prepared` → 中止并保留现场。
++     */
++    suspend fun recover(): RecoverOutcome = mutex.withLock {
++        withContext(io) {
++            gate.enter(WriteGate.Mode.RECOVERING)
++            try {
++                when (val state = classifyLocked()) {
++                    DiskState.Idle -> RecoverOutcome.Settled(DiskState.Idle, null)
++                    is DiskState.Prepared -> RecoverOutcome.Stopped(state, "awaiting-confirmation")
++                    is DiskState.Quarantined -> RecoverOutcome.Stopped(state, "lifecycle-unknown")
++                    is DiskState.Corrupt -> RecoverOutcome.Stopped(state, state.reason)
++                    // 回滚失败不是终态：每次启动都重跑同一状态机，直到收敛或再次失败
++                    is DiskState.RollbackFailed -> settleRollback(state.txnId)
++
++                    is DiskState.StagingFailed -> {
++                        appendResult(ResultRecord(state.txnId, ResultOutcome.NOT_STARTED, 0, clock()))
++                        val cleanup = cleanupLocked(state.txnId)
++                        RecoverOutcome.Settled(classifyLocked(), cleanup)
++                    }
++
++                    is DiskState.Interrupted -> settleRollback(state.txnId)
++                    is DiskState.RollingBack -> settleRollback(state.txnId)
++
++                    is DiskState.Aborted -> {
++                        val cleanup = cleanupLocked(state.txnId)
++                        RecoverOutcome.Settled(classifyLocked(), cleanup)
++                    }
++
++                    is DiskState.Committed -> {
++                        appendResultIfMissing(state.txnId, ResultOutcome.COMMITTED)
++                        rewriteCommittedJournal(state.txnId)
++                        val cleanup = cleanupLocked(state.txnId)
++                        RecoverOutcome.Settled(classifyLocked(), cleanup)
++                    }
++                }
++            } finally {
++                gate.enter(WriteGate.Mode.OPEN)
++            }
++        }
++    }
++
++    private fun settleRollback(txnId: String): RecoverOutcome = when (val rollback = rollbackLocked(txnId)) {
++        RollbackOutcome.Restored -> {
++            val cleanup = cleanupLocked(txnId)
++            RecoverOutcome.Settled(classifyLocked(), cleanup)
++        }
++
++        is RollbackOutcome.Failed -> RecoverOutcome.Stopped(classifyLocked(), rollback.detail)
++    }
++
++    // ================= 结果留存 =================
++
++    suspend fun currentResult(txnId: String): ResultRecord? = mutex.withLock {
++        withContext(io) { currentResultLocked(txnId) }
++    }
++
++    suspend fun results(): List<ResultRecord> = mutex.withLock {
++        withContext(io) { readResultsLocked() }
++    }
++
++    suspend fun markConsumed(txnId: String): Boolean = mutex.withLock {
++        withContext(io) {
++            val records = readResultsLocked()
++            if (records.none { it.txnId == txnId }) return@withContext false
++            val updated = records.map { if (it.txnId == txnId) it.copy(consumed = true) else it }
++            attempt { ops.writeAtomic(resultsFile, TxnCodec.encodeResults(updated).toByteArray()) }
++        }
++    }
++
++    private fun currentResultLocked(txnId: String): ResultRecord? =
++        readResultsLocked().firstOrNull { it.txnId == txnId }
++
++    private fun readResultsLocked(): List<ResultRecord> {
++        if (!ops.exists(resultsFile)) return emptyList()
++        val text = readOrNull(resultsFile) ?: return emptyList()
++        return TxnCodec.decodeResults(String(text, Charsets.UTF_8)) ?: emptyList()
++    }
++
++    /**
++     * 追加一条终态记录。同一 `txnId` 覆盖，最多保留 [MAX_RESULTS] 条。
++     *
++     * 写失败不算导入失败：结果留存是「方便查询」，事实仍在磁盘上。
++     */
++    private fun appendResult(record: ResultRecord): Boolean {
++        val existing = readResultsLocked().filter { it.txnId != record.txnId }
++        val merged = (listOf(record) + existing).take(MAX_RESULTS)
++        return attempt {
++            ops.checkpoint(TxnStep.RESULTS)
++            ops.writeAtomic(resultsFile, TxnCodec.encodeResults(merged).toByteArray())
++        }
++    }
++
++    private fun appendResultIfMissing(txnId: String, outcome: ResultOutcome) {
++        if (currentResultLocked(txnId) == null) {
++            appendResult(ResultRecord(txnId, outcome, 0, clock()))
++        }
++    }
++
++    private fun rewriteCommittedJournal(txnId: String) {
++        val journal = (readJournal() as? JournalRead.Present)?.value ?: return
++        if (journal.state == JournalState.COMMITTED) return
++        runCatching { writeJournal(journal.copy(state = JournalState.COMMITTED, failedAt = null)) }
++    }
++
++    // ================= 磁盘读取 =================
++
++    private sealed interface JournalRead {
++        data object Absent : JournalRead
++        data object Unreadable : JournalRead
++        data class Present(val value: Journal) : JournalRead
++    }
++
++    private sealed interface CredentialRead {
++        data object Absent : CredentialRead
++        data object Unreadable : CredentialRead
++        data class Present(val value: CommitCredential) : CredentialRead
++    }
++
++    private sealed interface NotesRead {
++        data object Absent : NotesRead
++        data object Unreadable : NotesRead
++        data class Present(val bytes: ByteArray) : NotesRead
++    }
++
++    private fun readJournal(): JournalRead {
++        if (!ops.exists(journalFile)) return JournalRead.Absent
++        val bytes = readOrNull(journalFile) ?: return JournalRead.Unreadable
++        val journal = TxnCodec.decodeJournal(String(bytes, Charsets.UTF_8)) ?: return JournalRead.Unreadable
++        return JournalRead.Present(journal)
++    }
++
++    private fun readCredential(): CredentialRead {
++        if (!ops.exists(credentialFile)) return CredentialRead.Absent
++        val bytes = readOrNull(credentialFile) ?: return CredentialRead.Unreadable
++        val credential = TxnCodec.decodeCredential(String(bytes, Charsets.UTF_8)) ?: return CredentialRead.Unreadable
++        return CredentialRead.Present(credential)
++    }
++
++    private fun readNotes(): NotesRead {
++        if (!ops.exists(notesFile)) return NotesRead.Absent
++        val bytes = readOrNull(notesFile) ?: return NotesRead.Unreadable
++        return NotesRead.Present(bytes)
++    }
++
++    private fun notesDigest(): String? = readOrNull(notesFile)?.let { ops.digestBytes(it) }
++
++    private fun readOrNull(file: File): ByteArray? = try {
++        if (ops.exists(file) && !ops.isDirectory(file)) ops.readBytes(file) else null
++    } catch (failure: IOException) {
++        null
++    }
++
++    private fun writeJournal(journal: Journal) {
++        ops.checkpoint(TxnStep.JOURNAL)
++        ops.writeAtomic(journalFile, TxnCodec.encodeJournal(journal).toByteArray())
++    }
++
++    private fun attempt(block: () -> Unit): Boolean = try {
++        block()
++        true
++    } catch (failure: IOException) {
++        false
++    }
++
++    private fun txnDirs(): List<File> = ops.list(importDir).filter { it.isDirectory && it.name.startsWith(TXN_PREFIX) }
++
++    private fun txnDir(txnId: String): File = File(importDir, txnDirName(txnId))
++
++    private fun txnDirName(txnId: String): String = "$TXN_PREFIX$txnId"
++
++    private fun commitMaterialExists(txnId: String): Boolean =
++        ops.exists(File(txnDir(txnId), COMMIT_JSON))
++
++    private fun isSafeName(name: String): Boolean =
++        name.isNotBlank() && name == File(name).name && '/' !in name && '\\' !in name && name != "." && name != ".."
++
++    private fun countNotes(commitBytes: ByteArray): Int = runCatching {
++        JSONArray(String(commitBytes, Charsets.UTF_8)).length()
++    }.getOrDefault(0)
++
++    private fun oldManifest(oldNotesDigest: String?, entries: List<JournalAttachment>): String {
++        val attachments = JSONArray()
++        entries.forEach { entry ->
++            attachments.put(JSONObject().put("name", entry.name).put("old", entry.old ?: JSONObject.NULL))
++        }
++        val notes = JSONObject().put("present", oldNotesDigest != null)
++        if (oldNotesDigest != null) notes.put("digest", oldNotesDigest)
++        return JSONObject()
++            .put("version", 1)
++            .put("notes", notes)
++            .put("attachments", attachments)
++            .toString()
++    }
++
++    private companion object {
++        const val NOTES = "notes.json"
++        const val ATTACHMENTS = "attachments"
++        const val IMPORT_DIR = ".import"
++        const val JOURNAL = "journal.json"
++        const val CREDENTIAL = "committed.json"
++        const val RESULTS = "results.json"
++        const val TXN_PREFIX = "txn-"
++        const val COMMIT_JSON = "commit.json"
++        const val OLD_NOTES = "old-notes.json"
++        const val OLD_MANIFEST = "old-manifest.json"
++        const val OLD_ATTACHMENTS = "old-attachments"
++        const val NEW_ATTACHMENTS = "new-attachments"
++
++        /** 结果留存上限；超出按「最旧且已消费」优先淘汰 */
++        const val MAX_RESULTS = 8
++    }
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt
+new file mode 100644
+index 0000000..1fbce42
+--- /dev/null
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt
+@@ -0,0 +1,129 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import java.io.File
++import java.io.FileOutputStream
++import java.io.IOException
++import java.security.MessageDigest
++
++/**
++ * 事务内核的文件接缝。
++ *
++ * 内核只认这一层，不直接 `File.writeBytes()`，原因有两个：
++ *
++ * 1. **可注入**：测试要在指定步骤注入 IO 异常或阻塞，才能把「第 3 个附件写完就崩」「凭据写一半」
++ *    这类位置固定下来。生产实现 [RealTxnFileOps] 没有任何「测试模式」分支。
++ * 2. **原子写只有一种写法**：`temp → write → fsync → rename`。把它收敛到一个方法里，
++ *    内核里就不会出现「某处忘了 fsync」这种逐步骤漂移。
++ *
++ * 所有路径都相对于调用方给定的**存储根**（生产是 `filesDir`，测试是隔离沙箱），
++ * 本接口不持有 Context，也不解析任何全局路径。
++ */
++internal interface TxnFileOps {
++
++    fun exists(file: File): Boolean
++
++    fun isDirectory(file: File): Boolean
++
++    /** 目录内条目，按名字排序；目录不存在返回空列表 */
++    fun list(dir: File): List<File>
++
++    /** 读取完整字节；不存在或读失败抛 IOException */
++    fun readBytes(file: File): ByteArray
++
++    /**
++     * 原子写：同目录 `temp` → 写入 → `fsync` → `rename`。
++     *
++     * 失败时抛 IOException，并尽力删除临时文件；不得留下半份正式文件。
++     */
++    fun writeAtomic(file: File, bytes: ByteArray)
++
++    fun rename(from: File, to: File): Boolean
++
++    fun delete(file: File): Boolean
++
++    fun deleteTree(dir: File): Boolean
++
++    fun mkdirs(dir: File): Boolean
++
++    fun digest(file: File): String
++
++    fun digestBytes(bytes: ByteArray): String
++
++    fun length(file: File): Long
++
++    /** 该目录所在存储的可用字节；测试可注入一个很小的值覆盖空间预检 */
++    fun usableSpace(dir: File): Long
++
++    /**
++     * 确定性注入点。内核在**每个会改变磁盘的动作之前**调用一次，名字稳定（见 [TxnStep]）。
++     *
++     * 生产实现是空操作；测试实现可以在这里抛 IOException（模拟注入的 IO 异常）
++     * 或阻塞等待（把取消固定在某个窗口）。这里不做任何「吞异常」处理。
++     */
++    fun checkpoint(name: String) {}
++}
++
++/** 稳定的步骤名。测试用它们定位注入点，不要改成动态字符串。 */
++internal object TxnStep {
++    const val JOURNAL = "journal"
++    const val CREDENTIAL = "credential"
++    const val RESULTS = "results"
++    const val OLD_NOTES = "old-notes"
++    const val OLD_MANIFEST = "old-manifest"
++    const val NOTES = "notes"
++
++    fun oldAttachment(name: String): String = "old-attachment:$name"
++    fun newAttachment(name: String): String = "new-attachment:$name"
++    fun deleteMaterial(relative: String): String = "delete-material:$relative"
++}
++
++internal class RealTxnFileOps : TxnFileOps {
++
++    override fun exists(file: File): Boolean = file.exists()
++
++    override fun isDirectory(file: File): Boolean = file.isDirectory
++
++    override fun list(dir: File): List<File> =
++        dir.listFiles()?.sortedBy { it.name } ?: emptyList()
++
++    override fun readBytes(file: File): ByteArray = file.readBytes()
++
++    override fun writeAtomic(file: File, bytes: ByteArray) {
++        val parent = file.parentFile ?: throw IOException("no parent for ${file.name}")
++        if (!parent.isDirectory && !parent.mkdirs()) {
++            throw IOException("cannot create directory ${parent.name}")
++        }
++        val temp = File.createTempFile(".${file.name}-", ".tmp", parent)
++        try {
++            FileOutputStream(temp).use { output ->
++                output.write(bytes)
++                output.fd.sync()
++            }
++            if (!temp.renameTo(file)) throw IOException("cannot replace ${file.name}")
++        } finally {
++            if (temp.exists()) temp.delete()
++        }
++    }
++
++    override fun rename(from: File, to: File): Boolean = from.renameTo(to)
++
++    override fun delete(file: File): Boolean = file.delete()
++
++    override fun deleteTree(dir: File): Boolean {
++        dir.deleteRecursively()
++        return !dir.exists()
++    }
++
++    override fun mkdirs(dir: File): Boolean = dir.isDirectory || dir.mkdirs()
++
++    override fun digest(file: File): String = digestBytes(file.readBytes())
++
++    override fun digestBytes(bytes: ByteArray): String {
++        val digest = MessageDigest.getInstance("SHA-256")
++        return digest.digest(bytes).joinToString("") { "%02x".format(it) }
++    }
++
++    override fun length(file: File): Long = file.length()
++
++    override fun usableSpace(dir: File): Long = dir.usableSpace
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnJson.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnJson.kt
+new file mode 100644
+index 0000000..0af4240
+--- /dev/null
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnJson.kt
+@@ -0,0 +1,136 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import org.json.JSONArray
++import org.json.JSONObject
++
++/**
++ * journal / 凭据 / 结果留存的编码。
++ *
++ * 解码一律**严格**：任何必填字段缺失、类型不对、枚举不认识，整份返回 null（视为不可读）。
++ * 不做「尽量读出一部分」——半读出来的 journal 会让回滚目标变成猜出来的值。
++ */
++internal object TxnCodec {
++
++    private const val VERSION = 1
++
++    fun encodeJournal(journal: Journal): String {
++        val attachments = JSONArray()
++        journal.attachments.forEach { entry ->
++            attachments.put(
++                JSONObject()
++                    .put("name", entry.name)
++                    .put("old", entry.old ?: JSONObject.NULL)
++                    .put("new", entry.new)
++            )
++        }
++        return JSONObject()
++            .put("version", VERSION)
++            .put("state", journal.state.name)
++            .put("txnId", journal.txnId)
++            .put("commitDigest", journal.commitDigest)
++            .put("oldNotesDigest", journal.oldNotesDigest ?: JSONObject.NULL)
++            .put("attachments", attachments)
++            .put("failedAt", journal.failedAt ?: JSONObject.NULL)
++            .toString()
++    }
++
++    fun decodeJournal(text: String): Journal? {
++        val root = parse(text) ?: return null
++        if (long(root, "version") != VERSION.toLong()) return null
++        val state = str(root, "state")?.let { name ->
++            JournalState.entries.firstOrNull { it.name == name }
++        } ?: return null
++        val txnId = str(root, "txnId")?.takeIf { it.isNotBlank() } ?: return null
++        val commitDigest = str(root, "commitDigest")?.takeIf { it.isNotBlank() } ?: return null
++        val oldNotesDigest = optionalString(root, "oldNotesDigest").getOrElse { return null }
++        val attachmentsArray = root.opt("attachments") as? JSONArray ?: return null
++        val attachments = ArrayList<JournalAttachment>(attachmentsArray.length())
++        for (index in 0 until attachmentsArray.length()) {
++            val item = attachmentsArray.opt(index) as? JSONObject ?: return null
++            val name = str(item, "name")?.takeIf { it.isNotBlank() } ?: return null
++            val old = optionalString(item, "old").getOrElse { return null }
++            val new = str(item, "new")?.takeIf { it.isNotBlank() } ?: return null
++            attachments += JournalAttachment(name, old, new)
++        }
++        val failedAt = optionalString(root, "failedAt").getOrElse { return null }
++        if (attachments.map { it.name }.toSet().size != attachments.size) return null
++        return Journal(state, txnId, commitDigest, oldNotesDigest, attachments, failedAt)
++    }
++
++    fun encodeCredential(credential: CommitCredential): String = JSONObject()
++        .put("version", VERSION)
++        .put("txnId", credential.txnId)
++        .put("commitDigest", credential.commitDigest)
++        .put("committedAt", credential.committedAt)
++        .toString()
++
++    fun decodeCredential(text: String): CommitCredential? {
++        val root = parse(text) ?: return null
++        if (long(root, "version") != VERSION.toLong()) return null
++        val txnId = str(root, "txnId")?.takeIf { it.isNotBlank() } ?: return null
++        val commitDigest = str(root, "commitDigest")?.takeIf { it.isNotBlank() } ?: return null
++        val committedAt = long(root, "committedAt") ?: return null
++        return CommitCredential(txnId, commitDigest, committedAt)
++    }
++
++    fun encodeResults(records: List<ResultRecord>): String {
++        val array = JSONArray()
++        records.forEach { record ->
++            array.put(
++                JSONObject()
++                    .put("txnId", record.txnId)
++                    .put("outcome", record.outcome.name)
++                    .put("count", record.count)
++                    .put("at", record.at)
++                    .put("reason", record.reason ?: JSONObject.NULL)
++                    .put("consumed", record.consumed)
++            )
++        }
++        return JSONObject().put("version", VERSION).put("records", array).toString()
++    }
++
++    fun decodeResults(text: String): List<ResultRecord>? {
++        val root = parse(text) ?: return null
++        if (long(root, "version") != VERSION.toLong()) return null
++        val array = root.opt("records") as? JSONArray ?: return null
++        val records = ArrayList<ResultRecord>(array.length())
++        for (index in 0 until array.length()) {
++            val item = array.opt(index) as? JSONObject ?: return null
++            val txnId = str(item, "txnId")?.takeIf { it.isNotBlank() } ?: return null
++            val outcome = str(item, "outcome")?.let { name ->
++                ResultOutcome.entries.firstOrNull { it.name == name }
++            } ?: return null
++            val count = long(item, "count")?.toInt() ?: return null
++            val at = long(item, "at") ?: return null
++            val reason = optionalString(item, "reason").getOrElse { return null }
++            val consumed = bool(item, "consumed") ?: return null
++            records += ResultRecord(txnId, outcome, count, at, reason, consumed)
++        }
++        return records
++    }
++
++    private fun parse(text: String): JSONObject? = try {
++        JSONObject(text)
++    } catch (failure: Exception) {
++        null
++    }
++
++    private fun str(root: JSONObject, key: String): String? = root.opt(key) as? String
++
++    /** 缺省与显式 null 都算成功（值为 null）；类型不对算失败，由调用方整份判不可读 */
++    private fun optionalString(root: JSONObject, key: String): Result<String?> {
++        val value = root.opt(key)
++        return when {
++            value == null || value == JSONObject.NULL -> Result.success(null)
++            value is String -> Result.success(value)
++            else -> Result.failure(IllegalArgumentException(key))
++        }
++    }
++
++    private fun long(root: JSONObject, key: String): Long? = when (val value = root.opt(key)) {
++        is Number -> value.toLong()
++        else -> null
++    }
++
++    private fun bool(root: JSONObject, key: String): Boolean? = root.opt(key) as? Boolean
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnModels.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnModels.kt
+new file mode 100644
+index 0000000..5ed7328
+--- /dev/null
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnModels.kt
+@@ -0,0 +1,150 @@
++package com.example.myapplicationfirstapp.data.txn
++
++/**
++ * 事务内核的数据模型。
++ *
++ * 这里刻意不引用 `Note` / `PreparedBackup`：内核只处理**已物化的字节**
++ * （`commit.json`、附件内容、旧数据），物化（补 ID/时间戳、生成 `plan.json`）
++ * 属于 prepare 接线，是后批的事。这样内核可以在任意隔离根上被测试，
++ * 也不会因为改 `Note` 而连带改事务。
++ */
++
++internal enum class JournalState {
++    PREPARED,
++    APPLYING,
++    ROLLING_BACK,
++    ABORTED,
++    COMMITTED
++}
++
++/**
++ * 一个附件在事务前后的摘要。
++ *
++ * [old] 为 null 表示「提交前没有这个文件」（本次新增）。回滚遇到 `new` 且 `old == null`
++ * 就是删掉它，而不是从副本恢复。
++ */
++internal data class JournalAttachment(
++    val name: String,
++    val old: String?,
++    val new: String
++)
++
++/**
++ * 事务日志。
++ *
++ * 它是**状态机的唯一输入**：回滚目标、逐文件摘要、失败位置都在这里。
++ * 字段类型都是严格解析的，任何一项类型不对都按「不可读」处理（[JournalCodec.decode] 返回 null），
++ * 不做「尽量读出来」的容错——半读出来的 journal 比读不出来更危险。
++ */
++internal data class Journal(
++    val state: JournalState,
++    val txnId: String,
++    val commitDigest: String,
++    val oldNotesDigest: String?,
++    val attachments: List<JournalAttachment>,
++    val failedAt: String? = null
++)
++
++internal data class CommitCredential(
++    val txnId: String,
++    val commitDigest: String,
++    val committedAt: Long
++)
++
++internal enum class ResultOutcome { COMMITTED, ABORTED, NOT_STARTED }
++
++/**
++ * 终态结果记录。按 `txnId` 留存，**不是凭据**，不含摘要，不参与 `classify()`。
++ *
++ * 它只回答「这次导入最后怎么样」，所以清理之后仍可查；也因为它不带摘要，
++ * 后续正常保存把 `notes.json` 改掉，不会被误判成损坏。
++ */
++internal data class ResultRecord(
++    val txnId: String,
++    val outcome: ResultOutcome,
++    val count: Int,
++    val at: Long,
++    val reason: String? = null,
++    val consumed: Boolean = false
++)
++
++/**
++ * 磁盘判定结论。`classify()` 只输出这些值，不做任何写动作。
++ */
++internal sealed interface DiskState {
++
++    data object Idle : DiskState
++
++    /** 材料齐、未动正式数据，等待确认 */
++    data class Prepared(val txnId: String) : DiskState
++
++    /** journal 是 APPLYING 但没有终态证据：必须回滚（不看 notes 是否已等于新载荷） */
++    data class Interrupted(val txnId: String) : DiskState
++
++    data class RollingBack(val txnId: String) : DiskState
++
++    /** 回滚已完成，等待清理 */
++    data class Aborted(val txnId: String) : DiskState
++
++    data class Committed(val txnId: String) : DiskState
++
++    /** PREPARED 但材料不完整：可安全放弃 */
++    data class StagingFailed(val txnId: String) : DiskState
++
++    /**
++     * 有事务材料、却没有 journal 也没有凭据：生命周期无法确定。
++     *
++     * 不删、不回滚，等显式处置。**不**用 `notes.json` 摘要来推断「可以删」。
++     */
++    data class Quarantined(val txnDirs: List<String>) : DiskState
++
++    data class Corrupt(val reason: String) : DiskState
++
++    data class RollbackFailed(val txnId: String, val detail: String) : DiskState
++}
++
++/** 调用方给出的「已物化材料」引用；内核只按这个去磁盘上读，不接受内存里的载荷 */
++internal data class MaterialRef(
++    val txnId: String,
++    /** 调用方期望的载荷摘要；非 null 时与磁盘重算值不符即 `MaterialChanged` */
++    val expectedCommitDigest: String? = null
++)
++
++internal sealed interface MaterializeOutcome {
++    data class Ready(val txnId: String, val commitDigest: String) : MaterializeOutcome
++    data class Rejected(val reason: String) : MaterializeOutcome
++}
++
++internal sealed interface CommitOutcome {
++    /** 已提交；[cleanup] 可能只完成一部分，不影响提交事实 */
++    data class Committed(val count: Int, val cleanup: CleanupOutcome) : CommitOutcome
++
++    /** 尚未动正式数据就退出 */
++    data class NotStarted(val reason: String) : CommitOutcome
++
++    /** 写前被拒（非 OPEN / 已有写入），没有任何 IO 发生 */
++    data class Refused(val refusal: WriteGate.Refusal) : CommitOutcome
++
++    /** 已回滚或停在可判定状态；[detail] 是原始异常信息，用于日志，不用于判定 */
++    data class Failed(val state: DiskState, val detail: String) : CommitOutcome
++}
++
++internal data class CleanupOutcome(
++    val cleaned: Boolean,
++    val leftovers: List<String>,
++    /** 非 null 表示在哪个步骤停下（关键步骤失败或门禁未通过） */
++    val stoppedAt: String? = null
++)
++
++internal sealed interface RollbackOutcome {
++    data object Restored : RollbackOutcome
++    data class Failed(val detail: String) : RollbackOutcome
++}
++
++internal sealed interface RecoverOutcome {
++    /** 收敛到终态（多为 [DiskState.Idle]）；[cleanup] 为本次清理结果 */
++    data class Settled(val state: DiskState, val cleanup: CleanupOutcome?) : RecoverOutcome
++
++    /** 保持现状并停写，交给上层展示或人工处理 */
++    data class Stopped(val state: DiskState, val reason: String) : RecoverOutcome
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/WriteGate.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/WriteGate.kt
+new file mode 100644
+index 0000000..ad9d5ee
+--- /dev/null
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/WriteGate.kt
+@@ -0,0 +1,144 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import kotlinx.coroutines.sync.Mutex
++
++/**
++ * 写入资格：`epoch` + `sequence` + `writer` 锁内校验。
++ *
++ * 为什么三样都要：
++ *
++ * - 只有 `epoch`：同代次里「排队很久的旧保存」在导入结束后会被当成新写入。
++ * - 只有 `sequence`：跨代次的回调无法区分（旧代次的 sequence 可能比新代次的大）。
++ * - 没有锁内校验：`beginWrite()` 通过后到真正写盘之间，状态可能已经被改掉。
++ *
++ * ## 两个失败点必须分开
++ *
++ * - [Refusal] / [Admission.Refused]：**写之前**就拒绝（非 OPEN 或已有写入），没有任何 IO。
++ *   调用方应当把它当「这次没写」，不要显示成「保存失败」。
++ * - [Freshness.Stale]：写入可能已经发生，但 ticket 属于旧代次，结果必须**丢弃**。
++ *   把它当失败上报，会把一次正常的新保存标成错误。
++ *
++ * 本类不碰磁盘，也不认识导入；它只回答「现在能不能写、这张 ticket 还算不算数」。
++ */
++internal class WriteGate {
++
++    internal enum class Mode { OPEN, IMPORTING, COMMITTED_PENDING_PUBLISH, BLOCKED, RECOVERING }
++
++    internal data class Ticket(val epoch: Long, val sequence: Long)
++
++    internal enum class Refusal { NotOpen, Busy }
++
++    internal enum class Freshness { Current, Stale }
++
++    internal sealed interface Admission {
++        data class Granted(val ticket: Ticket) : Admission
++        data class Refused(val refusal: Refusal) : Admission
++    }
++
++    internal sealed interface WriteRun<out T> {
++        data class Completed<T>(val value: T) : WriteRun<T>
++        data class Refused(val refusal: Refusal) : WriteRun<Nothing>
++    }
++
++    private val guard = Any()
++    private val writer = Mutex()
++
++    private var mode = Mode.OPEN
++    private var epoch = 0L
++    private var sequence = 0L
++    private var savedSequence = 0L
++    private var holding = false
++
++    fun mode(): Mode = synchronized(guard) { mode }
++
++    fun epoch(): Long = synchronized(guard) { epoch }
++
++    /**
++     * 领一张写票。锁内判定，不排队：非 OPEN 或已有写入 → [Admission.Refused]。
++     *
++     * 这里**不阻塞**等待，是为了让 UI 立刻知道「这次没写」，而不是挂在一个看不见的队列上。
++     */
++    fun beginWrite(): Admission = synchronized(guard) { admitLocked() }
++
++    /**
++     * 持票写入。[block] 在 `writer` 锁内执行，进入前再次核对 `epoch` / `sequence`。
++     *
++     * 返回 [WriteRun.Refused] 时 [block] **没有执行**。
++     */
++    suspend fun <T> write(ticket: Ticket, block: suspend () -> T): WriteRun<T> {
++        if (!writer.tryLock()) return WriteRun.Refused(Refusal.Busy)
++        try {
++            val allowed = synchronized(guard) {
++                mode == Mode.OPEN && !holding &&
++                    ticket.epoch == epoch && ticket.sequence > savedSequence
++            }
++            if (!allowed) return WriteRun.Refused(Refusal.Busy)
++            synchronized(guard) { holding = true }
++            try {
++                val value = block()
++                synchronized(guard) { savedSequence = ticket.sequence }
++                return WriteRun.Completed(value)
++            } finally {
++                synchronized(guard) { holding = false }
++            }
++        } finally {
++            writer.unlock()
++        }
++    }
++
++    /** 回调、结果投递、提醒重排都用它判断「这张票还作不作数」 */
++    fun freshness(ticket: Ticket): Freshness = synchronized(guard) {
++        if (ticket.epoch != epoch || ticket.sequence <= savedSequence) Freshness.Stale else Freshness.Current
++    }
++
++    /**
++     * 事务独占：拿到 writer 锁并领票，直到 [endExclusive] 才释放。
++     *
++     * 整个导入期间 `mode` 由调用方置为 [Mode.IMPORTING]，其他写入一律 `NotOpen`。
++     */
++    suspend fun beginExclusive(): Admission {
++        writer.lock()
++        val admission = synchronized(guard) {
++            val admitted = admitLocked()
++            if (admitted is Admission.Granted) {
++                // 独占就是导入态：写权限在拿到锁的同一刻关闭，不额外自增 epoch
++                mode = Mode.IMPORTING
++                holding = true
++            }
++            admitted
++        }
++        if (admission is Admission.Refused) writer.unlock()
++        return admission
++    }
++
++    /** 结束独占：回到 `OPEN` 并让 `epoch` 自增，使排队中的保存与在途回调一起失效 */
++    fun endExclusive(ticket: Ticket) {
++        synchronized(guard) {
++            savedSequence = maxOf(savedSequence, ticket.sequence)
++            mode = Mode.OPEN
++            epoch++
++            holding = false
++        }
++        writer.unlock()
++    }
++
++    /**
++     * 切换状态。只有影响写权限的切换才自增 `epoch`，其余保持原样，
++     * 免得每次状态刷新都让在途回调变成 `Stale`。
++     */
++    fun enter(next: Mode) {
++        synchronized(guard) {
++            if (next == mode) return
++            val before = mode == Mode.OPEN
++            mode = next
++            if (before || next == Mode.OPEN) epoch++
++        }
++    }
++
++    /** 调用方必须已经持 `guard` */
++    private fun admitLocked(): Admission {
++        if (mode != Mode.OPEN) return Admission.Refused(Refusal.NotOpen)
++        if (holding) return Admission.Refused(Refusal.Busy)
++        return Admission.Granted(Ticket(epoch, ++sequence))
++    }
++}

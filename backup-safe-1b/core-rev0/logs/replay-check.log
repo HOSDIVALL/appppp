@@ -1,0 +1,38 @@
+# core-rev0 diff 回放校验
+
+基线 commit : 26a0de3cc80636718059c118d5af6e4c6f179fc0
+基线导出    : git archive <baseline> | tar -x
+回放命令    : patch -p1 --fuzz=0 < diff/core-rev0.diff
+比较方式    : 回放产物 vs 实现工作区逐文件 sha256
+
+## patch 输出
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCancelTest.kt
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnClassifyTest.kt
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupTest.kt
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitTest.kt
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnJournalTest.kt
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRollbackTest.kt
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/TxnTestSupport.kt
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/WriteGateTest.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnJson.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnModels.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/WriteGate.kt
+
+## 逐文件比较
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCancelTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnClassifyTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnJournalTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRollbackTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/TxnTestSupport.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/WriteGateTest.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnJson.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnModels.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/WriteGate.kt
+
+结果: 一致 13 个，不一致 0 个
