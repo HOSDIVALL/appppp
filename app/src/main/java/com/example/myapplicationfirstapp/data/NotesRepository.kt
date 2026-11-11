@@ -21,8 +21,15 @@ import java.util.zip.ZipOutputStream
  * 3. 备份 —— 把 1 + 2 打进一个 zip，交给系统文件选择器保存
  *
  * 目录都在 /data/data/<包名>/files/ 下，只有本 App 能访问，卸载时系统自动清理。
+ *
+ * [fileOps] 是原子写步骤的接缝，默认 [RealNotesFileOps] 就是真实的文件操作；
+ * 主构造函数是 internal，公开入口仍是单参数的 `NotesRepository(context)`。
  */
-class NotesRepository(context: Context) {
+class NotesRepository internal constructor(
+    context: Context,
+    private val fileOps: NotesFileOps
+) {
+    constructor(context: Context) : this(context, RealNotesFileOps)
 
     private val appContext = context.applicationContext
     private val file: File get() = File(appContext.filesDir, NOTES_FILE_NAME)
@@ -41,13 +48,13 @@ class NotesRepository(context: Context) {
         val json = notesToJson(notes).toByteArray(Charsets.UTF_8)
         val parent = checkNotNull(file.parentFile)
         check(parent.isDirectory || parent.mkdirs()) { "Cannot create notes directory" }
-        val temp = File.createTempFile("notes-", ".tmp", parent)
+        val temp = fileOps.createTemp(parent)
         try {
-            temp.outputStream().use { output ->
-                output.write(json)
-                output.fd.sync()
+            fileOps.openStream(temp).use { output ->
+                fileOps.write(output, json)
+                fileOps.sync(output)
             }
-            if (!temp.renameTo(file)) {
+            if (!fileOps.rename(temp, file)) {
                 throw java.io.IOException("Cannot replace notes file")
             }
         } finally {
