@@ -17,9 +17,9 @@ import java.util.UUID
  *
  * 只在 androidTest 里使用，不进入生产代码。
  */
-internal class IsolatedAppContext(base: Context, private val root: File) : ContextWrapper(base) {
-    private val isolatedFiles = File(root, "files")
-    private val isolatedCache = File(root, "cache")
+internal class IsolatedAppContext(base: Context, internal val rootDir: File) : ContextWrapper(base) {
+    private val isolatedFiles = File(rootDir, "files")
+    private val isolatedCache = File(rootDir, "cache")
 
     override fun getApplicationContext(): Context = this
 
@@ -31,6 +31,11 @@ internal class IsolatedAppContext(base: Context, private val root: File) : Conte
     override fun getCacheDir(): File {
         isolatedCache.mkdirs()
         return isolatedCache
+    }
+
+    /** 只删本测试自己的 UUID 沙箱，父目录 `save-order-2/` 保留 */
+    fun dispose() {
+        rootDir.deleteRecursively()
     }
 }
 

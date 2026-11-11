@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="1" failures="1" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T06:44:29" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" tests="1" failures="1" errors="0" skipped="0" time="2.523" timestamp="2026-11-11T06:44:29" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="renameFailureKeepsOldFile" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" time="2.523">
+      <failure>java.lang.AssertionError: 本次 notes-*.tmp 必须被清理 expected:&lt;[]&gt; but was:&lt;[notes-1487823736603518680.tmp]&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest.assertOldFileIntact(NotesRepositoryFailureTest.kt:197)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest.access$assertOldFileIntact(NotesRepositoryFailureTest.kt:29)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest$renameFailureKeepsOldFile$1.invokeSuspend(NotesRepositoryFailureTest.kt:134)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:99)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest.renameFailureKeepsOldFile(NotesRepositoryFailureTest.kt:124)
+</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

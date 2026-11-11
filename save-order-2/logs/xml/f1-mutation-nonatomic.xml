@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="1" failures="1" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T06:43:31" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" tests="1" failures="1" errors="0" skipped="0" time="0.842" timestamp="2026-11-11T06:43:31" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="tempWriteFailureKeepsOldFile" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest" time="0.842">
+      <failure>notes.json 字节必须逐字节不变: array lengths differed, expected.length=0 actual.length=86; arrays first differed at element [0]; expected:&lt;end of array&gt; but was:&lt;91&gt;
+	at org.junit.internal.ComparisonCriteria.arrayEquals(ComparisonCriteria.java:89)
+	at org.junit.internal.ComparisonCriteria.arrayEquals(ComparisonCriteria.java:28)
+	at org.junit.Assert.internalArrayEquals(Assert.java:534)
+	at org.junit.Assert.assertArrayEquals(Assert.java:343)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest.assertOldFileIntact(NotesRepositoryFailureTest.kt:193)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest.access$assertOldFileIntact(NotesRepositoryFailureTest.kt:29)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest$tempWriteFailureKeepsOldFile$1.invokeSuspend(NotesRepositoryFailureTest.kt:76)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:99)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(dex-id-994f283b5f80cacce74afb4d43b5a991fc696614:1)
+	at com.example.myapplicationfirstapp.data.NotesRepositoryFailureTest.tempWriteFailureKeepsOldFile(NotesRepositoryFailureTest.kt:63)
+	... 34 trimmed
+Caused by: java.lang.AssertionError: expected:&lt;end of array&gt; but was:&lt;91&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at org.junit.internal.ComparisonCriteria.arrayEquals(ComparisonCriteria.java:87)
+	... 50 more
+</failure>
+    </testcase>
+  </testsuite>
+</testsuites>
