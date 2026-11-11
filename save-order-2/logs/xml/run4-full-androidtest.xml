@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="17" failures="0" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T06:26:41" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.ExampleInstrumentedTest" tests="1" failures="0" errors="0" skipped="0" time="0.008" timestamp="2026-11-11T06:26:41" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="useAppContext" classname="com.example.myapplicationfirstapp.ExampleInstrumentedTest" time="0.008" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.BackupNotesParserTest" tests="6" failures="0" errors="0" skipped="0" time="0.213" timestamp="2026-11-11T06:26:41" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="acceptsEmptyArray" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.050" />
+    <testcase name="rejectsWrongRootAndInvalidElements" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.091" />
+    <testcase name="preservesLegacyOptionalDefaults" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.047" />
+    <testcase name="roundTripsCurrentNote" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.012" />
+    <testcase name="rejectsMalformedInput" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.005" />
+    <testcase name="rejectsTrailingContentButAcceptsWhitespace" classname="com.example.myapplicationfirstapp.data.BackupNotesParserTest" time="0.008" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesRepositoryFileTest" tests="1" failures="0" errors="0" skipped="0" time="0.329" timestamp="2026-11-11T06:26:41" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="repositorySaveReloadRoundTrip" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFileTest" time="0.329" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorFileTest" tests="1" failures="0" errors="0" skipped="0" time="0.295" timestamp="2026-11-11T06:26:41" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="coordinatorPersistsNewestSnapshotToRealFile" classname="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorFileTest" time="0.295" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorTest" tests="5" failures="0" errors="0" skipped="0" time="0.105" timestamp="2026-11-11T06:26:41" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="foreignTicketIsRejected" classname="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorTest" time="0.011" />
+    <testcase name="replacementInvalidatesWaitingOldSave" classname="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorTest" time="0.059" />
+    <testcase name="failedWriteCanRetry" classname="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorTest" time="0.015" />
+    <testcase name="failedReplacementPreservesPendingTicket" classname="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorTest" time="0.014" />
+    <testcase name="olderCannotOverwriteNewer" classname="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorTest" time="0.006" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.ui.AttachmentImageLoaderTest" tests="3" failures="0" errors="0" skipped="0" time="0.468" timestamp="2026-11-11T06:26:41" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="fileSizeChangeInvalidatesVersionKey" classname="com.example.myapplicationfirstapp.ui.AttachmentImageLoaderTest" time="0.012" />
+    <testcase name="missingAndInvalidImagesReturnErrors" classname="com.example.myapplicationfirstapp.ui.AttachmentImageLoaderTest" time="0.414" />
+    <testcase name="localImageLoadsAndSecondRequestUsesMemoryCache" classname="com.example.myapplicationfirstapp.ui.AttachmentImageLoaderTest" time="0.042" />
+  </testsuite>
+</testsuites>

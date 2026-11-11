@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="2" failures="0" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T06:26:07" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesRepositoryFileTest" tests="1" failures="0" errors="0" skipped="0" time="0.584" timestamp="2026-11-11T06:26:07" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="repositorySaveReloadRoundTrip" classname="com.example.myapplicationfirstapp.data.NotesRepositoryFileTest" time="0.584" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorFileTest" tests="1" failures="0" errors="0" skipped="0" time="0.295" timestamp="2026-11-11T06:26:07" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="coordinatorPersistsNewestSnapshotToRealFile" classname="com.example.myapplicationfirstapp.data.NotesWriteCoordinatorFileTest" time="0.295" />
+  </testsuite>
+</testsuites>
