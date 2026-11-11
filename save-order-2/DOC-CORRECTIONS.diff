@@ -1,0 +1,11 @@
+--- a/历史表述（REPORT-CLOSEOUT.md 15:16 / REPORT-REALDEVICE.md 15:08 / README.md 15:16）
++++ b/本轮采纳口径（SOURCE-FREEZE.md 15:30）
+@@ -1,4 +1,4 @@
+-1 数据可回滚 | 原文：备份可回滚，但没有做回滚演练（README.md 第四批摘要）；files.tar 244 MB / 74 条目，备份内 notes.json 哈希与设备一致，应用未卸载仍可正常使用（REPORT-REALDEVICE.md §0）
+-2 files/ 内容 | 原文：数据零变化；真实 notes.json 安装前 / 跑完 / 事后三次均为 83275cf1…4795；files/ 其他数据 attachments 9 -> 9，recordings 57 -> 57，asr 目录在（REPORT-REALDEVICE.md 标题与 §0）
+-3 字节码检查 | 原文：字节码级证据：变异已还原；说明装到真机的是未变异的原子写实现（REPORT-CLOSEOUT.md §4.3）
+-4 绑定链性质 | 原文：与最终源码的绑定链——构建后是否再改源码（find -newer 无结果）、当前 diff 与 15:01:47 存档逐字节相同（REPORT-CLOSEOUT.md §4.2）
++1 数据可回滚 | 采纳：files/ 已归档，具备恢复材料；未做恢复演练，原安装包未留存，不能宣称完整可回滚（SOURCE-FREEZE.md §7.1）
++2 files/ 内容 | 采纳：据留存汇总，notes.json 采样哈希和长度一致；附件与录音仅核对条目数量，未证明逐文件内容一致（SOURCE-FREEZE.md §7.2）
++3 字节码检查 | 采纳：本地留存 APK 的已检查路径与临时文件写入实现一致；不扩大为已完成设备端 APK 字节核对（SOURCE-FREEZE.md §7.3）
++4 绑定链性质 | 采纳：find -newer 与 diff 一致属于时间顺序与构建输入一致性旁证；不声称可重现构建或完整 APK—源码加密绑定（SOURCE-FREEZE.md §7.4）

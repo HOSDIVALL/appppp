@@ -1,0 +1,74 @@
+# 主 APK 中 NotesRepository$save$2.invokeSuspend 的连续反汇编片段（0x003f–0x00a1）
+#
+# 输入产物（本地留存，未重建）：
+#   app/build/outputs/apk/debug/app-debug.apk
+#   sha256 93c27b8922d5182e6b05d5c7ced680cb93da4a9d622d75460cbb83a23526418d
+#   size   57,424,115 B   mtime 2026-11-11 15:00:59
+# 抽取：unzip -p app-debug.apk classes5.dex -> classes5.dex
+#   classes5.dex sha256 e35dd4ba1eac52cae3f41bb3aaa277209f4327287e6d0c5cd7bc3e1574c7d301
+# 反汇编：build-tools/36.0.0/dexdump.exe -d classes5.dex
+#
+# 说明（诚实边界）：
+#   - 上一轮生成连续反汇编的中间文件在收口时被删除，只留下了按关键字过滤的
+#     main-apk-dex-save-trace.txt（不含 move-result-object 等未命中关键字的指令）。
+#     本文件是**本轮用同一份留存 APK 在本地重新反汇编**得到的连续片段，
+#     不是上一轮的历史原始输出；输入 APK 的 sha256 与收口报告记录一致，可复核。
+#   - 未重建 APK，未执行任何 adb 命令，未读取设备端任何内容。
+#   - 本片段只能证明「本地留存的这份 APK」里 save() 的写入目标与临时文件路径，
+#     不能证明设备上已安装的那份 APK 的字节与之相同。
+#   - 未命中关键字的指令（含 move-result-object、nop、寄存器搬移）原样保留，未删行。
+
+003f: if-eqz v2, 00a1 // +0062
+0041: iget-object v2, v8, Lcom/example/myapplicationfirstapp/data/NotesRepository$save$2;.this$0:Lcom/example/myapplicationfirstapp/data/NotesRepository; // field@0094
+0043: invoke-static {v2}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0046: move-result-object v2
+0047: invoke-interface {v2, v1}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.createTemp:(Ljava/io/File;)Ljava/io/File; // method@0160
+004a: move-result-object v2
+004b: nop // spacer
+004c: iget-object v3, v8, Lcom/example/myapplicationfirstapp/data/NotesRepository$save$2;.this$0:Lcom/example/myapplicationfirstapp/data/NotesRepository; // field@0094
+004e: invoke-static {v3}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0051: move-result-object v3
+0052: invoke-interface {v3, v2}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.openStream:(Ljava/io/File;)Ljava/io/FileOutputStream; // method@0161
+0055: move-result-object v3
+0056: check-cast v3, Ljava/io/Closeable; // type@00a9
+0058: iget-object v4, v8, Lcom/example/myapplicationfirstapp/data/NotesRepository$save$2;.this$0:Lcom/example/myapplicationfirstapp/data/NotesRepository; // field@0094
+005a: move-object v5, v3
+005b: check-cast v5, Ljava/io/FileOutputStream; // type@00ad
+005d: const/4 v6, #int 0 // #0
+005e: invoke-static {v4}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0061: move-result-object v7
+0062: invoke-interface {v7, v5, v0}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.write:(Ljava/io/FileOutputStream;[B)V // method@0164
+0065: invoke-static {v4}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0068: move-result-object v4
+0069: invoke-interface {v4, v5}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.sync:(Ljava/io/FileOutputStream;)V // method@0163
+006c: nop // spacer
+006d: sget-object v4, Lkotlin/Unit;.INSTANCE:Lkotlin/Unit; // field@0137
+006f: const/4 v4, #int 0 // #0
+0070: invoke-static {v3, v4}, Lkotlin/io/CloseableKt;.closeFinally:(Ljava/io/Closeable;Ljava/lang/Throwable;)V // method@035a
+0073: iget-object v3, v8, Lcom/example/myapplicationfirstapp/data/NotesRepository$save$2;.this$0:Lcom/example/myapplicationfirstapp/data/NotesRepository; // field@0094
+0075: invoke-static {v3}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFileOps$p:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Lcom/example/myapplicationfirstapp/data/NotesFileOps; // method@018b
+0078: move-result-object v3
+0079: iget-object v4, v8, Lcom/example/myapplicationfirstapp/data/NotesRepository$save$2;.this$0:Lcom/example/myapplicationfirstapp/data/NotesRepository; // field@0094
+007b: invoke-static {v4}, Lcom/example/myapplicationfirstapp/data/NotesRepository;.access$getFile:(Lcom/example/myapplicationfirstapp/data/NotesRepository;)Ljava/io/File; // method@018a
+007e: move-result-object v4
+007f: invoke-interface {v3, v2, v4}, Lcom/example/myapplicationfirstapp/data/NotesFileOps;.rename:(Ljava/io/File;Ljava/io/File;)Z // method@0162
+0082: move-result v3
+0083: if-eqz v3, 008d // +000a
+0085: invoke-virtual {v2}, Ljava/io/File;.delete:()Z // method@02a9
+0088: nop // spacer
+0089: nop // spacer
+008a: sget-object v3, Lkotlin/Unit;.INSTANCE:Lkotlin/Unit; // field@0137
+008c: return-object v3
+008d: new-instance v3, Ljava/io/IOException; // type@00ae
+008f: const-string v4, "Cannot replace notes file" // string@0258
+0091: invoke-direct {v3, v4}, Ljava/io/IOException;.<init>:(Ljava/lang/String;)V // method@02bc
+0094: throw v3
+0095: move-exception v4
+0096: throw v4
+0097: move-exception v5
+0098: invoke-static {v3, v4}, Lkotlin/io/CloseableKt;.closeFinally:(Ljava/io/Closeable;Ljava/lang/Throwable;)V // method@035a
+009b: throw v5
+009c: move-exception v3
+009d: invoke-virtual {v2}, Ljava/io/File;.delete:()Z // method@02a9
+00a0: throw v3
+00a1: const/4 v2, #int 0 // #0
