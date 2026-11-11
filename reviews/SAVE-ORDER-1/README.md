@@ -8,6 +8,13 @@
 
 ---
 
+> **状态更新（2026-11-11 13:33 GMT+8）**：本报告验证的改动已被固化为单个提交
+> `26a5cd9669c76ce267b5eaaea2fafe64a9e92269`（父 `fcac718`）并普通推送到 `fix/backup-safe-1`。
+> 固化过程中未新增任何业务修改，**也未重新运行测试**——提交内容与当时被测内容逐字节相同。
+> 详见 [COMMIT-FREEZE.md](COMMIT-FREEZE.md)。
+
+---
+
 ## 一句话结论
 
 补丁在 `fcac718` 上成功应用，`git diff --check` 干净，两个 Kotlin 编译任务通过，
@@ -60,6 +67,7 @@
 
 | 文件 | 内容 |
 |---|---|
+| [`COMMIT-FREEZE.md`](COMMIT-FREEZE.md) | 源码固化回传：提交 `26a5cd9`、推送结果、blob SHA、测试对应关系 |
 | [`VERIFICATION-REPORT.md`](VERIFICATION-REPORT.md) | 完整验证报告（10 节） |
 | [`evidence/applied.diff`](evidence/applied.diff) | 应用后完整 diff（2 files, +36 −12） |
 | [`evidence/NotesWriteCoordinator.kt`](evidence/NotesWriteCoordinator.kt) | 新增协调器（1,819 B） |
@@ -74,6 +82,7 @@
 
 ```
 https://raw.githubusercontent.com/HOSDIVALL/appppp/review/save-order-1/reviews/SAVE-ORDER-1/ALL-IN-ONE.md
+https://raw.githubusercontent.com/HOSDIVALL/appppp/review/save-order-1/reviews/SAVE-ORDER-1/COMMIT-FREEZE.md
 https://raw.githubusercontent.com/HOSDIVALL/appppp/review/save-order-1/reviews/SAVE-ORDER-1/VERIFICATION-REPORT.md
 https://raw.githubusercontent.com/HOSDIVALL/appppp/review/save-order-1/reviews/SAVE-ORDER-1/evidence/applied.diff
 https://raw.githubusercontent.com/HOSDIVALL/appppp/review/save-order-1/reviews/SAVE-ORDER-1/evidence/NotesWriteCoordinator.kt
@@ -94,7 +103,7 @@ https://codeload.github.com/HOSDIVALL/appppp/zip/refs/heads/review/save-order-1
 | 位置 | 分支 | HEAD | 状态 |
 |---|---|---|---|
 | 主工程 | `main` | `61dff28` | 未改动 |
-| 集成包 worktree | `fix/backup-safe-1` | `fcac718` | 2 modified + 2 untracked，**未提交** |
+| 集成包 worktree | `fix/backup-safe-1` | `26a5cd9` | 已提交并推送，工作区干净 |
 | 本回传包 | `review/save-order-1` | 见本目录 | 仅文档，不含业务代码改动 |
 
 `fix/backup-safe-1` 与 `main` 均未被写入；本分支只增加 `reviews/SAVE-ORDER-1/` 一个目录。
