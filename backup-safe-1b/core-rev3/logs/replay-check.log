@@ -1,0 +1,50 @@
+# core-rev3 增量 diff 回放校验
+
+起点   : backup-safe-1b/core-rev2/source（core-rev2 的完整源码副本）
+回放   : patch -p1 --fuzz=0 < diff/core-rev3.diff
+比较   : 回放产物 vs core-rev3 实现工作区，逐文件 sha256
+
+## patch 输出
+patching file app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev3LayoutTest.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupPath.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitPath.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnLayout.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnPathGuard.kt
+patching file app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnSafeDelete.kt
+
+## 逐文件比较
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCancelTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnClassifyTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnJournalTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev1CancelTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev1CleanupIdTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev1CodecTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev1GateTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev1RollbackTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev2DigestTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev2GateTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev2LayoutTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev3LayoutTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRollbackTest.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/TxnTestSupport.kt
+OK       app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/WriteGateTest.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupPath.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitPath.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRollbackPath.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnClassifier.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnDisk.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnJson.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnLayout.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnLedger.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnModels.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnPathGuard.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnSafeDelete.kt
+OK       app/src/main/java/com/example/myapplicationfirstapp/data/txn/WriteGate.kt
+
+结果: 一致 31 个，不一致 0 个

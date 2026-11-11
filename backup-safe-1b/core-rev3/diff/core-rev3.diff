@@ -1,0 +1,823 @@
+diff -ruN a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev3LayoutTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev3LayoutTest.kt
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev3LayoutTest.kt	1970-01-01 08:00:00.000000000 +0800
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/txn/ImportTxnRev3LayoutTest.kt	2026-11-12 04:37:02.243192200 +0800
+@@ -0,0 +1,188 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * core-rev3 回归（R3 余项）：**检查范围必须等于删除范围**，且检查不出来就停手。
++ *
++ * 这批只验证两件事：
++ *
++ * 1. 布局自检看不到的东西（超出已验证结构/深度的子树、枚举不了的目录）不得被判成通过，
++ *    更不得交给无边界的递归删除；
++ * 2. 健康布局的清理行为不变——收严不能变成「永远清不掉」。
++ *
++ * 现场只用两个沙箱（实现 + 靶）与哨兵文件，不碰真实数据。棚外的符号链接只用来验证
++ * 「删除会不会顺着链接跑出去」，不承担恶意并发换链的防御。
++ */
++@RunWith(AndroidJUnit4::class)
++internal class ImportTxnRev3LayoutTest : TxnKernelTestBase() {
++
++    private val oldNotes = """[{"id":"n1","title":"旧"}]"""
++    private val newNotes = """[{"id":"n1","title":"新"}]"""
++    private val oldA = byteArrayOf(1, 1, 1, 1)
++    private val newA = byteArrayOf(2, 2, 2, 2)
++
++    private fun spec() = PlantedTxn(
++        txnId = "t1",
++        oldNotes = oldNotes,
++        newNotes = newNotes,
++        oldAttachments = mapOf("a.jpg" to oldA),
++        newAttachments = mapOf("a.jpg" to newA)
++    )
++
++    private fun victim(): TxnSandbox = TxnSandbox("victim")
++
++    /** 超出 `TxnPathGuard` 已知形状的一串目录：材料目录下面不该再套目录 */
++    private fun deepSubtree(under: File): File =
++        File(under, "l1/l2/l3/l4").apply { mkdirs() }
++
++    /**
++     * 把目录权限收成 000：进程**枚举不了**它，`listFiles()` 返回 null。
++     *
++     * 这是真实的「无法枚举」现场（不是注入的异常），用来验证内核不会把它当成空目录删掉。
++     */
++    private fun lockDir(dir: File) {
++        dir.setReadable(false, false)
++        dir.setExecutable(false, false)
++        dir.setWritable(false, false)
++        assertNull("现场构造失败：测试进程仍能枚举 ${dir.name}", dir.listFiles())
++    }
++
++    private fun unlockDir(dir: File) {
++        dir.setReadable(true, false)
++        dir.setExecutable(true, false)
++        dir.setWritable(true, false)
++    }
++
++    // ================= 1. 扫描边界之外的预存链接 =================
++
++    @Test
++    fun discardStopsAtUnknownSubtreeBeyondScanDepth() = runBlocking {
++        val victim = victim()
++        val leakDir = File(sandbox.txnDir("t1"), "new-attachments")
++        try {
++            val sentinel = File(victim.root, "sentinel.txt").apply { writeText("keep") }
++            File(leakDir, "a.jpg").parentFile!!.mkdirs()
++            File(leakDir, "a.jpg").writeBytes(newA)
++            deepSubtree(leakDir)
++            sandbox.symlinkTo(".import/txn-t1/new-attachments/l1/l2/l3/l4/leak", victim.root)
++
++            val outcome = sandbox.kernel().discardQuarantined("t1")
++
++            assertFalse("看不到的子树不得当成可删，实际=$outcome", outcome.cleaned)
++            assertTrue("根外哨兵被删掉了", sentinel.exists())
++            assertEquals("keep", sentinel.readText())
++            assertTrue("事务目录被删掉了", sandbox.txnDir("t1").isDirectory)
++        } finally {
++            File(leakDir, "l1/l2/l3/l4/leak").delete()
++            victim.dispose()
++        }
++    }
++
++    @Test
++    fun cleanupStopsAtUnknownSubtreeAndKeepsEvidence() = runBlocking {
++        sandbox.plant(
++            spec(),
++            notesState = NotesState.NEW,
++            journalState = JournalState.COMMITTED,
++            writeCredential = true
++        )
++        val victim = victim()
++        val oldAttachments = File(sandbox.txnDir("t1"), "old-attachments")
++        try {
++            val sentinel = File(victim.root, "sentinel.txt").apply { writeText("keep") }
++            deepSubtree(oldAttachments)
++            sandbox.symlinkTo(".import/txn-t1/old-attachments/l1/l2/l3/l4/leak", victim.root)
++
++            val outcome = sandbox.kernel().cleanup("t1")
++
++            assertFalse("不得继续清理，实际=$outcome", outcome.cleaned)
++            assertTrue("根外哨兵被删掉了", sentinel.exists())
++            assertTrue("journal 不得被删", sandbox.journalFile().isFile)
++            assertTrue("凭据不得被删", sandbox.credentialFile().isFile)
++            assertTrue("事务材料不得被删", sandbox.txnDir("t1").isDirectory)
++        } finally {
++            File(oldAttachments, "l1/l2/l3/l4/leak").delete()
++            victim.dispose()
++        }
++    }
++
++    // ================= 2. 检查失败必须停手 =================
++
++    @Test
++    fun discardStopsWhenTxnSubtreeCannotBeEnumerated() = runBlocking {
++        val locked = File(sandbox.txnDir("t1"), "new-attachments/secret").apply { mkdirs() }
++        try {
++            lockDir(locked)
++
++            val outcome = sandbox.kernel().discardQuarantined("t1")
++
++            assertFalse("枚举不了就不许说清干净了，实际=$outcome", outcome.cleaned)
++            assertTrue("事务目录被删掉了", sandbox.txnDir("t1").isDirectory)
++        } finally {
++            unlockDir(locked)
++        }
++    }
++
++    @Test
++    fun cleanupStopsWhenLayoutCannotBeChecked() = runBlocking {
++        sandbox.plant(
++            spec(),
++            notesState = NotesState.NEW,
++            journalState = JournalState.COMMITTED,
++            writeCredential = true
++        )
++        val locked = File(sandbox.txnDir("t1"), "new-attachments/secret").apply { mkdirs() }
++        try {
++            lockDir(locked)
++
++            val outcome = sandbox.kernel().cleanup("t1")
++
++            assertFalse("检查不出来就不许删，实际=$outcome", outcome.cleaned)
++            assertEquals("layout", outcome.stoppedAt)
++            assertTrue("journal 不得被删", sandbox.journalFile().isFile)
++            assertTrue("凭据不得被删", sandbox.credentialFile().isFile)
++            assertTrue("事务材料不得被删", sandbox.txnDir("t1").isDirectory)
++        } finally {
++            unlockDir(locked)
++        }
++    }
++
++    // ================= 3. 健康布局仍然能清 =================
++
++    @Test
++    fun healthyLayoutStillDiscardsAndCleans() = runBlocking {
++        val kernel = sandbox.kernel()
++
++        // 隔离态：只有材料、没有 journal/凭据，处置后应真的删净
++        File(sandbox.txnDir("q1"), "new-attachments").mkdirs()
++        File(sandbox.txnDir("q1"), "commit.json").writeText(newNotes)
++        File(sandbox.txnDir("q1"), "new-attachments/a.jpg").writeBytes(newA)
++        val discarded = kernel.discardQuarantined("q1")
++        assertTrue("健康布局应当能处置，实际=$discarded", discarded.cleaned)
++        assertFalse("事务目录应已删除", sandbox.txnDir("q1").exists())
++
++        // 已提交态：材料 + journal + 凭据，清理后只留正式数据与结果留存
++        sandbox.plant(
++            spec(),
++            notesState = NotesState.NEW,
++            journalState = JournalState.COMMITTED,
++            writeCredential = true
++        )
++        val cleaned = kernel.cleanup("t1")
++        assertTrue("健康布局应当能清理，实际=$cleaned", cleaned.cleaned)
++        assertFalse("事务目录应已删除", sandbox.txnDir("t1").exists())
++        assertFalse("journal 应已删除", sandbox.journalFile().exists())
++        assertFalse("凭据应已删除", sandbox.credentialFile().exists())
++        sandbox.expectNotes(newNotes, "清理不得动正式数据")
++        assertTrue("结果留存应仍在", sandbox.results().any { it.txnId == "t1" })
++    }
++}
+diff -ruN a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupPath.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupPath.kt
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupPath.kt	2026-11-12 04:37:01.654539600 +0800
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCleanupPath.kt	2026-11-12 04:37:01.881914300 +0800
+@@ -8,8 +8,8 @@
+  *
+  * 顺序固定：**布局自检 → 核对 txnId → 结果留存 → 材料 → 目录 → journal → 凭据**。
+  *
+- * - 布局自检不过（根被换、布局里有符号链接）时一个字节都不动：`deleteRecursively()`
+- *   会跟着链接把根外的目录删空。
++ * - 布局自检不过（根被换、有符号链接、有布局外的条目、枚举不出来）时一个字节都不动。
++ *   删除一律走 [TxnSafeDelete]：它逐层看实际类型，链接与「判不出来」都整片放弃。
+  * - 参数与终态 `txnId` 对不上时，一个字节都不动。传错 ID 不该写结果、删材料，
+  *   更不该删全局证据——那会把另一个事务的提交事实抹掉。
+  * - 材料没删干净就不删证据：否则会退化成「有材料、没凭据」的隔离态。
+@@ -18,7 +18,8 @@
+     private val layout: TxnLayout,
+     private val ops: TxnFileOps,
+     private val classifier: TxnClassifier,
+-    private val ledger: TxnLedger
++    private val ledger: TxnLedger,
++    private val safeDelete: TxnSafeDelete
+ ) {
+ 
+     fun cleanupLocked(txnId: String): CleanupOutcome {
+@@ -53,10 +54,22 @@
+ 
+         val leftovers = mutableListOf<String>()
+         val dir = layout.txnDir(txnId)
+-        if (ops.isDirectory(dir)) {
++        if (ops.entryKind(dir) != EntryKind.Absent) {
+             for (child in listOf(TxnLayout.OLD_ATTACHMENTS, TxnLayout.NEW_ATTACHMENTS)) {
+                 val childDir = File(dir, child)
+-                for (file in ops.list(childDir).filter { !it.isDirectory }) {
++                // 目录本来就不存在是正常情况（比如没写旧副本）；只有「在、但列不出来」才停手
++                val members = if (ops.entryKind(childDir) == EntryKind.Directory) {
++                    try {
++                        ops.listStrict(childDir)
++                    } catch (failure: IOException) {
++                        // 列不出来就不知道还剩什么：停手，证据与材料都留着
++                        leftovers += child
++                        return CleanupOutcome(false, leftovers, stoppedAt = "materials")
++                    }
++                } else {
++                    emptyList()
++                }
++                for (file in members.filter { ops.entryKind(it) == EntryKind.Regular }) {
+                     if (!attempt {
+                             ops.checkpoint(TxnStep.deleteMaterial("$child/${file.name}"))
+                             ops.delete(file)
+@@ -66,14 +79,16 @@
+                         return CleanupOutcome(false, leftovers, stoppedAt = "materials")
+                     }
+                 }
+-                if (ops.exists(childDir) && !attempt { ops.deleteTree(childDir) }) {
++                if (ops.entryKind(childDir) != EntryKind.Absent &&
++                    !attempt { safeDelete.deleteVerified(childDir, maxDepth = 1) }
++                ) {
+                     leftovers += child
+                     return CleanupOutcome(false, leftovers, stoppedAt = "materials")
+                 }
+             }
+             for (name in listOf(TxnLayout.COMMIT_JSON, TxnLayout.OLD_NOTES, TxnLayout.OLD_MANIFEST)) {
+                 val file = File(dir, name)
+-                if (!ops.exists(file)) continue
++                if (ops.entryKind(file) == EntryKind.Absent) continue
+                 if (!attempt {
+                         ops.checkpoint(TxnStep.deleteMaterial(name))
+                         ops.delete(file)
+@@ -83,16 +98,18 @@
+                     return CleanupOutcome(false, leftovers, stoppedAt = "materials")
+                 }
+             }
+-            if (!attempt { ops.deleteTree(dir) }) {
++            if (!attempt { safeDelete.deleteVerified(dir, maxDepth = 2) }) {
+                 leftovers += dir.name
+                 return CleanupOutcome(false, leftovers, stoppedAt = "materials")
+             }
+         }
+ 
+         // 门禁：材料目录必须已经不在了，才允许删证据
+-        if (ops.exists(dir)) return CleanupOutcome(false, leftovers + dir.name, stoppedAt = "gate")
++        if (ops.entryKind(dir) != EntryKind.Absent) {
++            return CleanupOutcome(false, leftovers + dir.name, stoppedAt = "gate")
++        }
+ 
+-        if (ops.exists(layout.journalFile)) {
++        if (ops.entryKind(layout.journalFile) != EntryKind.Absent) {
+             if (!attempt {
+                     ops.checkpoint(TxnStep.JOURNAL)
+                     ops.delete(layout.journalFile)
+@@ -101,7 +118,7 @@
+                 return CleanupOutcome(false, leftovers + TxnLayout.JOURNAL, stoppedAt = "journal")
+             }
+         }
+-        if (ops.exists(layout.credentialFile)) {
++        if (ops.entryKind(layout.credentialFile) != EntryKind.Absent) {
+             if (!attempt {
+                     ops.checkpoint(TxnStep.CREDENTIAL)
+                     ops.delete(layout.credentialFile)
+@@ -130,7 +147,8 @@
+         }
+         val dir = layout.txnDir(txnId)
+         ops.checkpoint(TxnStep.deleteMaterial(dir.name))
+-        val cleared = attempt { ops.deleteTree(dir) } && !ops.exists(dir)
++        val cleared = attempt { safeDelete.deleteVerified(dir, maxDepth = 2) } &&
++            ops.entryKind(dir) == EntryKind.Absent
+         return CleanupOutcome(
+             cleared,
+             if (cleared) emptyList() else listOf(dir.name),
+@@ -138,9 +156,8 @@
+         )
+     }
+ 
+-    private fun attempt(block: () -> Unit): Boolean = try {
++    private fun attempt(block: () -> Boolean): Boolean = try {
+         block()
+-        true
+     } catch (failure: IOException) {
+         false
+     }
+diff -ruN a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitPath.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitPath.kt
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitPath.kt	2026-11-12 04:37:01.657742900 +0800
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnCommitPath.kt	2026-11-12 04:37:01.887507100 +0800
+@@ -28,6 +28,7 @@
+     private val rollback: ImportTxnRollbackPath,
+     private val cleanup: ImportTxnCleanupPath,
+     private val ledger: TxnLedger,
++    private val safeDelete: TxnSafeDelete,
+     private val clock: () -> Long
+ ) {
+ 
+@@ -49,7 +50,7 @@
+         if (!ops.mkdirs(dir)) return MaterializeOutcome.Rejected("mkdir-failed")
+         attachments.keys.forEach { name ->
+             if (!TxnLayout.isSafeName(name)) {
+-                ops.deleteTree(dir)
++                safeDelete.deleteVerified(dir, maxDepth = 2)
+                 return MaterializeOutcome.Rejected("unsafe-name:$name")
+             }
+         }
+@@ -63,7 +64,7 @@
+             }
+             MaterializeOutcome.Ready(txnId, ops.digestBytes(commitBytes))
+         } catch (failure: IOException) {
+-            ops.deleteTree(dir)
++            safeDelete.deleteVerified(dir, maxDepth = 2)
+             MaterializeOutcome.Rejected("materialize-failed")
+         }
+     }
+@@ -117,7 +118,13 @@
+         }
+         val oldNotesDigest = oldNotesBytes?.let { ops.digestBytes(it) }
+ 
+-        val newFiles = ops.list(File(dir, TxnLayout.NEW_ATTACHMENTS)).filter { !it.isDirectory }
++        val newFiles = try {
++            ops.listStrict(File(dir, TxnLayout.NEW_ATTACHMENTS))
++                .filter { ops.entryKind(it) == EntryKind.Regular }
++        } catch (failure: IOException) {
++            // 列不出来就不知道这次导入该带哪些附件：不许当成「没有附件」继续提交
++            return CommitOutcome.NotStarted("material-unlistable")
++        }
+         newFiles.forEach {
+             if (!TxnLayout.isSafeName(it.name)) {
+                 return CommitOutcome.NotStarted("unsafe-material-name:${it.name}")
+diff -ruN a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt	2026-11-12 04:37:01.660405700 +0800
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/ImportTxnKernel.kt	2026-11-12 04:37:01.901042800 +0800
+@@ -22,7 +22,8 @@
+  * | 文件 | 职责 |
+  * |---|---|
+  * | `TxnLayout` | 固定布局、路径拼装、`isSafeName` 安全边界 |
+- * | `TxnPathGuard` | 根身份与实际路径边界，拒绝布局内预存符号链接 |
++ * | `TxnPathGuard` | 根身份 + **形状即边界**：`.import/` 只认已知三层，其余一律不安全，检查不出来也停 |
++ * | `TxnSafeDelete` | 有边界的删除：逐层看实际类型，链接与判不出来的整片放弃 |
+  * | `TxnDisk` | 只读磁盘访问；`Absent` 与 `Unreadable` 严格分开 |
+  * | `TxnClassifier` | 磁盘 → `DiskState`，不写任何文件 |
+  * | `TxnLedger` | 终态结果留存（不是证据、不参与判定） |
+@@ -60,14 +61,15 @@
+ 
+     private val mutex = Mutex()
+ 
+-    private val layout = TxnLayout(root)
++    private val layout = TxnLayout(root, ops)
+     private val disk = TxnDisk(layout, ops)
+     private val classifier = TxnClassifier(layout, ops, disk)
+     private val ledger = TxnLedger(layout, ops, clock)
++    private val safeDelete = TxnSafeDelete(ops)
+     private val rollbackPath = ImportTxnRollbackPath(layout, ops, disk, classifier, ledger, clock)
+-    private val cleanupPath = ImportTxnCleanupPath(layout, ops, classifier, ledger)
++    private val cleanupPath = ImportTxnCleanupPath(layout, ops, classifier, ledger, safeDelete)
+     private val commitPath = ImportTxnCommitPath(
+-        layout, ops, disk, classifier, rollbackPath, cleanupPath, ledger, clock
++        layout, ops, disk, classifier, rollbackPath, cleanupPath, ledger, safeDelete, clock
+     )
+ 
+     // ================= 只读 =================
+diff -ruN a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt	2026-11-12 04:37:01.670850200 +0800
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnFileOps.kt	2026-11-12 04:37:02.047537100 +0800
+@@ -1,11 +1,29 @@
+ package com.example.myapplicationfirstapp.data.txn
+ 
++import android.system.ErrnoException
++import android.system.Os
++import android.system.OsConstants
+ import java.io.File
+ import java.io.FileOutputStream
+ import java.io.IOException
+ import java.security.MessageDigest
+ 
+ /**
++ * 一个条目**实际是什么**。
++ *
++ * 五态而不是布尔，是因为「不知道」必须能和「不是链接」「不存在」分开：把 `lstat` 的
++ * 权限错误当成「不是链接」，就等于把没检查过的目录当成可以递归删除的目标。
++ * `Absent` 只留给 `ENOENT` / `ENOTDIR`——内核明确回答了「这里没有东西」。
++ */
++internal sealed interface EntryKind {
++    data object Regular : EntryKind
++    data object Directory : EntryKind
++    data object Symlink : EntryKind
++    data object Absent : EntryKind
++    data class Unknown(val reason: String) : EntryKind
++}
++
++/**
+  * 事务内核的文件接缝。
+  *
+  * 内核只认这一层，不直接 `File.writeBytes()`，原因有两个：
+@@ -27,6 +45,17 @@
+     /** 目录内条目，按名字排序；目录不存在返回空列表 */
+     fun list(dir: File): List<File>
+ 
++    /**
++     * 目录内条目，**枚举不出来就抛 IOException**。
++     *
++     * 与 [list] 分开，是因为「空目录」和「列不出来」在判定上是两件事：
++     * 前者可以删，后者连能不能删都不知道。清理与布局自检只许用这个。
++     */
++    fun listStrict(dir: File): List<File>
++
++    /** 单个条目的实际类型，**不跟随符号链接**；判不出来返回 [EntryKind.Unknown] */
++    fun entryKind(file: File): EntryKind
++
+     /** 读取完整字节；不存在或读失败抛 IOException */
+     fun readBytes(file: File): ByteArray
+ 
+@@ -41,7 +70,8 @@
+ 
+     fun delete(file: File): Boolean
+ 
+-    fun deleteTree(dir: File): Boolean
++    // 这里**故意没有** deleteTree：无边界的递归删除会顺着符号链接清空根外目录。
++    // 需要删目录时用 TxnSafeDelete，它按 [entryKind] 逐层走，删不掉就停。
+ 
+     fun mkdirs(dir: File): Boolean
+ 
+@@ -86,6 +116,26 @@
+     override fun list(dir: File): List<File> =
+         dir.listFiles()?.sortedBy { it.name } ?: emptyList()
+ 
++    override fun listStrict(dir: File): List<File> =
++        dir.listFiles()?.sortedBy { it.name }
++            ?: throw IOException("cannot enumerate ${dir.name}")
++
++    override fun entryKind(file: File): EntryKind = try {
++        val mode = Os.lstat(file.absolutePath).st_mode
++        when {
++            OsConstants.S_ISLNK(mode) -> EntryKind.Symlink
++            OsConstants.S_ISDIR(mode) -> EntryKind.Directory
++            OsConstants.S_ISREG(mode) -> EntryKind.Regular
++            else -> EntryKind.Unknown("special")
++        }
++    } catch (failure: ErrnoException) {
++        when (failure.errno) {
++            // 只有内核明确说「这里没有」才算不存在；其余（EACCES、ELOOP、EIO…）都是「不知道」
++            OsConstants.ENOENT, OsConstants.ENOTDIR -> EntryKind.Absent
++            else -> EntryKind.Unknown("errno:${failure.errno}")
++        }
++    }
++
+     override fun readBytes(file: File): ByteArray = file.readBytes()
+ 
+     override fun writeAtomic(file: File, bytes: ByteArray) {
+@@ -109,11 +159,6 @@
+ 
+     override fun delete(file: File): Boolean = file.delete()
+ 
+-    override fun deleteTree(dir: File): Boolean {
+-        dir.deleteRecursively()
+-        return !dir.exists()
+-    }
+-
+     override fun mkdirs(dir: File): Boolean = dir.isDirectory || dir.mkdirs()
+ 
+     override fun digest(file: File): String = digestBytes(file.readBytes())
+diff -ruN a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnLayout.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnLayout.kt
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnLayout.kt	2026-11-12 04:37:01.676542200 +0800
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnLayout.kt	2026-11-12 04:37:02.065916300 +0800
+@@ -8,13 +8,13 @@
+  * 单独拆出来，是因为「哪些名字能落成路径」是**安全边界**，不能散落在提交、回滚、清理三处
+  * 各写一遍：一次漏校验就等于让 `journal` 里的字符串决定写盘位置。
+  */
+-internal class TxnLayout(val root: File) {
++internal class TxnLayout(val root: File, private val ops: TxnFileOps = RealTxnFileOps()) {
+ 
+-    private val guard = TxnPathGuard(root)
++    private val guard = TxnPathGuard(root, ops)
+ 
+     /**
+      * 实际路径边界自检。所有会读、写、删的入口在动第一个字节之前都要先问一次：
+-     * 根是不是还是那个根、布局里有没有预存的符号链接。
++     * 根是不是还是那个根、`.import/` 下有没有**布局之外**的东西（含符号链接、判不出来的条目）。
+      */
+     fun verify(): LayoutVerdict = guard.verify()
+ 
+diff -ruN a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnPathGuard.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnPathGuard.kt
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnPathGuard.kt	2026-11-12 04:37:01.683561400 +0800
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnPathGuard.kt	2026-11-12 04:37:02.080188700 +0800
+@@ -1,9 +1,7 @@
+ package com.example.myapplicationfirstapp.data.txn
+ 
+-import android.system.ErrnoException
+-import android.system.Os
+-import android.system.OsConstants
+ import java.io.File
++import java.io.IOException
+ 
+ /** 布局自检结论。`Unsafe` 一律表示「不许读、不许写、不许删」。 */
+ internal sealed interface LayoutVerdict {
+@@ -12,99 +10,179 @@
+ }
+ 
+ /**
+- * 根身份与路径边界守卫（R3）。
++ * 根身份与路径边界守卫（R3 / core-rev3）。
+  *
+- * 两件事：
++ * 三条规则，缺一不可：
+  *
+- * 1. **根身份**：构造时记下根的规范路径，之后每次都要求仍然相同。根被换成指向别处的链接、
+- *    或整目录被替换，都会在这里被拒。
+- * 2. **布局内不得有预存链接**：从根往下逐层 `lstat`，任何一层是符号链接就整片判不可用。
+- *    这一条挡住的是「删改跟着链接跑到根外」——`deleteRecursively()` 与 `listFiles()`
+- *    都会顺着链接走。
++ * 1. **根身份**：首次自检时记下根的规范路径，之后每次都要相同。根被换成指向别处的链接、
++ *    或整目录被替换，都在这里被拒。
++ * 2. **形状即边界**：只认 `.import/` 下**已知的三层**——全局文件、`txn-<id>/`、材料目录里的
++ *    平铺文件。多出来的东西一律 `Unknown`，不是「没看见」。这样「检查通过的范围」与
++ *    「允许删除的范围」是同一个集合，不存在「有限检查、无限删除」。
++ * 3. **检查不出来就停**：枚举失败（`IOException`）、`lstat` 报的不是 `ENOENT`/`ENOTDIR`
++ *    （`Unknown`）、列完之后条目又不见了（`Absent`），都不是「空目录」也不是「不是链接」，
++ *    而是 `Unsafe`。`TxnSafeDelete` 只删已经过这一关的路径。
+  *
+- * 明确不做的事：不防御并发换链（检查与使用之间被换掉），那不是这批的范围；也不试图
+- * 解析挂载点或 `..` 逃逸——路径全部由 [TxnLayout] 拼装，外部字符串只经 `isSafeName`。
+- *
+- * 只用 `Os.lstat` 判断链接本身（API 21 起可用），不用 `File.exists()`：后者会跟随链接，
+- * 断链会显示成「不存在」，正好把危险情况藏起来。
++ * 明确不做的事：**不防御并发换链**（检查与使用之间被换掉）。这一条留到接入批，
++ * 本批只保证「已经摆在盘上的东西」不会被误判成可删。
+  */
+-internal class TxnPathGuard(private val root: File) {
+-
+-    /** 首次成功自检时捕获；之后不一致即视为根被换掉 */
+-    private var identity: String? = null
++internal class TxnPathGuard(private val root: File, private val ops: TxnFileOps) {
+ 
+-    fun verify(): LayoutVerdict {
+-        if (!root.exists() && !isSymlink(root)) return LayoutVerdict.Ok
+-        if (isSymlink(root)) return LayoutVerdict.Unsafe("root-is-symlink")
+-        if (!root.isDirectory) return LayoutVerdict.Unsafe("root-not-directory")
++    /** 首次成功自检时捕获的规范路径；之后不一致即视为根被换掉 */
++    private var identity: File? = null
++    private var rootCanonical: File? = null
++
++    fun verify(): LayoutVerdict = try {
++        walk()
++        LayoutVerdict.Ok
++    } catch (signal: UnsafeSignal) {
++        signal.verdict
++    }
++
++    // ---------------- 根与顶层 ----------------
++
++    private fun walk() {
++        when (val kind = ops.entryKind(root)) {
++            EntryKind.Absent -> return
++            EntryKind.Directory -> Unit
++            EntryKind.Symlink -> fail("root-is-symlink")
++            is EntryKind.Unknown -> fail("root-undecidable:${kind.reason}")
++            EntryKind.Regular -> fail("root-not-directory")
++        }
+ 
+-        val canonical = canonicalOf(root)?.path ?: return LayoutVerdict.Unsafe("root-unresolvable")
++        val canonical = canonicalOf(root) ?: fail("root-unresolvable")
+         val known = identity ?: canonical.also { identity = it }
+-        if (canonical != known) return LayoutVerdict.Unsafe("root-identity-changed")
++        if (canonical != known) fail("root-identity-changed")
++        rootCanonical = canonical
+ 
+-        checkPath(TxnLayout.NOTES)?.let { return it }
+-        checkPath(TxnLayout.ATTACHMENTS)?.let { return it }
+-        checkPath(TxnLayout.IMPORT_DIR)?.let { return it }
+-        scanImport()?.let { return it }
+-        return LayoutVerdict.Ok
++        // notes.json 的具体类型不在这里定：目录占位由 TxnDisk 判成 `Unreadable`，
++        // 界面上是「读不出来」，不是「布局越界」。这里只管它不是链接、不是判不出来的东西。
++        checkTopLevel(TxnLayout.NOTES, expected = null)
++        checkTopLevel(TxnLayout.ATTACHMENTS, expected = EntryKind.Directory)
++        checkTopLevel(TxnLayout.IMPORT_DIR, expected = EntryKind.Directory)
++        if (ops.entryKind(File(root, TxnLayout.IMPORT_DIR)) != EntryKind.Absent) validateImport()
++    }
++
++    /**
++     * 顶层三个已知名字。**根下的其他东西不查**：生产里 `filesDir` 还有录音等目录，
++     * 它们不在事务布局内，也永远不会被这条路径删到。
++     *
++     * `expected == null` 表示「类型不限，只要不是链接且判得出来」。
++     */
++    private fun checkTopLevel(name: String, expected: EntryKind?) {
++        val file = File(root, name)
++        when (val kind = ops.entryKind(file)) {
++            EntryKind.Absent -> return
++            EntryKind.Symlink -> fail("symlink:$name")
++            is EntryKind.Unknown -> fail("undecidable:$name:${kind.reason}")
++            else -> if (expected != null && kind != expected) fail("shape:$name")
++        }
++        val canonical = canonicalOf(file) ?: fail("unresolvable:$name")
++        if (canonical.parentFile != rootCanonical) fail("outside-root:$name")
+     }
+ 
+-    /** `.import/` 及其下的两层：journal、凭据、结果、txn 目录与材料 */
+-    private fun scanImport(): LayoutVerdict.Unsafe? {
++    // ---------------- `.import/` 一层 ----------------
++
++    private fun validateImport() {
+         val importDir = File(root, TxnLayout.IMPORT_DIR)
+-        if (!importDir.isDirectory) return null
+-        return scanChildren(importDir, TxnLayout.IMPORT_DIR, depth = 0)
++        val importCanonical = canonicalOf(importDir) ?: fail("unresolvable:${TxnLayout.IMPORT_DIR}")
++        if (importCanonical.parentFile != rootCanonical) fail("outside-root:${TxnLayout.IMPORT_DIR}")
++
++        for (child in enumerate(importDir, TxnLayout.IMPORT_DIR)) {
++            val name = child.name
++            val relative = "${TxnLayout.IMPORT_DIR}/$name"
++            val kind = stableKind(child, relative)
++            when {
++                name in GLOBAL_FILES -> if (kind != EntryKind.Regular) fail("shape:$relative")
++
++                name.startsWith(TxnLayout.TXN_PREFIX) -> {
++                    if (kind != EntryKind.Directory) fail("shape:$relative")
++                    if (!TxnLayout.isSafeName(name.removePrefix(TxnLayout.TXN_PREFIX))) {
++                        fail("unsafe-name:$relative")
++                    }
++                    validateTxnDir(child, relative, importCanonical)
++                }
++
++                isTempLeftover(name) -> if (kind != EntryKind.Regular) fail("shape:$relative")
++
++                // 布局里没有的东西：不猜、不跳过、更不交给删除
++                else -> fail("unknown-entry:$relative")
++            }
++        }
+     }
+ 
+-    private fun scanChildren(dir: File, prefix: String, depth: Int): LayoutVerdict.Unsafe? {
+-        if (depth > MAX_DEPTH) return null
+-        val children = dir.listFiles() ?: return null
+-        for (child in children) {
+-            val relative = "$prefix/${child.name}"
+-            checkPath(relative)?.let { return it }
+-            if (child.isDirectory && !isSymlink(child)) {
+-                scanChildren(child, relative, depth + 1)?.let { return it }
++    private fun validateTxnDir(dir: File, relative: String, importCanonical: File) {
++        val canonical = canonicalOf(dir) ?: fail("unresolvable:$relative")
++        if (canonical.parentFile != importCanonical) fail("outside-root:$relative")
++
++        for (child in enumerate(dir, relative)) {
++            val name = child.name
++            val childRelative = "$relative/$name"
++            val kind = stableKind(child, childRelative)
++            when {
++                name in TXN_FILES -> if (kind != EntryKind.Regular) fail("shape:$childRelative")
++
++                name == TxnLayout.OLD_ATTACHMENTS || name == TxnLayout.NEW_ATTACHMENTS -> {
++                    if (kind != EntryKind.Directory) fail("shape:$childRelative")
++                    validateMaterials(child, childRelative, canonical)
++                }
++
++                isTempLeftover(name) -> if (kind != EntryKind.Regular) fail("shape:$childRelative")
++
++                else -> fail("unknown-entry:$childRelative")
+             }
+         }
+-        return null
+     }
+ 
+     /**
+-     * 逐层核对：每一层都必须真的存在、不是链接、且规范父目录等于上一层。
++     * 材料目录只允许平铺的普通文件，**不允许再套目录**。
+      *
+-     * 第三种情况能抓住「中间层被换成指向别处的目录」——这时 `isSymlink` 只看最后一层不够。
+-     * 某一层不存在就说明后面的都不用看（本次是新建）。
++     * 这是「已知结构的最后一层」：再往下的东西不在删除范围内，所以一旦出现目录就整片拒掉，
++     * 而不是先删了再说。`writeAtomic` 的残留临时文件形状固定、是单文件删除，予以放行。
+      */
+-    private fun checkPath(relative: String): LayoutVerdict.Unsafe? {
+-        var current = root
+-        var expected = canonicalOf(root) ?: return LayoutVerdict.Unsafe("root-unresolvable")
+-        for (part in relative.split('/')) {
+-            if (part.isEmpty()) continue
+-            current = File(current, part)
+-            val linked = isSymlink(current)
+-            if (!linked && !current.exists()) return null
+-            if (linked) return LayoutVerdict.Unsafe("symlink:$relative")
+-            val canonical = canonicalOf(current)
+-                ?: return LayoutVerdict.Unsafe("unresolvable:$relative")
+-            if (canonical.parentFile != expected) {
+-                return LayoutVerdict.Unsafe("outside-root:$relative")
+-            }
+-            expected = canonical
++    private fun validateMaterials(dir: File, relative: String, parentCanonical: File) {
++        val canonical = canonicalOf(dir) ?: fail("unresolvable:$relative")
++        if (canonical.parentFile != parentCanonical) fail("outside-root:$relative")
++
++        for (child in enumerate(dir, relative)) {
++            val childRelative = "$relative/${child.name}"
++            val kind = stableKind(child, childRelative)
++            val temp = isTempLeftover(child.name)
++            if (kind != EntryKind.Regular) fail("unknown-entry:$childRelative")
++            if (!temp && !TxnLayout.isSafeName(child.name)) fail("unsafe-name:$childRelative")
+         }
+-        return null
+     }
+ 
++    // ---------------- 基础动作 ----------------
++
++    private fun enumerate(dir: File, relative: String): List<File> = try {
++        ops.listStrict(dir)
++    } catch (failure: IOException) {
++        fail("unlistable:$relative")
++    }
++
++    /** 列出来之后又变了（没了 / 变链接 / 判不出来），同样不许继续 */
++    private fun stableKind(file: File, relative: String): EntryKind =
++        when (val kind = ops.entryKind(file)) {
++            EntryKind.Absent -> fail("vanished:$relative")
++            EntryKind.Symlink -> fail("symlink:$relative")
++            is EntryKind.Unknown -> fail("undecidable:$relative:${kind.reason}")
++            else -> kind
++        }
++
+     private fun canonicalOf(file: File): File? =
+         runCatching { file.canonicalFile }.getOrNull()
+ 
+-    private fun isSymlink(file: File): Boolean = try {
+-        OsConstants.S_ISLNK(Os.lstat(file.absolutePath).st_mode)
+-    } catch (failure: ErrnoException) {
+-        false
+-    }
++    private fun fail(reason: String): Nothing = throw UnsafeSignal(LayoutVerdict.Unsafe(reason))
++
++    private class UnsafeSignal(val verdict: LayoutVerdict.Unsafe) : Exception(verdict.reason)
+ 
+     private companion object {
+-        /** `txn-<id>/old-attachments/<name>` 已经在第 4 层，再多就是不属于布局的东西 */
+-        const val MAX_DEPTH = 4
++        val GLOBAL_FILES = setOf(TxnLayout.JOURNAL, TxnLayout.CREDENTIAL, TxnLayout.RESULTS)
++
++        val TXN_FILES = setOf(TxnLayout.COMMIT_JSON, TxnLayout.OLD_NOTES, TxnLayout.OLD_MANIFEST)
++
++        /** `writeAtomic` 的临时文件：`.<名字>-<随机>.tmp`，单文件、不递归 */
++        fun isTempLeftover(name: String): Boolean = name.startsWith(".") && name.endsWith(".tmp")
+     }
+ }
+diff -ruN a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnSafeDelete.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnSafeDelete.kt
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnSafeDelete.kt	1970-01-01 08:00:00.000000000 +0800
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/txn/TxnSafeDelete.kt	2026-11-12 04:37:02.094113800 +0800
+@@ -0,0 +1,51 @@
++package com.example.myapplicationfirstapp.data.txn
++
++import java.io.File
++import java.io.IOException
++
++/**
++ * 有边界的删除（core-rev3）。
++ *
++ * 存在的唯一理由：`File.deleteRecursively()` 会顺着符号链接把根外的目录一起清空，
++ * 而且它不看「这棵子树是不是布局里认得的结构」。这里改成逐层走：
++ *
++ * - 每一层都先用 [TxnFileOps.entryKind] 看**实际类型**，是链接就整片放弃；
++ * - 枚举不出来（`IOException`）或类型判不出来（`Unknown`）同样放弃，不当空目录；
++ * - 深度上限之外的东西**不删**：走到上限还没删完就返回 `false`，把「没验证过的子树」
++ *   留在原地等人看，而不是猜着删。
++ *
++ * 调用方必须先让 [TxnPathGuard] 通过；本类只负责「按已验证的形状删」，不负责判断形状。
++ * 失败时可能已经删掉了前面几个文件——所以调用方一律把 `false` 当成「没删干净」处理，
++ * 不当作「什么都没发生」。
++ */
++internal class TxnSafeDelete(private val ops: TxnFileOps) {
++
++    /**
++     * @param maxDepth 允许往下走的层数：文件为 0，目录每进一层减 1。传 1 表示「目录 + 里面的
++     *   普通文件」，传 2 表示「目录 + 子目录 + 文件」。
++     */
++    fun deleteVerified(target: File, maxDepth: Int): Boolean =
++        when (val kind = ops.entryKind(target)) {
++            EntryKind.Absent -> true
++            EntryKind.Symlink -> false
++            is EntryKind.Unknown -> false
++            EntryKind.Regular -> ops.delete(target) && isGone(target)
++            EntryKind.Directory -> deleteDirectory(target, maxDepth)
++        }
++
++    private fun deleteDirectory(dir: File, maxDepth: Int): Boolean {
++        if (maxDepth <= 0) return false
++        val children = try {
++            ops.listStrict(dir)
++        } catch (failure: IOException) {
++            return false
++        }
++        for (child in children) {
++            if (!deleteVerified(child, maxDepth - 1)) return false
++        }
++        // 只删空目录：不是 `rm -r`，删不掉说明里面还有没处理的东西
++        return ops.delete(dir) && isGone(dir)
++    }
++
++    private fun isGone(file: File): Boolean = ops.entryKind(file) == EntryKind.Absent
++}

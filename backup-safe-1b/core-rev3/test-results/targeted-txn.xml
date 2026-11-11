@@ -1,0 +1,200 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="117" failures="0" errors="0" skipped="0" time="0.000" timestamp="2026-11-11T20:35:47" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" tests="5" failures="0" errors="0" skipped="0" time="1.312" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="cancelDuringReplacementRollsBackAndRethrowsSameException" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.528" />
+    <testcase name="ioFailureAtCredentialLeavesNoCredentialAndRollsBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.224" />
+    <testcase name="cancelInsideNonCancellableWindowCommitsAndDoesNotRollBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.199" />
+    <testcase name="cancelDuringBackupAlsoRollsBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.141" />
+    <testcase name="ioFailureAtNotesIsTreatedAsRollbackNotCancellation" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCancelTest" time="0.220" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" tests="13" failures="0" errors="0" skipped="0" time="0.341" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="abortedWithOldNotesIsAborted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.032" />
+    <testcase name="applyingWithoutCredentialIsInterruptedEvenWhenNotesAlreadyNew" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.028" />
+    <testcase name="unreadableJournalWithMatchingCredentialIsCommitted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.036" />
+    <testcase name="preparedWithoutCommitMaterialIsStagingFailed" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.027" />
+    <testcase name="emptyRootIsIdle" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.014" />
+    <testcase name="rollingBackWithCredentialIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.029" />
+    <testcase name="abortedButNotesChangedIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.022" />
+    <testcase name="txnWithoutJournalOrCredentialIsQuarantinedAndKept" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.024" />
+    <testcase name="unreadableJournalWithoutCredentialIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.016" />
+    <testcase name="applyingWithCredentialButOldNotesIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.021" />
+    <testcase name="secondTxnDirectoryNextToActiveJournalIsNotSilentlyIgnored" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.060" />
+    <testcase name="applyingWithMatchingCredentialIsCommitted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.017" />
+    <testcase name="credentialWithWrongDigestIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnClassifyTest" time="0.015" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" tests="9" failures="0" errors="0" skipped="0" time="2.206" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="ordinarySaveAfterCleanupIsNotMistakenForCorruption" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.050" />
+    <testcase name="journalDeleteFailureKeepsCredentialAndCommitFact" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.047" />
+    <testcase name="materialDeleteFailureStopsBeforeEvidence" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.054" />
+    <testcase name="credentialDeleteFailureKeepsJournalGoneAndMaterialsGone" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.045" />
+    <testcase name="resultsRemainQueryableByTxnIdAfterCleanup" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.057" />
+    <testcase name="resultsAreCappedAndDeduplicated" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="1.761" />
+    <testcase name="cleanupRefusesInterruptedStateAndKeepsMaterials" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.033" />
+    <testcase name="materialsAreNeverLeftWithoutEvidence" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.095" />
+    <testcase name="resultWriteFailureStopsBeforeAnyDeletion" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCleanupTest" time="0.064" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" tests="11" failures="0" errors="0" skipped="0" time="1.045" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="identicalNotesDifferentAttachmentsRollsBackAttachmentsOnly" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.216" />
+    <testcase name="unsafeTxnIdIsRejected" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.019" />
+    <testcase name="insufficientSpaceIsNotStarted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.096" />
+    <testcase name="happyPathCommitsReplacesAttachmentsAndCleansUp" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.205" />
+    <testcase name="unreadableNotesIsNotStarted" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.058" />
+    <testcase name="activeJournalRefusesSecondCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.079" />
+    <testcase name="absentOldNotesIsCreatedWithoutCopy" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.150" />
+    <testcase name="materialChangedIsNotStartedAndTouchesNothing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.058" />
+    <testcase name="journalWriteFailureLeavesLiveDataUntouched" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.053" />
+    <testcase name="commitRefusesWhenGateIsBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.056" />
+    <testcase name="quarantinedTransactionBlocksNewCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnCommitTest" time="0.055" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" tests="9" failures="0" errors="0" skipped="0" time="0.116" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="journalWithDuplicateAttachmentNamesIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.011" />
+    <testcase name="resultsFileIsNotEvidence" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.023" />
+    <testcase name="journalRoundTripKeepsEveryField" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.006" />
+    <testcase name="journalWithWrongFieldTypeIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.009" />
+    <testcase name="credentialRequiresDigestAndTimestamp" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.009" />
+    <testcase name="journalWithUnknownStateIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.014" />
+    <testcase name="atomicWriteLeavesNoTemporaryFiles" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.012" />
+    <testcase name="resultsRequireConsumedFlag" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.014" />
+    <testcase name="tornJournalWriteIsUnreadableNotGuessed" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnJournalTest" time="0.018" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CancelTest" tests="2" failures="0" errors="0" skipped="0" time="0.280" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="cancelWhileCopyingOldAttachmentIsSettledByTheSameCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CancelTest" time="0.141" />
+    <testcase name="cancelWhileCopyingOldNotesIsSettledByTheSameCommit" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CancelTest" time="0.139" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" tests="3" failures="0" errors="0" skipped="0" time="0.100" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="cleanupAfterAbortedAlsoChecksTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" time="0.029" />
+    <testcase name="wrongTxnIdDoesNotConsumeTheRealCleanup" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" time="0.047" />
+    <testcase name="cleanupWithWrongTxnIdTouchesNothing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CleanupIdTest" time="0.024" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" tests="11" failures="0" errors="0" skipped="0" time="0.159" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="journalWithTraversalTxnIdIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.016" />
+    <testcase name="journalWithTraversalAttachmentNameIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.012" />
+    <testcase name="unreadableCredentialIsNotTreatedAsAbsent" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.025" />
+    <testcase name="credentialWithMalformedDigestIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.012" />
+    <testcase name="attachmentWithoutOldFieldIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.011" />
+    <testcase name="attachmentWithoutNewFieldIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.012" />
+    <testcase name="journalWithMalformedDigestIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.010" />
+    <testcase name="journalWithoutOldNotesDigestIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.012" />
+    <testcase name="wellFormedJournalStillDecodes" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.012" />
+    <testcase name="credentialWithTraversalTxnIdIsUnreadable" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.011" />
+    <testcase name="journalWithUnsafeTxnIdNeverReachesDisk" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1CodecTest" time="0.026" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" tests="8" failures="0" errors="0" skipped="0" time="1.495" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="recoverWaitsForInFlightSave" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="1.067" />
+    <testcase name="foreignTicketIsRefused" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.021" />
+    <testcase name="replayIsRefusedAsStaleNotBusy" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.013" />
+    <testcase name="recoverAfterQuarantineKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.040" />
+    <testcase name="cleanupRefusedByStateStillKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.021" />
+    <testcase name="recoverAfterCorruptKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.021" />
+    <testcase name="commitWithUnfinishedCleanupKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.235" />
+    <testcase name="recoverAfterRollbackFailedKeepsWritesBlocked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1GateTest" time="0.077" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" tests="11" failures="0" errors="0" skipped="0" time="0.519" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="rollbackRefusedWhenQuarantined" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.036" />
+    <testcase name="rollbackRefusedForDifferentTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.026" />
+    <testcase name="rollbackRefusedWhenApplyingButCredentialIsValid" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.031" />
+    <testcase name="rollbackStopsWhenManifestDisagrees" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.073" />
+    <testcase name="rollbackStopsWhenAttachmentContentIsNeitherOldNorNew" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.069" />
+    <testcase name="rollbackStopsWhenNotesIsNeitherOldNorNew" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.057" />
+    <testcase name="rollbackStopsWhenManifestIsMissing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.065" />
+    <testcase name="rollbackRefusedForUnsafeTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.025" />
+    <testcase name="rollbackRefusedWhenStateIsCorrupt" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.024" />
+    <testcase name="rollbackWithoutAnyRestoreDoesNotNeedManifest" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.082" />
+    <testcase name="cleanupRefusedForUnsafeTxnId" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev1RollbackTest" time="0.031" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" tests="7" failures="0" errors="0" skipped="0" time="0.419" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="unreadableNotesWithNoOldCopyIsNotTreatedAsRestored" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.062" />
+    <testcase name="directoryPlaceholderForNewAttachmentIsNotAbsent" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.064" />
+    <testcase name="unreadableNotesWithOldCopyReportsUnreadableNotMissing" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.072" />
+    <testcase name="healthySceneStillRollsBack" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.106" />
+    <testcase name="directoryPlaceholderForNotesIsNotAbsent" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.022" />
+    <testcase name="unreadableNewAttachmentWithNoOldCopyStopsRollback" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.062" />
+    <testcase name="classifierReportsUnreadableNotesNotChangedNotes" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2DigestTest" time="0.031" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" tests="4" failures="0" errors="0" skipped="0" time="0.069" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="ownSuccessKeepsItsCallbackCurrentWhileReplayIsRefused" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" time="0.012" />
+    <testcase name="crossingGenerationRetiresCallbackWithoutANewerWrite" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" time="0.016" />
+    <testcase name="newerCompletionRetiresThePreviousCallback" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" time="0.015" />
+    <testcase name="replayabilityDistinguishesConsumedFromCrossGeneration" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2GateTest" time="0.026" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" tests="5" failures="0" errors="0" skipped="0" time="0.105" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="symlinkedRootIsNotTreatedAsTheStorageRoot" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.022" />
+    <testcase name="commitNeverWritesOutsideRootThroughSymlinkedImportDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.021" />
+    <testcase name="recoverNeverWritesThroughSymlinkedImportDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.026" />
+    <testcase name="cleanupNeverFollowsSymlinkedMaterialDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.021" />
+    <testcase name="discardNeverFollowsSymlinkedTxnDir" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev2LayoutTest" time="0.015" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRev3LayoutTest" tests="5" failures="0" errors="0" skipped="0" time="0.141" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="cleanupStopsAtUnknownSubtreeAndKeepsEvidence" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev3LayoutTest" time="0.030" />
+    <testcase name="discardStopsWhenTxnSubtreeCannotBeEnumerated" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev3LayoutTest" time="0.012" />
+    <testcase name="discardStopsAtUnknownSubtreeBeyondScanDepth" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev3LayoutTest" time="0.027" />
+    <testcase name="healthyLayoutStillDiscardsAndCleans" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev3LayoutTest" time="0.055" />
+    <testcase name="cleanupStopsWhenLayoutCannotBeChecked" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRev3LayoutTest" time="0.017" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" tests="8" failures="0" errors="0" skipped="0" time="0.716" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="repeatedInterruptionsStillConverge" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.179" />
+    <testcase name="corruptedCopyWithCorrectDigestInJournalStopsWrite" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.067" />
+    <testcase name="notesReplacedWithoutCredentialRestoresOld" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.108" />
+    <testcase name="missingOldCopyStopsAndKeepsMaterials" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.062" />
+    <testcase name="rollbackThenCleanupLeavesNothingBehind" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.092" />
+    <testcase name="rollbackRefusesCommittedTransaction" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.031" />
+    <testcase name="onlyAppliedAttachmentsAreRestored" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.113" />
+    <testcase name="rollbackWithoutOldNotesDeletesTheFile" classname="com.example.myapplicationfirstapp.data.txn.ImportTxnRollbackTest" time="0.064" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.txn.WriteGateTest" tests="6" failures="0" errors="0" skipped="0" time="0.066" timestamp="2026-11-11T20:35:47" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="olderTicketBecomesStaleAfterANewerWrite" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.008" />
+    <testcase name="exclusiveIsRefusedWhenAlreadyImporting" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.009" />
+    <testcase name="exclusiveWriteClosesSavesAndInvalidatesCallbacksOnExit" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.010" />
+    <testcase name="writeAfterBlockingIsRefusedAndTicketStaysStale" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.015" />
+    <testcase name="refusedWhenNotOpenAndBlockNeverRuns" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.011" />
+    <testcase name="ticketIssuedAfterReopenIsWritable" classname="com.example.myapplicationfirstapp.data.txn.WriteGateTest" time="0.013" />
+  </testsuite>
+</testsuites>
