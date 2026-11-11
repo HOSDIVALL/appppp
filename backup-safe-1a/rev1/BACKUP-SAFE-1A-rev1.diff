@@ -1,0 +1,952 @@
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
+index 97feed0..69a083e 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
+@@ -101,6 +101,101 @@ class BackupImporterCancelTest {
+         assertTrue(job.isCancelled)
+     }
+ 
++    /**
++     * 交付窗口取消：结果已经构造完、`withContext` 还没把它交给调用方时取消。
++     *
++     * 这一段的暂存目录不属于任何返回对象——如果只在块内清理，它就会永远留在 `.import` 下。
++     */
++    @Test
++    fun cancellingAfterResultIsBuiltStillCleansStaging() = runBlocking {
++        val ops = BlockingResultFileOps(RealBackupFileOps(sandbox))
++        val importer = BackupImporter(sandbox, ops)
++        val zip = buildBackupZip(
++            zipFile(),
++            ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()),
++            ZipPiece("attachments/a.jpg", ByteArray(32) { 1 })
++        )
++
++        var delivered: PrepareResult? = null
++        var cancelled: Throwable? = null
++        val job = launch(Dispatchers.IO) {
++            try {
++                delivered = importer.prepare(Uri.fromFile(zip))
++            } catch (cancellation: CancellationException) {
++                cancelled = cancellation
++                throw cancellation
++            }
++        }
++
++        assertTrue("结果未构造完成，无法确定取消时机", ops.started.await(10, TimeUnit.SECONDS))
++        job.cancel()
++        ops.release.countDown()
++        job.join()
++
++        assertTrue(job.isCancelled)
++        assertTrue("必须原样抛出 CancellationException", cancelled is CancellationException)
++        assertNull("交付窗口被取消时不能把结果交出去", delivered)
++
++        val leftovers = File(sandbox.filesDir, ".import").listFiles()?.map { it.name } ?: emptyList()
++        assertTrue("交付窗口取消后暂存必须清空：$leftovers", leftovers.isEmpty())
++        assertFalse(File(sandbox.filesDir, "notes.json").exists())
++        assertFalse(File(sandbox.filesDir, "attachments").exists())
++    }
++
++    /** 清理本身失败（抛异常）时，取消异常仍然是原来那一个，不被替换 */
++    @Test
++    fun cleanupFailureDoesNotReplaceCancellation() = runBlocking {
++        val blocking = BlockingFileOps(RealBackupFileOps(sandbox))
++        val importer = BackupImporter(sandbox, ThrowingDeleteFileOps(blocking))
++        val zip = buildBackupZip(
++            zipFile(),
++            ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray())
++        )
++
++        var cancelled: Throwable? = null
++        val job = launch(Dispatchers.IO) {
++            try {
++                importer.prepare(Uri.fromFile(zip))
++            } catch (cancellation: CancellationException) {
++                cancelled = cancellation
++                throw cancellation
++            }
++        }
++
++        assertTrue(blocking.started.await(10, TimeUnit.SECONDS))
++        job.cancel()
++        blocking.release.countDown()
++        job.join()
++
++        assertTrue(job.isCancelled)
++        assertTrue("清理抛异常不能顶掉取消：$cancelled", cancelled is CancellationException)
++        // 清理确实失败了，暂存只能留在原地（由下一次启动或用户清理），但不得影响取消语义
++        assertTrue(File(sandbox.filesDir, ".import").isDirectory)
++    }
++
++    @Test
++    fun liveSentinelsSurviveCancellation() = runBlocking {
++        val sentinel = plantLiveSentinels(sandbox.filesDir)
++        val ops = BlockingFileOps(RealBackupFileOps(sandbox))
++        val importer = BackupImporter(sandbox, ops)
++        val zip = buildBackupZip(
++            zipFile(),
++            ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray())
++        )
++
++        val job = launch(Dispatchers.IO) {
++            runCatching { importer.prepare(Uri.fromFile(zip)) }
++        }
++
++        assertTrue(ops.started.await(10, TimeUnit.SECONDS))
++        job.cancel()
++        ops.release.countDown()
++        job.join()
++
++        val problems = assertLiveSentinelsIntact(sandbox.filesDir, sentinel)
++        assertTrue(problems.joinToString("\n"), problems.isEmpty())
++    }
++
+     private fun zipFile(): File =
+         File(sandbox.filesDir, "input/backup-${System.nanoTime()}.zip").also { it.parentFile?.mkdirs() }
+ }
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
+index decb054..586b7b4 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
+@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
+ import org.junit.After
+ import org.junit.Assert.assertEquals
+ import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotEquals
+ import org.junit.Assert.assertNotNull
+ import org.junit.Assert.assertTrue
+ import org.junit.Assert.fail
+@@ -252,6 +253,165 @@ class BackupImporterPrepareTest {
+         assertEquals(2, prepared.entryCount)
+     }
+ 
++    // ---------- 零字节附件 ----------
++
++    @Test
++    fun zeroByteAttachmentWarnsInsteadOfBlocking() {
++        val note = Note(id = "n", title = "t", images = listOf("empty.jpg"))
++        val result = prepare(
++            ZipPiece("notes.json", notesToJson(listOf(note)).toByteArray()),
++            ZipPiece("attachments/empty.jpg", ByteArray(0))
++        )
++
++        val prepared = ready(result)
++        // 名字要保留：1B 需要按名字对齐，否则这条引用会被当成「缺失」而不是「空的」
++        assertEquals(listOf("empty.jpg"), prepared.attachmentNames)
++        assertEquals(0L, prepared.attachmentBytes)
++        assertEquals(0L, File(prepared.stagingDir, "attachments/empty.jpg").length())
++
++        val warning = prepared.warnings.single { it.kind == WarningKind.EmptyAttachments }
++        assertEquals(1, warning.total)
++        assertEquals(listOf("empty.jpg"), warning.names)
++        assertTrue(
++            "空附件不该再报成缺失",
++            prepared.warnings.none { it.kind == WarningKind.MissingImages }
++        )
++        assertTrue(warning.displaySummary().contains("0 字节"))
++    }
++
++    // ---------- 原始 JSON 与归一数据 ----------
++
++    /**
++     * 归一化后的 [Note] 再序列化、再读回来，必须与原值逐字段相等。
++     *
++     * 这条用例盯的是「归一」本身没有丢信息：原始文本 [PreparedBackup.notesJson] 用于 1B 写盘与
++     * 摘要复核，[PreparedBackup.notes] 只用于告警和预览。两者职责不同，但后者不能是「读一次就变形」的。
++     */
++    @Test
++    fun normalizedNotesSurviveSerializationRoundTrip() {
++        val source = """
++            [{"id":"a","title":"标题","content":"正文","createdAt":1,"updatedAt":2,"colorIndex":3,
++            "pinned":true,"tags":["x"],"images":["a.jpg"],"audio":["REC_a.m4a"],
++            "deletedAt":null,"remindAt":null,"checklist":true,
++            "todos":[{"id":"t1","text":"项","done":false}]}]
++        """.trimIndent().replace("\n", "")
++
++        val prepared = ready(
++            prepare(
++                ZipPiece("notes.json", source.toByteArray()),
++                ZipPiece("attachments/a.jpg", ByteArray(8) { 1 })
++            )
++        )
++
++        val reserialized = notesToJson(prepared.notes)
++        assertEquals(prepared.notes, parseBackupNotesOrThrow(reserialized))
++
++        // 原始文本按原样保留（含显式 null），归一化再序列化会省掉它们——这正是不能互相顶替的原因
++        assertEquals(source, prepared.notesJson)
++        assertNotEquals(source, reserialized)
++    }
++
++    // ---------- 丢弃的归属校验 ----------
++
++    @Test
++    fun discardRefusesPathsOutsideItsOwnStagingRoot() {
++        val prepared = ready(
++            prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
++        )
++        val importer = BackupImporter(sandbox)
++
++        // 指向 filesDir：这不是暂存目录，绝不能删
++        assertFalse(importer.discard(prepared.copy(stagingDir = sandbox.filesDir)))
++        assertTrue("filesDir 必须还在", sandbox.filesDir.isDirectory)
++
++        // token 不是 UUID 形式：直接拒绝，不做任何路径拼接
++        assertFalse(importer.discard(prepared.copy(token = "../../notes.json")))
++
++        // 指向暂存根目录本身：不是本次 token 的目录
++        assertFalse(importer.discard(prepared.copy(stagingDir = File(sandbox.filesDir, ".import"))))
++
++        // 以上都不许动到真正的暂存
++        assertTrue("真正的暂存不能被误删", prepared.stagingDir.isDirectory)
++        assertTrue("合法路径仍然可以丢弃", importer.discard(prepared))
++        assertFalse(prepared.stagingDir.exists())
++    }
++
++    @Test
++    fun discardIsIdempotent() {
++        val prepared = ready(
++            prepare(ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()))
++        )
++        val importer = BackupImporter(sandbox)
++
++        assertTrue(importer.discard(prepared))
++        assertFalse(prepared.stagingDir.exists())
++        // 目录已经不在了：再丢一次仍然返回「没有残留」，而不是抛异常或报失败
++        assertTrue(importer.discard(prepared))
++    }
++
++    // ---------- 清理失败不覆盖原始原因 ----------
++
++    @Test
++    fun cleanupReportingFailureKeepsOriginalReason() {
++        val ops = RefusingDeleteFileOps(RealBackupFileOps(sandbox))
++        val zip = buildDuplicateEntryZip(
++            zipFile(), "attachments/a.jpg", ByteArray(4) { 1 }, ByteArray(4) { 2 }
++        )
++
++        val result = runBlocking { BackupImporter(sandbox, ops).prepare(Uri.fromFile(zip)) }
++
++        val invalid = result as PrepareResult.Invalid
++        assertEquals("删不掉目录不能把原因改写成 StagingFailed", InvalidReason.DuplicateEntry, invalid.reason)
++        assertTrue("detail 仍应是重复条目", invalid.detail!!.contains("attachments/a.jpg"))
++        assertEquals(1, invalid.residue.size)
++        assertTrue("残留路径必须真实存在", File(invalid.residue.single()).isDirectory)
++    }
++
++    @Test
++    fun cleanupThrowingDoesNotMaskOriginalReason() {
++        val ops = ThrowingDeleteFileOps(RealBackupFileOps(sandbox))
++        val zip = buildDuplicateEntryZip(
++            zipFile(), "attachments/a.jpg", ByteArray(4) { 1 }, ByteArray(4) { 2 }
++        )
++
++        val result = runBlocking { BackupImporter(sandbox, ops).prepare(Uri.fromFile(zip)) }
++
++        val invalid = result as PrepareResult.Invalid
++        assertEquals(InvalidReason.DuplicateEntry, invalid.reason)
++        assertEquals(1, invalid.residue.size)
++        assertTrue(
++            "残留要带上清理失败的类型：${invalid.residue}",
++            invalid.residue.single().contains("IOException")
++        )
++    }
++
++    // ---------- 正式数据哨兵 ----------
++
++    @Test
++    fun liveSentinelsSurviveSuccessfulPreparation() {
++        val sentinel = plantLiveSentinels(sandbox.filesDir)
++        ready(
++            prepare(
++                ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t", images = listOf("a.jpg")))).toByteArray()),
++                ZipPiece("attachments/a.jpg", ByteArray(8) { 2 })
++            )
++        )
++        val problems = assertLiveSentinelsIntact(sandbox.filesDir, sentinel)
++        assertTrue(problems.joinToString("\n"), problems.isEmpty())
++    }
++
++    @Test
++    fun liveSentinelsSurviveRejectedPreparation() {
++        val sentinel = plantLiveSentinels(sandbox.filesDir)
++        val result = prepare(
++            ZipPiece("notes.json", "[]".toByteArray()),
++            ZipPiece("attachments/a.jpg", ByteArray(8) { 2 })
++        )
++        assertTrue(result is PrepareResult.Invalid)
++        val problems = assertLiveSentinelsIntact(sandbox.filesDir, sentinel)
++        assertTrue(problems.joinToString("\n"), problems.isEmpty())
++    }
++
+     // ---------- 工具 ----------
+ 
+     private fun zipFile(): File =
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
+index 5f986f3..f4cb748 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
+@@ -105,6 +105,25 @@ class BackupImporterValidationTest {
+         )
+     }
+ 
++    /** 查重必须在分支之前：未知条目也不能靠「不参与解析」躲过去 */
++    @Test
++    fun duplicateUnknownEntryIsRejected() {
++        val zip = buildDuplicateEntryZip(zipFile(), "readme.txt", ByteArray(8) { 1 }, ByteArray(8) { 2 })
++        assertInvalid(
++            runBlocking { BackupImporter(sandbox).prepare(Uri.fromFile(zip)) },
++            InvalidReason.DuplicateEntry
++        )
++    }
++
++    @Test
++    fun duplicateDirectoryEntryIsRejected() {
++        val zip = buildDuplicateEntryZip(zipFile(), "attachments/", ByteArray(0), ByteArray(0))
++        assertInvalid(
++            runBlocking { BackupImporter(sandbox).prepare(Uri.fromFile(zip)) },
++            InvalidReason.DuplicateEntry
++        )
++    }
++
+     @Test
+     fun duplicateNoteIdIsRejected() {
+         val first = Note(id = "same", title = "a")
+@@ -163,6 +182,29 @@ class BackupImporterValidationTest {
+         )
+     }
+ 
++    /** 目录条目只允许无载荷的 `attachments/`：声明成目录又塞内容，整包拒绝 */
++    @Test
++    fun directoryEntryWithPayloadIsRejected() {
++        assertInvalid(
++            prepare(
++                ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()),
++                ZipPiece("attachments/", ByteArray(16) { 4 })
++            ),
++            InvalidReason.DirectoryWithPayload
++        )
++    }
++
++    @Test
++    fun directoryEntryWithOneBytePayloadIsRejected() {
++        assertInvalid(
++            prepare(
++                ZipPiece("notes.json", notesToJson(listOf(Note(id = "n", title = "t"))).toByteArray()),
++                ZipPiece("attachments/", ByteArray(1) { 5 })
++            ),
++            InvalidReason.DirectoryWithPayload
++        )
++    }
++
+     @Test
+     fun unsafeImageReferencesAreRejected() {
+         listOf(
+@@ -223,12 +265,52 @@ class BackupImporterValidationTest {
+     }
+ 
+     @Test
+-    fun emptyNotesWithZeroByteAttachmentIsStillEmpty() {
+-        val result = prepare(
+-            ZipPiece("notes.json", "[]".toByteArray()),
+-            ZipPiece("attachments/empty.jpg", ByteArray(0))
++    fun emptyNotesWithZeroByteAttachmentIsRejected() {
++        // 0 字节附件撑不起一张图，但它仍然是一次「空备份夹带附件」的尝试，不能放过去
++        assertInvalid(
++            prepare(
++                ZipPiece("notes.json", "[]".toByteArray()),
++                ZipPiece("attachments/empty.jpg", ByteArray(0))
++            ),
++            InvalidReason.EmptyNotesWithAttachments
+         )
+-        assertTrue("零字节附件不算实际附件，应视为合法空备份", result is PrepareResult.Empty)
++    }
++
++    // ---------- 编码 ----------
++
++    @Test
++    fun notesJsonMustBeValidUtf8() {
++        // 结构上像个 JSON，但 0xC3 0x28 不是合法 UTF-8 序列。
++        // 宽松解码会把它变成「C(」，JSON 解析失败后报 CorruptNotes；严格解码应直接指认编码问题。
++        val broken = byteArrayOf(
++            '['.code.toByte(), '"'.code.toByte(), 0xC3.toByte(), 0x28, '"'.code.toByte(), ']'.code.toByte()
++        )
++        assertInvalid(prepare(ZipPiece("notes.json", broken)), InvalidReason.NotUtf8)
++    }
++
++    @Test
++    fun loneSurrogateEncodingIsRejected() {
++        // CESU-8 风格的孤立代理项（0xED 0xA0 0x80）在 UTF-8 里是非法的
++        val broken = byteArrayOf(
++            '['.code.toByte(), '"'.code.toByte(),
++            0xED.toByte(), 0xA0.toByte(), 0x80.toByte(),
++            '"'.code.toByte(), ']'.code.toByte()
++        )
++        assertInvalid(prepare(ZipPiece("notes.json", broken)), InvalidReason.NotUtf8)
++    }
++
++    @Test
++    fun validUnicodeContentIsAcceptedVerbatim() {
++        val title = "标题 🎉 café مرحبا ①"
++        val content = "第一行\n第二行 — “引号”与…省略号\n组合字符 é"
++        val note = Note(id = "unicode", title = title, content = content)
++        val json = notesToJson(listOf(note))
++
++        val prepared = (prepare(ZipPiece("notes.json", json.toByteArray(Charsets.UTF_8))) as PrepareResult.Ready).prepared
++        assertEquals(title, prepared.notes.single().title)
++        assertEquals(content, prepared.notes.single().content)
++        // 原始文本必须逐字保留，不能被解码/再编码改写过
++        assertEquals(json, prepared.notesJson)
+     }
+ 
+     // ---------- 源不可读 ----------
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
+index 8771eee..fe7243e 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
+@@ -220,3 +220,87 @@ internal class BlockingFileOps(private val base: BackupFileOps) : BackupFileOps
+ internal class UnreadableFileOps(private val base: BackupFileOps) : BackupFileOps by base {
+     override fun openSource(uri: Uri): InputStream? = null
+ }
++
++/** 清理失败：`deleteTree` 报告「没删掉」，但不抛异常 */
++internal class RefusingDeleteFileOps(private val base: BackupFileOps) : BackupFileOps by base {
++    var deleteCalls = 0
++        private set
++
++    override fun deleteTree(dir: File): Boolean {
++        deleteCalls++
++        return false
++    }
++}
++
++/** 清理失败：`deleteTree` 直接抛异常 */
++internal class ThrowingDeleteFileOps(private val base: BackupFileOps) : BackupFileOps by base {
++    override fun deleteTree(dir: File): Boolean =
++        throw java.io.IOException("injected delete failure")
++}
++
++/**
++ * 在「结果已构造、尚未从 withContext 交付」处阻塞。
++ *
++ * 这一段没有别的可阻塞点，用它才能把取消确定性地放进交付窗口。
++ */
++internal class BlockingResultFileOps(private val base: BackupFileOps) : BackupFileOps by base {
++    val started = CountDownLatch(1)
++    val release = CountDownLatch(1)
++
++    override fun onResultBuilt(token: String) {
++        started.countDown()
++        release.await(10, TimeUnit.SECONDS)
++    }
++}
++
++// ================= 正式数据哨兵 =================
++
++/**
++ * 沙箱里的「已有正式数据」快照。
++ *
++ * 准备层不该碰它们：不是「不存在」，而是「原样还在」。用内容比对而非存在性判断，
++ * 才能发现「覆盖成同样长度的别的内容」这种破坏。
++ */
++internal data class LiveSentinel(
++    val notes: ByteArray,
++    val attachment: ByteArray,
++    val recording: ByteArray
++)
++
++internal fun plantLiveSentinels(filesDir: File): LiveSentinel {
++    File(filesDir, "attachments").mkdirs()
++    File(filesDir, "recordings").mkdirs()
++
++    val notes = File(filesDir, "notes.json").apply {
++        writeBytes("""[{"id":"live-note","title":"现有笔记","content":"正文"}]""".toByteArray())
++    }
++    val attachment = File(filesDir, "attachments/live.jpg").apply { writeBytes(ByteArray(32) { 9 }) }
++    val recording = File(filesDir, "recordings/REC_live.m4a").apply { writeBytes(ByteArray(48) { 7 }) }
++
++    return LiveSentinel(notes.readBytes(), attachment.readBytes(), recording.readBytes())
++}
++
++internal fun assertLiveSentinelsIntact(filesDir: File, sentinel: LiveSentinel): List<String> {
++    val problems = mutableListOf<String>()
++
++    fun check(relative: String, expected: ByteArray) {
++        val file = File(filesDir, relative)
++        when {
++            !file.isFile -> problems += "$relative 不见了"
++            !file.readBytes().contentEquals(expected) -> problems += "$relative 内容被改动"
++        }
++    }
++
++    check("notes.json", sentinel.notes)
++    check("attachments/live.jpg", sentinel.attachment)
++    check("recordings/REC_live.m4a", sentinel.recording)
++
++    // 目录里也不能多出文件（例如把暂存附件写进正式附件目录）
++    val attachments = File(filesDir, "attachments").listFiles()?.map { it.name }?.sorted()
++    if (attachments != listOf("live.jpg")) problems += "attachments 目录变了：$attachments"
++
++    val recordings = File(filesDir, "recordings").listFiles()?.map { it.name }?.sorted()
++    if (recordings != listOf("REC_live.m4a")) problems += "recordings 目录变了：$recordings"
++
++    return problems
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupFileOps.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupFileOps.kt
+index d546901..5e4b82c 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupFileOps.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupFileOps.kt
+@@ -43,6 +43,14 @@ internal interface BackupFileOps {
+      * 只给测试用：注入实现可以在这里阻塞，让测试有机会在复制途中的确定性位置取消协程。
+      */
+     fun onChunk(bytesCopied: Long) {}
++
++    /**
++     * 结果已经构造好、尚未从 `withContext` 交付出去时调用一次（生产实现是空操作）。
++     *
++     * 只给测试用：注入实现可以在这里阻塞，把取消固定在「暂存已经建完、结果还没交到调用方」
++     * 那个窗口里。这一段没有别的可阻塞点，而它恰恰是暂存所有权最容易漏掉的地方。
++     */
++    fun onResultBuilt(token: String) {}
+ }
+ 
+ internal class RealBackupFileOps(private val context: Context) : BackupFileOps {
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
+index b10b32f..c778aba 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
+@@ -35,7 +35,19 @@ internal data class BackupLimits(
+ internal sealed interface PrepareResult {
+     data class Ready(val prepared: PreparedBackup) : PrepareResult
+     data class Empty(val prepared: PreparedBackup) : PrepareResult
+-    data class Invalid(val reason: InvalidReason, val detail: String? = null) : PrepareResult
++
++    /**
++     * 拒绝。
++     *
++     * [residue] 是「清理没成功」的暂存路径。它**永远不参与**判定成败：
++     * [reason] / [detail] 保持触发拒绝的原始原因，残留只是补充信息，
++     * 免得一次删不掉目录就把真实原因改写成 StagingFailed。
++     */
++    data class Invalid(
++        val reason: InvalidReason,
++        val detail: String? = null,
++        val residue: List<String> = emptyList()
++    ) : PrepareResult
+ }
+ 
+ /**
+@@ -58,6 +70,14 @@ internal enum class InvalidReason {
+     /** notes.json 不是 JSON 数组，或尾部有垃圾，或元素不是对象 */
+     CorruptNotes,
+ 
++    /**
++     * notes.json 不是合法 UTF-8。
++     *
++     * 单独分出来是因为「解码」和「解析」是两件事：坏字节一旦被宽松解码成 U+FFFD，
++     * 一份损坏的备份就会变成一份看起来正常、实际内容被改过的备份。
++     */
++    NotUtf8,
++
+     /** 已存在字段的类型明显不对（缺字段不算，保留旧备份兼容） */
+     WrongFieldType,
+ 
+@@ -73,6 +93,14 @@ internal enum class InvalidReason {
+     /** 条目名是危险路径（`..`、`.`、含分隔符、绝对路径、控制字符） */
+     DangerousPath,
+ 
++    /**
++     * 目录条目带了载荷。
++     *
++     * zip 里可以声明一个以 `/` 结尾的条目同时又塞进内容，各家解压器对它的处理不一致；
++     * 本层只接受**无载荷**的 `attachments/` 占位，其余一律整包拒绝。
++     */
++    DirectoryWithPayload,
++
+     /** 笔记引用了不安全的图片文件名 */
+     UnsafeImageReference,
+ 
+@@ -107,7 +135,10 @@ internal enum class WarningKind {
+     MissingImages,
+ 
+     /** 笔记引用了录音，但备份从不包含录音文件 */
+-    RecordingsNotInBackup
++    RecordingsNotInBackup,
++
++    /** 备份里的附件是 0 字节：文件在、内容空，导入后图片显示不出来 */
++    EmptyAttachments
+ }
+ 
+ /**
+@@ -133,6 +164,7 @@ internal data class ImportWarning(
+         return when (kind) {
+             WarningKind.MissingImages -> "有 $total 张图片引用不在备份里：$shown$suffix"
+             WarningKind.RecordingsNotInBackup -> "备份不含录音文件，$total 段录音引用导入后可能无法播放：$shown$suffix"
++            WarningKind.EmptyAttachments -> "有 $total 个附件是 0 字节，导入后无法显示：$shown$suffix"
+         }
+     }
+ }
+@@ -142,6 +174,12 @@ internal data class ImportWarning(
+  *
+  * 所有内容都落在这个对象引用的暂存目录里；1B 提交时必须按 [token] 重新从磁盘读取并复核
+  * [notesDigest]，不信任内存里的副本。
++ *
++ * 三个和内容有关的字段职责**不同**，不能互相顶替：
++ * - [notesJson]：`notes.json` 原样文本（严格 UTF-8 解码后的结果），是这次备份的事实来源；
++ * - [notesDigest]：上述**原始字节**的 SHA-256，1B 重读磁盘后用它确认「还是同一份材料」；
++ * - [notes]：归一化后的 [Note]，只服务于告警文案和 1B 的界面预览。
++ *   [Note.toJson] 会丢掉未知字段与原始格式，所以**不能**拿它序列化回去当导入载荷。
+  */
+ internal data class PreparedBackup(
+     val token: String,
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
+index 5bbb8ce..8ec2728 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
+@@ -2,6 +2,7 @@ package com.example.myapplicationfirstapp.data
+ 
+ import android.content.Context
+ import android.net.Uri
++import android.util.Log
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.currentCoroutineContext
+@@ -16,6 +17,9 @@ import java.io.File
+ import java.io.FileInputStream
+ import java.io.InputStream
+ import java.io.OutputStream
++import java.nio.ByteBuffer
++import java.nio.charset.CharacterCodingException
++import java.nio.charset.CodingErrorAction
+ import java.security.MessageDigest
+ import java.util.UUID
+ import java.util.zip.ZipEntry
+@@ -33,6 +37,9 @@ import java.util.zip.ZipInputStream
+  * 因此本类的任何返回路径都不会改变正式数据；暂存目录删掉就等于没发生过。
+  *
+  * 资源限制全部按实际读到的字节计算，不读 `ZipEntry.size`，也不算压缩比。
++ *
++ * 失败与取消的约定：暂存目录只在 [prepare] 这一层被创建和销毁，
++ * 清理**永不覆盖**原始原因（见 [cleanup]）。
+  */
+ internal class BackupImporter(
+     context: Context,
+@@ -47,42 +54,76 @@ internal class BackupImporter(
+     /**
+      * 读一次 URI 并完成全部校验。
+      *
+-     * 取消时抛 [CancellationException]，并在抛出前删掉本次暂存目录；
+-     * 其他失败都收敛成 [PrepareResult.Invalid]，同样已清理暂存。
++     * 取消时抛 [CancellationException]（原样抛出，不包新异常），并在抛出前尽力删掉本次暂存；
++     * 其他失败都收敛成 [PrepareResult.Invalid]，同样已尽力清理暂存。
+      */
+-    suspend fun prepare(uri: Uri): PrepareResult = withContext(Dispatchers.IO) {
++    suspend fun prepare(uri: Uri): PrepareResult {
+         val token = UUID.randomUUID().toString()
+         val dir = File(stagingRoot, STAGING_PREFIX + token)
+-        if (!dir.mkdirs() && !dir.isDirectory) {
+-            return@withContext PrepareResult.Invalid(
+-                InvalidReason.StagingFailed,
+-                "cannot create staging directory"
+-            )
+-        }
+ 
+-        try {
+-            prepareStaged(uri, token, dir)
++        // 所有权边界就在这一层。目录在这里创建，结果也在这里交付：
++        // 如果只把清理写在 withContext 的块里，块正常返回、但**结果交付**时协程已被取消
++        // （withContext 在 resume 前检查 job 状态，此时丢弃返回值并抛 CancellationException），
++        // 暂存目录就没有任何人负责，会一直留在 files/.import 下。
++        // 所以块内只产出结果，清理与所有权判定统一放在块外。
++        val outcome: PrepareResult = try {
++            withContext(Dispatchers.IO) { prepareStaged(uri, token, dir) }
+         } catch (cancelled: CancellationException) {
+-            fileOps.deleteTree(dir)
++            val residue = cleanup(token, dir)
++            if (residue.isNotEmpty()) {
++                // 取消路径没有返回值可以携带残留信息，只能记日志；原始取消异常照旧抛出
++                Log.w(TAG, "cancelled while staging, leftover: $residue")
++            }
+             throw cancelled
+         } catch (rejection: Rejection) {
+-            fileOps.deleteTree(dir)
+-            PrepareResult.Invalid(rejection.reason, rejection.detail)
++            return PrepareResult.Invalid(rejection.reason, rejection.detail, cleanup(token, dir))
+         } catch (failure: Exception) {
+-            fileOps.deleteTree(dir)
+-            PrepareResult.Invalid(
++            return PrepareResult.Invalid(
+                 InvalidReason.StagingFailed,
+-                failure.message ?: failure.javaClass.simpleName
++                failure.message ?: failure.javaClass.simpleName,
++                cleanup(token, dir)
+             )
+         }
++        return outcome
+     }
+ 
+-    /** 主动丢弃一次准备结果（用户取消确认、或提交完成后调用） */
+-    fun discard(prepared: PreparedBackup): Boolean = fileOps.deleteTree(prepared.stagingDir)
++    /**
++     * 主动丢弃一次准备结果（用户取消确认、或 1B 提交完成后调用）。
++     *
++     * 不直接信任 [PreparedBackup.stagingDir]：只按 [PreparedBackup.token] 重新算出预期目录，
++     * 要求它与传入路径指向同一个文件，并且确实落在本实例的暂存根之下，才允许删除。
++     * 越界 / token 不合法时返回 `false` 且**什么都不删**；目录已经不在了返回 `true`（幂等）。
++     */
++    fun discard(prepared: PreparedBackup): Boolean =
++        discardStaging(prepared.token, prepared.stagingDir)
++
++    private fun discardStaging(token: String, claimed: File): Boolean {
++        if (!TOKEN_PATTERN.matches(token)) return false
++        val expected = File(stagingRoot, STAGING_PREFIX + token)
++        if (!sameFile(expected, claimed)) return false
++        return fileOps.deleteTree(expected)
++    }
++
++    /**
++     * 尽力清掉本次暂存，**永不抛出**。
++     *
++     * 返回没能清掉的路径（空列表表示清干净了）。删除返回 false 或抛异常都只记录残留，
++     * 不改变调用方正在上报的原因：拒绝仍是原来的 reason/detail，取消仍是原来的
++     * CancellationException。
++     */
++    private fun cleanup(token: String, dir: File): List<String> = try {
++        if (discardStaging(token, dir)) emptyList() else listOf(dir.absolutePath)
++    } catch (failure: Exception) {
++        listOf("${dir.absolutePath} (${failure.javaClass.simpleName})")
++    }
+ 
+     // ================= 落地与扫描 =================
+ 
+     private suspend fun prepareStaged(uri: Uri, token: String, dir: File): PrepareResult {
++        if (!dir.mkdirs() && !dir.isDirectory) {
++            throw Rejection(InvalidReason.StagingFailed, "cannot create staging directory")
++        }
++
+         val backupFile = File(dir, BACKUP_FILE)
+         copySource(uri, backupFile)
+ 
+@@ -96,7 +137,10 @@ internal class BackupImporter(
+         }
+ 
+         val scan = scanArchive(backupFile, attachmentsDir)
+-        return buildResult(token, dir, backupFile, attachmentsDir, scan)
++        val result = buildResult(token, dir, backupFile, scan)
++        // 结果已构造、尚未交付：测试在这里把取消落在交付窗口里
++        fileOps.onResultBuilt(token)
++        return result
+     }
+ 
+     /** 有上限地把 URI 内容拷到暂存；只在这里碰 URI，后续全部读副本 */
+@@ -132,14 +176,18 @@ internal class BackupImporter(
+     }
+ 
+     /**
+-     * 扫 zip：校验条目名、查重、按实际字节解压。
++     * 扫 zip：校验条目名、**统一查重**、按实际字节解压。
+      *
+      * `notes.json` 读进内存（上限 maxNotesBytes），`attachments/<name>` 落到暂存目录，
+      * 其他条目**不解压到磁盘**，但仍然按字节计数、按条目计数——不能因为「不认识」就放行。
++     *
++     * 查重发生在分支之前：未知文件、目录占位、`notes.json` 和附件走同一张表，
++     * 否则「同一个名字既当未知文件又当附件」这类夹带就能绕过去。
+      */
+     private suspend fun scanArchive(backupFile: File, attachmentsDir: File): Scan {
+         var notesBytes: ByteArray? = null
+         val attachmentNames = mutableListOf<String>()
++        val emptyAttachmentNames = mutableListOf<String>()
+         val seenNames = HashSet<String>()
+         var realAttachmentCount = 0
+         var attachmentBytes = 0L
+@@ -161,34 +209,35 @@ internal class BackupImporter(
+                 try {
+                     val rawName = entry.name ?: throw Rejection(InvalidReason.DangerousPath, "null entry name")
+ 
++                    // 所有条目先统一查重，再决定怎么处理
++                    if (!seenNames.add(rawName)) {
++                        throw Rejection(InvalidReason.DuplicateEntry, rawName)
++                    }
++
+                     if (entry.isDirectory) {
+-                        // 只允许 `attachments/` 这一个目录占位；`[]` 夹带它仍然算空备份
++                        // 只允许 `attachments/` 这一个目录占位，而且必须没有载荷
+                         if (rawName != "$ATTACHMENTS_DIR/") {
+                             throw Rejection(InvalidReason.DangerousPath, rawName)
+                         }
++                        copyEntry(zip, null, 0L, InvalidReason.DirectoryWithPayload, total)
+                     } else if (rawName == NOTES_FILE) {
+-                        if (notesBytes != null) {
+-                            throw Rejection(InvalidReason.DuplicateEntry, rawName)
+-                        }
+                         val sink = ByteArrayOutputStream()
+                         copyEntry(zip, sink, limits.maxNotesBytes, InvalidReason.NotesTooLarge, total)
+                         notesBytes = sink.toByteArray()
+                     } else if (rawName.startsWith("$ATTACHMENTS_DIR/")) {
+                         val name = rawName.removePrefix("$ATTACHMENTS_DIR/")
+                         requireSafeAttachmentName(name)
+-                        if (!seenNames.add(name)) {
+-                            throw Rejection(InvalidReason.DuplicateEntry, rawName)
+-                        }
+                         val target = File(attachmentsDir, name)
+                         var written = 0L
+                         target.outputStream().use { sink ->
+                             written = copyEntry(zip, sink, limits.maxEntryBytes, InvalidReason.EntryTooLarge, total)
+                         }
++                        // 零字节附件：名字与 0 字节文件都保留（1B 要按名字对齐），
++                        // 但不算「实际附件」——它撑不起一张图片，也让空备份夹带它的判定有据可依
++                        attachmentNames += name
+                         if (written == 0L) {
+-                            // 零字节附件：旧导出不会产生，按「不算实际附件」处理
+-                            target.delete()
++                            emptyAttachmentNames += name
+                         } else {
+-                            attachmentNames += name
+                             attachmentBytes += written
+                             realAttachmentCount++
+                         }
+@@ -212,6 +261,7 @@ internal class BackupImporter(
+         return Scan(
+             notesBytes = notes,
+             attachmentNames = attachmentNames,
++            emptyAttachmentNames = emptyAttachmentNames,
+             realAttachmentCount = realAttachmentCount,
+             attachmentBytes = attachmentBytes,
+             entryCount = entryCount,
+@@ -285,14 +335,30 @@ internal class BackupImporter(
+         return null
+     }
+ 
+-    private fun buildResult(
++    /**
++     * 严格 UTF-8 解码。
++     *
++     * 不用 `String(bytes, Charsets.UTF_8)`：那条路会把坏字节替换成 U+FFFD，
++     * 于是「文件损坏」被悄悄变成「内容里多了几个问号」，1B 还会照单写入正式数据。
++     */
++    private fun decodeUtf8Strict(bytes: ByteArray): String {
++        val decoder = Charsets.UTF_8.newDecoder()
++            .onMalformedInput(CodingErrorAction.REPORT)
++            .onUnmappableCharacter(CodingErrorAction.REPORT)
++        return try {
++            decoder.decode(ByteBuffer.wrap(bytes)).toString()
++        } catch (invalid: CharacterCodingException) {
++            throw Rejection(InvalidReason.NotUtf8, invalid.message ?: "invalid UTF-8")
++        }
++    }
++
++    private suspend fun buildResult(
+         token: String,
+         dir: File,
+         backupFile: File,
+-        attachmentsDir: File,
+         scan: Scan
+     ): PrepareResult {
+-        val notesText = String(scan.notesBytes, Charsets.UTF_8)
++        val notesText = decodeUtf8Strict(scan.notesBytes)
+         val array: JSONArray = try {
+             parseBackupArrayOrThrow(notesText)
+         } catch (corrupt: JSONException) {
+@@ -304,6 +370,10 @@ internal class BackupImporter(
+         val notes = ArrayList<Note>(array.length())
+         val noteIds = HashSet<String>()
+         for (index in 0 until array.length()) {
++            // 条目数上限只约束 zip 条目；单条 notes.json 里可以有上万条笔记，
++            // 逐条校验是个长循环，这里必须能被取消打断
++            currentCoroutineContext().ensureActive()
++
+             val element = try {
+                 array.getJSONObject(index)
+             } catch (wrong: JSONException) {
+@@ -330,14 +400,16 @@ internal class BackupImporter(
+             notes += note
+         }
+ 
+-        if (notes.isEmpty() && scan.realAttachmentCount > 0) {
++        // `[]` 夹带附件一律拒绝：有内容的附件、0 字节的附件都算。
++        // 目录占位不算附件（它在扫描阶段就被要求无载荷了）。
++        if (notes.isEmpty() && (scan.realAttachmentCount > 0 || scan.emptyAttachmentNames.isNotEmpty())) {
+             throw Rejection(
+                 InvalidReason.EmptyNotesWithAttachments,
+-                "${scan.realAttachmentCount} attachment(s)"
++                "non-empty=${scan.realAttachmentCount} empty=${scan.emptyAttachmentNames.size}"
+             )
+         }
+ 
+-        val warnings = buildWarnings(notes, scan.attachmentNames)
++        val warnings = buildWarnings(notes, scan.attachmentNames, scan.emptyAttachmentNames)
+         val prepared = PreparedBackup(
+             token = token,
+             stagingDir = dir,
+@@ -436,7 +508,11 @@ internal class BackupImporter(
+         return null
+     }
+ 
+-    private fun buildWarnings(notes: List<Note>, attachmentNames: List<String>): List<ImportWarning> {
++    private fun buildWarnings(
++        notes: List<Note>,
++        attachmentNames: List<String>,
++        emptyAttachmentNames: List<String>
++    ): List<ImportWarning> {
+         val warnings = mutableListOf<ImportWarning>()
+         val present = attachmentNames.toSet()
+ 
+@@ -452,6 +528,15 @@ internal class BackupImporter(
+             )
+         }
+ 
++        // 附件在、但它是空的：与「缺失」分开报，1B 才能给出不同的话术
++        if (emptyAttachmentNames.isNotEmpty()) {
++            warnings += ImportWarning(
++                kind = WarningKind.EmptyAttachments,
++                names = emptyAttachmentNames,
++                total = emptyAttachmentNames.size
++            )
++        }
++
+         // 备份格式从来不写录音文件，这里只能提示引用会失去播放能力
+         val referencedAudio = notes
+             .flatMap { it.audio + it.inlineAudio }
+@@ -469,6 +554,12 @@ internal class BackupImporter(
+ 
+     // ================= 小工具 =================
+ 
++    private fun sameFile(left: File, right: File): Boolean = try {
++        left.canonicalFile == right.canonicalFile
++    } catch (failure: Exception) {
++        false
++    }
++
+     private fun looksLikeZip(file: File): Boolean {
+         if (file.length() < 4) return false
+         val header = ByteArray(4)
+@@ -497,7 +588,11 @@ internal class BackupImporter(
+ 
+     private data class Scan(
+         val notesBytes: ByteArray,
++        /** 所有附件条目名，包含 0 字节的那些 */
+         val attachmentNames: List<String>,
++        /** 其中长度为 0 的附件名 */
++        val emptyAttachmentNames: List<String>,
++        /** 有内容的附件个数（0 字节附件不算） */
+         val realAttachmentCount: Int,
+         val attachmentBytes: Long,
+         val entryCount: Int,
+@@ -508,6 +603,7 @@ internal class BackupImporter(
+     private class Rejection(val reason: InvalidReason, val detail: String? = null) : Exception(detail)
+ 
+     private companion object {
++        const val TAG = "BackupImporter"
+         const val STAGING_ROOT = ".import"
+         const val STAGING_PREFIX = "staging-"
+         const val BACKUP_FILE = "backup.zip"
+@@ -515,6 +611,9 @@ internal class BackupImporter(
+         const val ATTACHMENTS_DIR = "attachments"
+         const val COPY_BUFFER = 64 * 1024
+ 
++        /** 只接受本类自己生成的 UUID 形式 token，防止拿 `../` 之类的东西拼路径 */
++        val TOKEN_PATTERN = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
++
+         val STRING_FIELDS = listOf("id", "title", "content")
+         val NUMBER_FIELDS = listOf("createdAt", "updatedAt", "colorIndex")
+         val BOOLEAN_FIELDS = listOf("pinned", "checklist")

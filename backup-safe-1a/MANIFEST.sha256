@@ -1,0 +1,14 @@
+7548efbf21bc28b59c113ca5cb0c6dec6f1ce93763b82ad5a59f7eceaacf498c *backup-safe-1a/INDEX.md
+66a2b36a86d474429ca178b0ba9bf491e6c294de5cb5c38305501d138be6ab1a *backup-safe-1a/logs/compile.log
+f1c2911c496ea71ef7047ffcada6df03e08c5268e6f14a69bf7e5ce8b8473951 *backup-safe-1a/logs/full-androidtest.xml
+3659881eeb8bc56571ccf489891008e2d827dd811bd7308f3f65ea284b60ca55 *backup-safe-1a/rev0/BACKUP-SAFE-1A.diff
+72f8bac685cc26906571f46a486900eea9b9d2c8008af3226291f4b4df21d707 *backup-safe-1a/rev1/BACKUP-SAFE-1A-rev1.diff
+81bde09240e856ab0c188e5ba3a1eaa41a7f4dee32037d6b30f3a47bc26bae92 *backup-safe-1a/rev1/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterCancelTest.kt
+d86d0271fecf1c62ad6ce1b11f5bde9da5d59f2d57527b0f1d7590c608716094 *backup-safe-1a/rev1/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterLimitsTest.kt
+c3f8727c99f58b5a90045afb035a0553f81d7e2f86bf1c8076de322e96fe15f7 *backup-safe-1a/rev1/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterPrepareTest.kt
+29699b02d5a1bfb1d4247cfe07d841bca0f33f91857b1ead8dfb6b96e4a36352 *backup-safe-1a/rev1/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/BackupImporterValidationTest.kt
+88bf8dec94a37a0cf0504633af4b747f0547e772144fb706d2a5acb3c6b539db *backup-safe-1a/rev1/files/app/src/androidTest/java/com/example/myapplicationfirstapp/data/ImportTestSupport.kt
+9042231d23691d0aca78b24a01a520987b3a4cb4de3bd057ae449949c526575e *backup-safe-1a/rev1/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupFileOps.kt
+68bc225f9a38ed7288fc0c8a1539922b3eee5d1b3cce7a53428a707b0c9f09b0 *backup-safe-1a/rev1/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImportModels.kt
+3525bf2ae555e1165e508465db0e2b9d9f37dd4424fef323b723206ad7041a2e *backup-safe-1a/rev1/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupImporter.kt
+87f46e04c962b332865a72e4572198425dba57fa177436bce35db6379926c3ea *backup-safe-1a/rev1/files/app/src/main/java/com/example/myapplicationfirstapp/data/BackupNotesParser.kt
