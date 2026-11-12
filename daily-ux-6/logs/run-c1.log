@@ -1,0 +1,30 @@
+[23:51:12] === C1 begin ===
+[23:51:18] cold start done
+[23:51:18] adb shell input tap 535 593  -> rc=0 
+[23:51:20] adb shell input text LIME7  -> rc=0 
+[23:51:22] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:51:26] dump c1-1-kb-hidden  (32700 bytes)
+[23:51:26] c1-1-kb-hidden | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:51:26] c1-1-kb-hidden | subtitle=['匹配 18 条笔记'] query='LIME7' searchFocused=True
+[23:51:26] c1-1-kb-hidden | focused=[('EditText', '[63,520][1008,667]', 'LIME7')]
+[23:51:26] c1-1-kb-hidden | editTexts=[('[63,520][1008,667]', 'LIME7', 'true')]
+[23:51:26] c1-1-kb-hidden | visible notes=UX5-01 编号笔[273,1087][975,1148] UX5-03 编号笔[273,1287][975,1348] UX5-05 编号笔[273,1487][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948]
+[23:51:27] shot c1-1-kb-hidden (198669 bytes)
+[23:51:27] tap result 'UX5-01 编号笔记' at (624,1117)
+[23:51:27] adb shell input tap 624 1117  -> rc=0 
+[23:51:32] dump c1-2-editor  (18252 bytes)
+[23:51:33] c1-2-editor | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:51:33] c1-2-editor | subtitle=[] query='UX5-01 编号笔记' searchFocused=False
+[23:51:33] c1-2-editor | focused=[]
+[23:51:33] c1-2-editor | editTexts=[('[42,231][1038,406]', 'UX5-01 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#10;蓝', 'false')]
+[23:51:33] c1-2-editor | visible notes=UX5-01 编号笔[42,231][1038,406]
+[23:51:33] shot c1-2-editor (162218 bytes)
+[23:51:33] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:51:38] dump c1-3-back  (32701 bytes)
+[23:51:38] c1-3-back | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:51:38] c1-3-back | subtitle=['匹配 18 条笔记'] query='LIME7' searchFocused=False
+[23:51:38] c1-3-back | focused=[]
+[23:51:38] c1-3-back | editTexts=[('[63,520][1008,667]', 'LIME7', 'false')]
+[23:51:38] c1-3-back | visible notes=UX5-01 编号笔[273,1087][975,1148] UX5-03 编号笔[273,1287][975,1348] UX5-05 编号笔[273,1487][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948]
+[23:51:38] C1 CHECK kb_hidden_before=True editor_kb=false back_to_list=True query_same=True items_same=True
+[23:51:38] === c1 end ===

@@ -1,0 +1,31 @@
+[23:49:32] === A2/B2 begin ===
+[23:49:38] cold start done
+[23:49:38] adb shell input tap 535 593  -> rc=0 
+[23:49:41] adb shell input text LIME7  -> rc=0 
+[23:49:45] dump a2-1-search  (32700 bytes)
+[23:49:45] a2-1-search | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:49:45] a2-1-search | subtitle=['匹配 18 条笔记'] query='LIME7' searchFocused=True
+[23:49:45] a2-1-search | focused=[('EditText', '[63,520][1008,667]', 'LIME7')]
+[23:49:45] a2-1-search | editTexts=[('[63,520][1008,667]', 'LIME7', 'true')]
+[23:49:45] a2-1-search | visible notes=UX5-01 编号笔[273,1087][975,1148] UX5-03 编号笔[273,1287][975,1348] UX5-05 编号笔[273,1487][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948]
+[23:49:46] shot a2-1-search (189080 bytes)
+[23:49:46] tap result 'UX5-01 编号笔记' at (624,1117)
+[23:49:46] adb shell input tap 624 1117  -> rc=0 
+[23:49:51] dump a2-3-editor  (18252 bytes)
+[23:49:51] a2-3-editor | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:49:51] a2-3-editor | subtitle=[] query=None searchFocused=False
+[23:49:51] a2-3-editor | focused=[]
+[23:49:51] a2-3-editor | editTexts=[('[42,231][1038,406]', 'UX5-01 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#10;蓝', 'false')]
+[23:49:51] a2-3-editor | visible notes=UX5-01 编号笔[42,231][1038,406]
+[23:49:52] shot a2-2-editor (162867 bytes)
+[23:49:52] A2 CHECK input_shown=false (expect false) | editor editTexts=2 | any focused=[] (expect none)
+[23:49:52] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:49:57] dump a2-4-back  (32701 bytes)
+[23:49:57] a2-4-back | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:49:57] a2-4-back | subtitle=['匹配 18 条笔记'] query='LIME7' searchFocused=False
+[23:49:57] a2-4-back | focused=[]
+[23:49:57] a2-4-back | editTexts=[('[63,520][1008,667]', 'LIME7', 'false')]
+[23:49:57] a2-4-back | visible notes=UX5-01 编号笔[273,1087][975,1148] UX5-03 编号笔[273,1287][975,1348] UX5-05 编号笔[273,1487][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948]
+[23:49:58] shot a2-3-back (199152 bytes)
+[23:49:58] B2 CHECK back-to-list=True query_same=True items_same=True input_shown=false search_focused=False
+[23:49:58] === a2 end ===

@@ -1,0 +1,22 @@
+[23:58:01] === E2 begin ===
+[23:58:07] cold start done
+[23:58:07] E2 notes.json before: 17123 files/notes.json
+[23:58:07] adb shell input tap 954 2221  -> rc=0 
+[23:58:13] dump e2-1-new-editor  (24259 bytes)
+[23:58:13] e2-1-new-editor | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:58:13] e2-1-new-editor | subtitle=[] query='' searchFocused=False
+[23:58:13] e2-1-new-editor | focused=[('EditText', '[42,938][1038,1064]', '')]
+[23:58:13] e2-1-new-editor | editTexts=[('[42,231][1038,406]', '', 'false'), ('[42,938][1038,1064]', '', 'true')]
+[23:58:13] e2-1-new-editor | visible notes=UX5-04 编号笔[273,1645][975,1706] UX5-05 编号笔[273,1845][975,1906] UX5-06 编号笔[273,2045][975,2085]
+[23:58:14] shot e2-1-new (148879 bytes)
+[23:58:14] E2 CHECK new_note_kb=true focused=[('EditText', '[42,938][1038,1064]', '')] body=[42,938][1038,1064] title_focused=False
+[23:58:14] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:58:16] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:58:20] dump e2-2-back  (31667 bytes)
+[23:58:21] e2-2-back | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:58:21] e2-2-back | subtitle=['共 40 条 · 左滑删除，长按更多'] query='' searchFocused=False
+[23:58:21] e2-2-back | focused=[]
+[23:58:21] e2-2-back | editTexts=[('[63,520][1008,667]', '', 'false')]
+[23:58:21] e2-2-back | visible notes=UX5-01 编号笔[273,845][975,906] UX5-02 编号笔[273,1045][975,1106] UX5-03 编号笔[273,1245][975,1306] UX5-04 编号笔[273,1445][975,1506] UX5-05 编号笔[273,1645][975,1706] UX5-06 编号笔[273,1845][975,1906] UX5-07 编号笔[273,2045][975,2085]
+[23:58:21] E2 notes.json after: 17123 files/notes.json | back_to_list=['共 40 条 · 左滑删除，长按更多']
+[23:58:21] === e2 end ===

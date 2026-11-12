@@ -1,0 +1,63 @@
+[23:53:53] === D1 begin ===
+[23:53:59] cold start done
+[23:53:59] adb shell input tap 535 593  -> rc=0 
+[23:54:01] adb shell input text LIME7  -> rc=0 
+[23:54:06] dump d1-1-search  (32696 bytes)
+[23:54:06] tap result 'UX5-01 编号笔记' at (624,1117)
+[23:54:06] adb shell input tap 624 1117  -> rc=0 
+[23:54:11] dump d1-2-editor  (18248 bytes)
+[23:54:11] d1-2-editor | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:54:11] d1-2-editor | subtitle=[] query='UX5-01 编号笔记' searchFocused=False
+[23:54:11] d1-2-editor | focused=[]
+[23:54:11] d1-2-editor | editTexts=[('[42,231][1038,406]', 'UX5-01 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#10;蓝', 'false')]
+[23:54:11] d1-2-editor | visible notes=UX5-01 编号笔[42,231][1038,406]
+[23:54:11] D1 editor idle: kb=false body='主题：LIME7 记录（第 1 条）&#10;蓝伞忘在长椅上，回头找的时候已经不见了。&#10;午后光线偏黄，窗台上的玻璃瓶投出一条细长的影子。&#10;巷口的小店换了招牌，字体比原来圆一点。&#10;编号 01 结束。'
+[23:54:11] adb shell input tap 300 1030  -> rc=0 
+[23:54:16] dump d1-3-body-focus  (24150 bytes)
+[23:54:16] d1-3-body-focus | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:54:16] d1-3-body-focus | subtitle=[] query='UX5-01 编号笔记' searchFocused=False
+[23:54:16] d1-3-body-focus | focused=[('EditText', '[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#')]
+[23:54:16] d1-3-body-focus | editTexts=[('[42,231][1038,406]', 'UX5-01 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#10;蓝', 'true')]
+[23:54:16] d1-3-body-focus | visible notes=UX5-05 编号笔[273,1517][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948] UX5-01 编号笔[42,231][1038,406]
+[23:54:17] shot d1-1-body-focus (226089 bytes)
+[23:54:17] adb shell input text Z  -> rc=0 
+[23:54:21] dump d1-4-typed-head  (24151 bytes)
+[23:54:21] d1-4-typed-head | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:54:21] d1-4-typed-head | subtitle=[] query='UX5-01 编号笔记' searchFocused=False
+[23:54:21] d1-4-typed-head | focused=[('EditText', '[42,970][1038,1346]', '主题：LIME7 Z记录（第 1 条）&')]
+[23:54:21] d1-4-typed-head | editTexts=[('[42,231][1038,406]', 'UX5-01 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：LIME7 Z记录（第 1 条）&#10;', 'true')]
+[23:54:21] d1-4-typed-head | visible notes=UX5-05 编号笔[273,1517][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948] UX5-01 编号笔[42,231][1038,406]
+[23:54:21] D1 typed-head body='主题：LIME7 Z记录（第 1 条）&#10;蓝伞忘在长椅上，回头找的时候已经不见了。&#10;午后光线偏黄，窗台上的玻璃瓶投出一条细长的影子。&#10;巷口的小店换了招牌，字体比原来圆一点。&#10;编号 01 结束。'
+[23:54:22] adb shell input keyevent KEYCODE_DEL  -> rc=0 
+[23:54:25] dump d1-4b-del  (24150 bytes)
+[23:54:25] D1 after-del body='主题：LIME7 记录（第 1 条）&#10;蓝伞忘在长椅上，回头找的时候已经不见了。&#10;午后光线偏黄，窗台上的玻璃瓶投出一条细长的影子。&#10;巷口的小店换了招牌，字体比原来圆一点。&#10;编号 01 结束。'
+[23:54:25] tail tap y=1322 (body block [42,970][1038,1346])
+[23:54:25] adb shell input tap 540 1322  -> rc=0 
+[23:54:30] dump d1-5-tail-tap  (24150 bytes)
+[23:54:30] d1-5-tail-tap | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:54:30] d1-5-tail-tap | subtitle=[] query='UX5-01 编号笔记' searchFocused=False
+[23:54:30] d1-5-tail-tap | focused=[('EditText', '[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#')]
+[23:54:30] d1-5-tail-tap | editTexts=[('[42,231][1038,406]', 'UX5-01 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#10;蓝', 'true')]
+[23:54:30] d1-5-tail-tap | visible notes=UX5-05 编号笔[273,1517][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948] UX5-01 编号笔[42,231][1038,406]
+[23:54:31] shot d1-2-tail (235235 bytes)
+[23:54:31] adb shell input text Y  -> rc=0 
+[23:54:35] dump d1-6-typed-tail  (24151 bytes)
+[23:54:35] d1-6-typed-tail | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:54:35] d1-6-typed-tail | subtitle=[] query='UX5-01 编号笔记' searchFocused=False
+[23:54:35] d1-6-typed-tail | focused=[('EditText', '[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#')]
+[23:54:35] d1-6-typed-tail | editTexts=[('[42,231][1038,406]', 'UX5-01 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#10;蓝', 'true')]
+[23:54:35] d1-6-typed-tail | visible notes=UX5-05 编号笔[273,1517][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948] UX5-01 编号笔[42,231][1038,406]
+[23:54:35] D1 typed-tail body='主题：LIME7 记录（第 1 条）&#10;蓝伞忘在长椅上，回头找的时候已经不见了。&#10;午后光线偏黄，窗台上的玻璃瓶投出一条细长的影子。&#10;巷口的小店换了招牌，字体比原来圆一点。&#10;编号 01 结束。Y'
+[23:54:36] adb shell input keyevent KEYCODE_DEL  -> rc=0 
+[23:54:39] dump d1-6b-del  (24150 bytes)
+[23:54:39] D1 after-del-tail body='主题：LIME7 记录（第 1 条）&#10;蓝伞忘在长椅上，回头找的时候已经不见了。&#10;午后光线偏黄，窗台上的玻璃瓶投出一条细长的影子。&#10;巷口的小店换了招牌，字体比原来圆一点。&#10;编号 01 结束。'
+[23:54:39] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:54:41] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:54:45] dump d1-7-back  (32697 bytes)
+[23:54:46] d1-7-back | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:54:46] d1-7-back | subtitle=['匹配 18 条笔记'] query='LIME7' searchFocused=False
+[23:54:46] d1-7-back | focused=[]
+[23:54:46] d1-7-back | editTexts=[('[63,520][1008,667]', 'LIME7', 'false')]
+[23:54:46] d1-7-back | visible notes=UX5-01 编号笔[273,1087][975,1148] UX5-03 编号笔[273,1287][975,1348] UX5-05 编号笔[273,1487][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948]
+[23:54:46] D1 CHECK head_kb=true head_focus=[('EditText', '[42,970][1038,1346]', '主题：LIME7 记录（第 1 条）&#')] tail_kb=true back_to_list=True
+[23:54:46] === d1 end ===

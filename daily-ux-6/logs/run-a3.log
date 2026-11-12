@@ -1,0 +1,47 @@
+[23:50:02] === A3/B3 begin ===
+[23:50:08] cold start done
+[23:50:08] adb shell input tap 535 593  -> rc=0 
+[23:50:10] adb shell input text LIME7  -> rc=0 
+[23:50:15] dump a3-1-search  (32700 bytes)
+[23:50:15] a3-1-search | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:50:15] a3-1-search | subtitle=['匹配 18 条笔记'] query='LIME7' searchFocused=True
+[23:50:15] a3-1-search | focused=[('EditText', '[63,520][1008,667]', 'LIME7')]
+[23:50:15] a3-1-search | editTexts=[('[63,520][1008,667]', 'LIME7', 'true')]
+[23:50:15] a3-1-search | visible notes=UX5-01 编号笔[273,1087][975,1148] UX5-03 编号笔[273,1287][975,1348] UX5-05 编号笔[273,1487][975,1548] UX5-07 编号笔[273,1687][975,1748] UX5-09 编号笔[273,1887][975,1948]
+[23:50:16] adb shell input swipe 540 1300 540 1050 900  -> rc=0 
+[23:50:20] dump a3-2-scrolled  (34187 bytes)
+[23:50:21] a3-2-scrolled | mInputShown=true mImeWindowVis=3 imeTop=1517
+[23:50:21] a3-2-scrolled | subtitle=['匹配 18 条笔记'] query=None searchFocused=False
+[23:50:21] a3-2-scrolled | focused=[('EditText', '[63,383][1008,530]', 'LIME7')]
+[23:50:21] a3-2-scrolled | editTexts=[('[63,383][1008,530]', 'LIME7', 'true')]
+[23:50:21] a3-2-scrolled | visible notes=UX5-01 编号笔[273,861][975,922] UX5-03 编号笔[273,1061][975,1122] UX5-05 编号笔[273,1261][975,1322] UX5-07 编号笔[273,1461][975,1522] UX5-09 编号笔[273,1661][975,1722] UX5-11 编号笔[273,1861][975,1922] UX5-13 编号笔[273,2061][975,2085]
+[23:50:21] shot a3-1-search (200921 bytes)
+[23:50:21] tap result 'UX5-03 编号笔记' at (624,1091)
+[23:50:22] adb shell input tap 624 1091  -> rc=0 
+[23:50:27] dump a3-3-editor  (19339 bytes)
+[23:50:27] a3-3-editor | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:50:27] a3-3-editor | subtitle=[] query=None searchFocused=False
+[23:50:27] a3-3-editor | focused=[]
+[23:50:27] a3-3-editor | editTexts=[('[42,231][1038,406]', 'UX5-03 编号笔记', 'false'), ('[42,970][1038,1283]', '主题：LIME7 记录（第 3 条）&#10;巷', 'false')]
+[23:50:27] a3-3-editor | visible notes=UX5-03 编号笔[42,231][1038,406]
+[23:50:27] shot a3-2-editor (163344 bytes)
+[23:50:27] A3 CHECK input_shown=false (expect false) | editor editTexts=2 | any focused=[] (expect none)
+[23:50:28] adb shell input text Q  -> rc=0 
+[23:50:31] dump a3-3b-after-type  (19338 bytes)
+[23:50:32] a3-3b-after-type | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:50:32] a3-3b-after-type | subtitle=[] query=None searchFocused=False
+[23:50:32] a3-3b-after-type | focused=[('View', '[12,85][138,211]', '')]
+[23:50:32] a3-3b-after-type | editTexts=[('[42,231][1038,406]', 'UX5-03 编号笔记', 'false'), ('[42,970][1038,1283]', '主题：LIME7 记录（第 3 条）&#10;巷', 'false')]
+[23:50:32] a3-3b-after-type | visible notes=UX5-03 编号笔[42,231][1038,406]
+[23:50:32] adb shell input keyevent KEYCODE_DEL  -> rc=0 
+[23:50:33] A3 typed-probe: editor edits=[('[42,231][1038,406]', 'UX5-03 编号笔记', 'false'), ('[42,970][1038,1283]', '主题：LIME7 记录（第 3 条）&#10;巷', 'false')]
+[23:50:33] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:50:38] dump a3-4-back  (34187 bytes)
+[23:50:38] a3-4-back | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:50:38] a3-4-back | subtitle=['匹配 18 条笔记'] query=None searchFocused=False
+[23:50:38] a3-4-back | focused=[('View', '[0,63][1080,2337]', '')]
+[23:50:38] a3-4-back | editTexts=[('[63,383][1008,530]', 'LIME7', 'false')]
+[23:50:38] a3-4-back | visible notes=UX5-01 编号笔[273,861][975,922] UX5-03 编号笔[273,1061][975,1122] UX5-05 编号笔[273,1261][975,1322] UX5-07 编号笔[273,1461][975,1522] UX5-09 编号笔[273,1661][975,1722] UX5-11 编号笔[273,1861][975,1922] UX5-13 编号笔[273,2061][975,2085]
+[23:50:39] shot a3-3-back (203975 bytes)
+[23:50:39] B3 CHECK back-to-list=False query_same=True items_same=True input_shown=false search_focused=False
+[23:50:39] === a3 end ===

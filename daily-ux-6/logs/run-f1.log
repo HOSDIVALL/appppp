@@ -1,0 +1,26 @@
+[23:58:46] === F1 begin ===
+[23:58:52] cold start done
+[23:58:54] dump f1-1-list  (31667 bytes)
+[23:58:55] f1-1-list | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:58:55] f1-1-list | subtitle=['共 40 条 · 左滑删除，长按更多'] query='' searchFocused=False
+[23:58:55] f1-1-list | focused=[]
+[23:58:55] f1-1-list | editTexts=[('[63,520][1008,667]', '', 'false')]
+[23:58:55] f1-1-list | visible notes=UX5-01 编号笔[273,845][975,906] UX5-02 编号笔[273,1045][975,1106] UX5-03 编号笔[273,1245][975,1306] UX5-04 编号笔[273,1445][975,1506] UX5-05 编号笔[273,1645][975,1706] UX5-06 编号笔[273,1845][975,1906] UX5-07 编号笔[273,2045][975,2085]
+[23:58:55] tap list item 'UX5-02 编号笔记' at (624,1075)
+[23:58:55] adb shell input tap 624 1075  -> rc=0 
+[23:59:00] dump f1-2-editor  (17888 bytes)
+[23:59:00] f1-2-editor | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:59:00] f1-2-editor | subtitle=[] query='UX5-02 编号笔记' searchFocused=False
+[23:59:00] f1-2-editor | focused=[]
+[23:59:00] f1-2-editor | editTexts=[('[42,231][1038,406]', 'UX5-02 编号笔记', 'false'), ('[42,970][1038,1346]', '主题：普通记录（第 2 条）&#10;午后光线偏', 'false')]
+[23:59:00] f1-2-editor | visible notes=UX5-02 编号笔[42,231][1038,406]
+[23:59:01] shot f1-1-editor (167191 bytes)
+[23:59:01] adb shell input keyevent KEYCODE_BACK  -> rc=0 
+[23:59:05] dump f1-3-back  (31667 bytes)
+[23:59:06] f1-3-back | mInputShown=false mImeWindowVis=0 imeTop=2274
+[23:59:06] f1-3-back | subtitle=['共 40 条 · 左滑删除，长按更多'] query='' searchFocused=False
+[23:59:06] f1-3-back | focused=[]
+[23:59:06] f1-3-back | editTexts=[('[63,520][1008,667]', '', 'false')]
+[23:59:06] f1-3-back | visible notes=UX5-01 编号笔[273,845][975,906] UX5-02 编号笔[273,1045][975,1106] UX5-03 编号笔[273,1245][975,1306] UX5-04 编号笔[273,1445][975,1506] UX5-05 编号笔[273,1645][975,1706] UX5-06 编号笔[273,1845][975,1906] UX5-07 编号笔[273,2045][975,2085]
+[23:59:06] F1 CHECK editor_kb=false focused=[] back_to_list=['共 40 条 · 左滑删除，长按更多']
+[23:59:06] === f1 end ===
