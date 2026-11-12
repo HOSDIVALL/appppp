@@ -15,6 +15,8 @@
 
 素材经**应用真实入口**进入笔记：系统照片选择器（`PickVisualMedia`）→「插入正文」；「插入录音」弹层 →「插入正文」→「插入录音」。不是手改 JSON 造出来的展示态。
 
+音频本体（`.m4a`）被仓库 `.gitignore` 排除，**没有入库**；`fixtures/README.md` 给了逐字节复现命令与哈希，图片与录音元数据已入库。
+
 ## 1. 被验证的笔记结构
 
 `notes/00-created.json`（应用自己写入 `files/notes.json`）：
@@ -80,4 +82,4 @@ charlie-C-tail
 
 ## 6. 复跑
 
-命令序列见 `logs/adb-commands.md`；素材生成方式见 `fixtures/`（PNG 与 m4a 均为本轮生成，无隐私内容）。
+命令序列见 `logs/adb-commands.md`；素材生成方式见 `fixtures/README.md`（PNG 与 m4a 均为本轮生成，无隐私内容；m4a 因 `.gitignore` 未入库，README 里有复现命令与哈希）。

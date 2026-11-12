@@ -13,11 +13,12 @@ e9546d59f3a15e6a39412d932f04367874a5b4c0d0e45efa9b5082c853c8cd65 *./screenshots/
 5f65c7f2e9cd9e9ba4286bb64611c476256f6fb5698a51378513f4667e6b4b55 *./screenshots/before/4-existing-tap-blank-no-kb.png
 e5e51a5e2d075ac1dc1239ab2eed6f8ed99e8db9451c524631099209932c02e9 *./source/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt
 6ca9d532886ebca996db0b32bf00a7c21bc41aa9be49b43bf8b8fdcca6524ba0 *./source/app/src/test/java/com/example/myapplicationfirstapp/ui/NoteEditorBlankTapPolicyTest.kt
-bcb546281e3fc1dad1eec9757ac707ee6322ed5c799a4db1f8f6d144129bfd6e *./supplement/SUPPLEMENT.md
+cce2893d288814efffe6b69a4e2421b6c61a53881f86ae5f7cf936d9f294dce3 *./supplement/SUPPLEMENT.md
 92ec2e1e8a68c662acf478f008e3314cd72251417457a065fb92b26316f3eb38 *./supplement/fixtures/FIXTURE_AUDIO_01.json
-75615df84c4ba93eadedd2799fa05d48c7fe7b48bcbe93e3658bc5d976d65188 *./supplement/fixtures/FIXTURE_AUDIO_01.m4a
 baf121559078ec0bcb9c59793f33513cc6197dd9bd5c46d1ed63c4444933fc1a *./supplement/fixtures/FIXTURE_IMG_01.png
+a69173b467571a1b3c2aaf8fe5005ce631854408afe82d2c09ef6295de663d2a *./supplement/fixtures/README.md
 053f7230e0f5d8d685754ed01d98583a90f6c0c87af2e72c8557425e15f6cb97 *./supplement/logs/adb-commands.md
+9a14f7ac29747e31754f817b75e989e534765d3e2862840df9fb3fdab47efa5b *./supplement/logs/anr-coldstart-head.txt
 8e795ac1d4613297f8e323a2b45c504f26880446b2b8aa1dfdc0fe15c87c1940 *./supplement/notes/00-created.json
 3689206f5fa588a13220432eee19919d57f9785422f8721543dd177b1b2ab8d5 *./supplement/notes/01-after-checks.json
 6933d72fe2743bdf5deffc3beed4b2c55e6a049fab78c8264eb235a2c77eac91 *./supplement/notes/02-after-mode-roundtrip.json

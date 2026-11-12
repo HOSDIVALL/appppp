@@ -1,0 +1,126 @@
+Drop box contents: 2 entries
+Max entries: 1000
+Low priority rate limit period: 2000 ms
+Low priority tags: {data_app_wtf, keymaster, system_server_wtf, system_app_strictmode, system_app_wtf, system_server_strictmode, data_app_strictmode, netstats}
+Searching for: data_app_anr
+
+========================================
+2026-11-12 13:02:45 data_app_anr (compressed text, 24713 bytes)
+SystemUptimeMs: 1707071
+Process: com.example.myapplicationfirstapp
+PID: 8575
+UID: 10237
+Frozen: false
+Timestamp: 2026-11-12 13:02:34.674+0000
+Flags: 0x20e9be46
+Package: com.example.myapplicationfirstapp v2 (2.0)
+Foreground: Yes
+Process-Runtime: 30598
+Activity: com.example.myapplicationfirstapp/.MainActivity
+ErrorId: acdf7955-69cc-4561-92b7-ccad196341ce
+Build: google/sdk_gphone64_x86_64/emu64xa:17/CE2A.260420.051.A2/16418371:user/release-keys
+DefaultScreen-State: ON
+Keyguard-Locked: false
+Loading-Progress: 1.0
+Dropped-Count: 0
+
+----- Output from /proc/pressure/memory -----
+some avg10=0.00 avg60=0.00 avg300=0.00 total=2207133
+full avg10=0.00 avg60=0.00 avg300=0.00 total=1373984
+----- End output from /proc/pressure/memory -----
+----- Output from /proc/pressure/cpu -----
+some avg10=11.47 avg60=11.61 avg300=8.11 total=173704014
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+----- End output from /proc/pressure/cpu -----
+----- Output from /proc/pressure/io -----
+some avg10=0.46 avg60=0.56 avg300=0.27 total=16103569
+full avg10=0.26 avg60=0.22 avg300=0.06 total=5649292
+----- End output from /proc/pressure/io -----
+
+CPU usage from 1ms to 10359ms later (2026-11-12 13:02:34.697 to 2026-11-12 13:02:45.055):
+  98% 703/system_server: 4.9% user + 93% kernel / faults: 4711 minor 386 major
+  29% 8575/com.example.myapplicationfirstapp: 5.8% user + 24% kernel / faults: 6333 minor 61 major
+  13% 524/android.hardware.sensors-service.multihal: 0.1% user + 13% kernel
+  10% 533/android.hardware.graphics.composer3-service.ranchu: 0.2% user + 10% kernel
+  9.9% 1602/com.google.android.gms.persistent: 2.1% user + 7.8% kernel / faults: 2669 minor 4 major
+  9.2% 571/surfaceflinger: 0.7% user + 8.4% kernel
+  7.8% 1239/com.android.systemui: 1.4% user + 6.3% kernel / faults: 1482 minor 29 major
+  6.3% 1951/adbd: 0% user + 6.3% kernel / faults: 1509 minor
+  5.3% 1721/com.google.android.inputmethod.latin: 1.7% user + 3.5% kernel / faults: 2327 minor 10 major
+  4.7% 1408/com.android.phone: 0.4% user + 4.2% kernel / faults: 890 minor 5 major
+43% TOTAL: 4.6% user + 37% kernel + 0.4% iowait + 0.5% softirq
+Data File: /data/anr/anr_2026-11-12-13-02-34-739
+Subject: Input dispatching timed out (ed08289 com.example.myapplicationfirstapp/com.example.myapplicationfirstapp.MainActivity is not responding. Waited 5002ms for FocusEvent(hasFocus=true)).
+Timeout: 5002
+TimeoutStart: 1691615
+RssHwmKb: 259256
+RssKb: 259256
+RssAnonKb: 137356
+RssShmemKb: 19500
+VmSwapKb: 1368
+BaseFsVerity: false
+
+
+--- CriticalEventLog ---
+capacity: 20
+events <
+  timestamp_ms: 1614334
+  install_packages <
+  >
+>
+timestamp_ms: 1696665
+window_ms: 300000
+
+----- dumping pid: 8575 at 1696652
+
+----- pid 8575 at 2026-11-12 13:02:35.167011400+0000 -----
+Cmd line: com.example.myapplicationfirstapp
+Build fingerprint: 'google/sdk_gphone64_x86_64/emu64xa:17/CE2A.260420.051.A2/16418371:user/release-keys'
+ABI: 'x86_64'
+Build type: optimized
+Debug Store: 3,10,1697123::ID:0,C:P,T:1680075,N:SendFinished,D:prid=431d7cd||ID:0,C:P,T:1680074,N:Finish,D:tname=DefaultDispatcher-worker-1;stid=8608;prid=431d7cd||ID:2,C:E,T:1679841||ID:0,C:P,T:1679173,N:GoAsync,D:tname=main;stid=8575;prid=431d7cd||ID:2,C:S,T:1679172,N:Rcv,D:tname=main;stid=8575;cls=ReminderBootReceiver;prid=431d7cd||ID:0,C:P,T:1679155,N:LooperMsg,D:code=110;trgt=android.app.ActivityThread$H;elapsed=2041||ID:1,C:E,T:1679154||ID:0,C:P,T:1677135,N:SchRcv,D:tname=binder:8575_3;stid=8588;act=android.intent.action.BOOT_COMPLETED;cmp=com.example.myapplicationfirstapp/.reminder.ReminderBootReceiver;prid=431d7cd||ID:1,C:S,T:1677114,N:BindApp||ID:0,C:P,T:1677103,N:SchBindApp;;
+suspend all histogram:	Sum: 15.958ms 99% C.I. 28us-9029.119us Avg: 759.904us Max: 9592us
+DALVIK THREADS (23):
+"main" prio=5 tid=1 Runnable
+  | group="main" sCount=0 ucsCount=0 flags=0 obj=0x7311cf78 self=0x79b86a2047b0
+  | sysTid=8575 nice=-10 cgrp=top-app sched=0/0 handle=0x79ba52410038
+  | state=R schedstat=( 19403446729 356412628 409 ) utm=255 stm=1685 core=5 HZ=100
+  | stack=0x7ffd49b84000-0x7ffd49b86000 stackSize=8188KB
+  | held mutexes= "mutator lock"(shared held)
+  at androidx.compose.ui.graphics.ShaderKt.LinearGradientShader-VjE6UOU(Shader.kt:73)
+  at androidx.compose.ui.graphics.LinearGradient.createShader-uvyYCjk(Brush.kt:491)
+  at androidx.compose.ui.graphics.ShaderBrush.applyTo-Pq9zytI(Brush.kt:859)
+  at androidx.compose.ui.graphics.drawscope.CanvasDrawScope.configurePaint-swdJneE(CanvasDrawScope.kt:605)
+  at androidx.compose.ui.graphics.drawscope.CanvasDrawScope.configurePaint-swdJneE$default(CanvasDrawScope.kt:595)
+  at androidx.compose.ui.graphics.drawscope.CanvasDrawScope.drawRect-AsUm42w(CanvasDrawScope.kt:181)
+  at androidx.compose.ui.node.LayoutNodeDrawScope.drawRect-AsUm42w(unavailable:13)
+  at androidx.compose.ui.graphics.drawscope.DrawScope.drawRect-AsUm42w$default(DrawScope.kt:430)
+  at androidx.compose.foundation.BackgroundNode.drawRect(Background.kt:183)
+  at androidx.compose.foundation.BackgroundNode.draw(Background.kt:163)
+  at androidx.compose.ui.node.LayoutNodeDrawScope.drawDirect-eZhPAX0$ui(LayoutNodeDrawScope.kt:132)
+  at androidx.compose.ui.node.LayoutNodeDrawScope.draw-eZhPAX0$ui(LayoutNodeDrawScope.kt:119)
+  at androidx.compose.ui.node.NodeCoordinator.drawContainedDrawModifiers(NodeCoordinator.kt:515)
+  at androidx.compose.ui.node.NodeCoordinator._get_drawBlock_$lambda$0(NodeCoordinator.kt:538)
+  at androidx.compose.ui.node.NodeCoordinator$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+  at androidx.compose.runtime.snapshots.SnapshotStateObserver.observeReads(SnapshotStateObserver.kt:729)
+  at androidx.compose.ui.node.NodeCoordinator._get_drawBlock_$lambda$1(NodeCoordinator.kt:2587)
+  at androidx.compose.ui.node.NodeCoordinator$$ExternalSyntheticLambda1.invoke(D8$$SyntheticClass:0)
+  at androidx.compose.ui.platform.GraphicsLayerOwnerLayer.recordLambda$lambda$0(GraphicsLayerOwnerLayer.android.kt:293)
+  at androidx.compose.ui.platform.GraphicsLayerOwnerLayer$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+  at androidx.compose.ui.graphics.layer.GraphicsLayer.drawWithChildTracking(AndroidGraphicsLayer.android.kt:480)
+  at androidx.compose.ui.graphics.layer.GraphicsLayer.access$drawWithChildTracking(AndroidGraphicsLayer.android.kt:57)
+  at androidx.compose.ui.graphics.layer.GraphicsLayer$clipDrawBlock$1.invoke(AndroidGraphicsLayer.android.kt:70)
+  at androidx.compose.ui.graphics.layer.GraphicsLayer$clipDrawBlock$1.invoke(AndroidGraphicsLayer.android.kt:65)
+  at androidx.compose.ui.graphics.layer.GraphicsLayerV29.record(GraphicsLayerV29.android.kt:323)
+  at androidx.compose.ui.graphics.layer.GraphicsLayer.recordInternal(AndroidGraphicsLayer.android.kt:473)
+  at androidx.compose.ui.graphics.layer.GraphicsLayer.record-mL-hObY(AndroidGraphicsLayer.android.kt:469)
+  at androidx.compose.ui.platform.GraphicsLayerOwnerLayer.updateDisplayList(GraphicsLayerOwnerLayer.android.kt:286)
+  at androidx.compose.ui.platform.GraphicsLayerOwnerLayer.drawLayer(GraphicsLayerOwnerLayer.android.kt:265)
+  at androidx.compose.ui.node.NodeCoordinator.draw(NodeCoordinator.kt:499)
+  at androidx.compose.ui.node.LayoutModifierNodeCoordinator.performDraw(LayoutModifierNodeCoordinator.kt:275)
+  at androidx.compose.ui.node.NodeCoordinator.drawContainedDrawModifiers(NodeCoordinator.kt:512)
+  at androidx.compose.ui.node.NodeCoordinator.draw(NodeCoordinator.kt:504)
+  at androidx.compose.ui.node.LayoutModifierNodeCoordinator.performDraw(LayoutModifierNodeCoordinator.kt:275)
+  at androidx.compose.ui.node.NodeCoordinator.drawContainedDrawModifiers(NodeCoordinator.kt:512)
+  at androidx.compose.ui.node.NodeCoordinator.draw(NodeCoordinator.kt:504)
+  at androidx.compose.ui.node.LayoutModifierNodeCoordinator.performDraw(LayoutModifierNodeCoordinator.kt:275)
