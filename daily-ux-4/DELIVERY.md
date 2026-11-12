@@ -68,7 +68,23 @@
 | 构建时间 | 2026-11-12 22:16:59（源码最后修改 22:16:17） |
 | 获取方式 | 工作区根目录执行 `JAVA_HOME=D:/Android/jbr ./gradlew assembleDebug`；固化后再次执行同一命令，Gradle 报 `:app:assembleDebug UP-TO-DATE`、`37 actionable tasks: 37 up-to-date`，APK 时间戳与哈希未变 |
 | 与源码对应 | `:app:compileDebugKotlin UP-TO-DATE`（Gradle 按输入哈希判定，说明 dex 即当前源码编译产物）；APK 内 `classes.dex` 含 `getCursorRect` 符号；构建时间晚于源码最后修改 |
-| 是否入库 | 否。`*.apk` 不入 Git，只经会话文件卡片交付 |
+| 是否入库 | 否。`*.apk` 不入 Git |
+
+### 下载链接（对方无需接收附件）
+
+APK 已作为 GitHub Release 资产上传，可直接下载，无需上传/接收附件：
+
+| 项 | 值 |
+|---|---|
+| 直链 | `https://github.com/HOSDIVALL/appppp/releases/download/daily-ux-4-apk/app-debug-daily-ux-4-ede4f75.apk` |
+| Release 页面 | `https://github.com/HOSDIVALL/appppp/releases/tag/daily-ux-4-apk` |
+| Release id / 资产 id | `443088652` / `739868130` |
+| 资产状态 | `state=uploaded`，`size=57921799`，`content_type=application/vnd.android.package-archive` |
+| 上传时间 | 2026-11-12T14:51:14Z（UTC） |
+| 标签指向 | `ede4f75fb25bc34a78d5acc89a863f1f45199e22`（prerelease，非 draft） |
+| 下载回验 | 从该直链完整下载一次（6 分 29 秒）：57,921,799 字节，SHA-256 `df5ecc29f9fbf65b27222cae1acd8f0b8021c256eb4ba0dfc2d182e5772c8f67`，与本地产物逐字节相同 |
+
+注：仓库为公开仓库，因此该 prerelease 资产对外可下载；内容仅为调试构建，不含真实数据（本轮全部为虚构文本与自绘图片）。资产可随时从 Release 页面删除，不占 Git 仓库体积。
 
 哈希取两次（间隔 2 秒），结果相同（`df5ecc29…2c8f67`）。未在设备上安装这份 APK（本轮只在检查阶段装过同一份构建产物），也未重跑 `connectedAndroidTest`。
 

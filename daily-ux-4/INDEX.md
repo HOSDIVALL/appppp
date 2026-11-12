@@ -67,6 +67,8 @@ cmp app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt <
 
 调试 APK：57,921,799 字节，SHA-256 `df5ecc29f9fbf65b27222cae1acd8f0b8021c256eb4ba0dfc2d182e5772c8f67`，`assembleDebug` 复跑为 `UP-TO-DATE` 且哈希未变；`*.apk` 不入 Git。
 
+下载直链（无需接收附件）：`https://github.com/HOSDIVALL/appppp/releases/download/daily-ux-4-apk/app-debug-daily-ux-4-ede4f75.apk`（prerelease 资产，已完整下载回验，哈希与本地产物一致；可随时删除，不占仓库体积）。
+
 **固化这一轮未重跑测试**：只构建与核对，未执行 `testDebugUnitTest` / `connectedAndroidTest`；`logs/unit-test-xml/` 中的 9 条是检查阶段那次运行的原始结果。细节见 `DELIVERY.md`。
 
 ## 口径
