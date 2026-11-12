@@ -137,6 +137,16 @@ fun NotesListScreen(
         focusManager.clearFocus()
     }
 
+    // 打开已有笔记的交接点：先把搜索输入结束掉（只收键盘与焦点），再交给上层切页面。
+    // 与 collapseSearch 的区别是这里不动 searchActive——搜索面板、query、匹配结果、
+    // 列表滚动位置都原样留在抽屉背后；打开的是阅读态，编辑页本身不申请焦点，
+    // 所以键盘也不会被带进去。
+    fun openNote(id: String) {
+        keyboard?.hide()
+        focusManager.clearFocus()
+        onOpen(id)
+    }
+
     BackHandler(enabled = searchActive) {
         collapseSearch()
     }
@@ -482,7 +492,7 @@ fun NotesListScreen(
                             note = note,
                             thumbnail = note.images.firstOrNull()?.let(state::imageFile),
                             strings = s,
-                            onClick = { onOpen(note.id) },
+                            onClick = { openNote(note.id) },
                             onDelete = { onDelete(note) },
                             onTogglePin = { state.togglePin(note.id) }
                         )
@@ -493,7 +503,7 @@ fun NotesListScreen(
                             note = note,
                             thumbnail = note.images.firstOrNull()?.let(state::imageFile),
                             strings = s,
-                            onClick = { onOpen(note.id) },
+                            onClick = { openNote(note.id) },
                             onDelete = { onDelete(note) },
                             onTogglePin = { state.togglePin(note.id) }
                         )
@@ -504,7 +514,7 @@ fun NotesListScreen(
                             note = note,
                             thumbnail = note.images.firstOrNull()?.let(state::imageFile),
                             strings = s,
-                            onClick = { onOpen(note.id) },
+                            onClick = { openNote(note.id) },
                             onDelete = { onDelete(note) },
                             onTogglePin = { state.togglePin(note.id) }
                         )
