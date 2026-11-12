@@ -2,7 +2,8 @@
 
 - 时间：2026-11-12
 - 基线：`04f400fec16dfdd01be9cb83296a9d83181c3353`（`ux/daily-ux-2` 固化点）
-- 工作分支：`ux/daily-ux-4`（从基线新建的独立工作区；**源码未合并、未建 PR、暂不固化**）
+- 工作分支：`ux/daily-ux-4`（从基线新建的独立工作区）
+- 固化提交：`ede4f75fb25bc34a78d5acc89a863f1f45199e22`（父 `04f400f`），已推送；**未合并 `main`、未建 PR**。详见 `DELIVERY.md`
 - 设备：`emulator-5554`（API 37，1080×2400 @420dpi）。真机零访问。
 - 数据：全部为编造文本与自绘 PNG；`pm clear` 后注入 `files/notes.json` + `files/attachments/*.png`。
 
@@ -32,6 +33,7 @@
 ```
 daily-ux-4/
 ├── INDEX.md                 本文件
+├── DELIVERY.md              固化交付记录：源码提交/父提交/blob、与评审副本一致性、原始 XML、APK 哈希
 ├── CHECKLOG.md              逐项检查记录：步骤、键盘顶边、光标矩形、结论、未覆盖项
 ├── FIX.md                   改动说明、为什么是这一处、明确没做什么、如何应用补丁
 ├── diff/daily-ux-4.diff     完整补丁（相对 04f400f，1 个文件，+29 / −3）
@@ -39,7 +41,8 @@ daily-ux-4/
 ├── logs/
 │   ├── adb-commands.md      已脱敏的命令序列
 │   ├── probe.py             取证工具（连拍帧差找光标 / 读 IME 边界）
-│   ├── unit-test.txt        JVM 单测：3 suite / 9 条 / 0 失败
+│   ├── unit-test.txt        JVM 单测汇总：3 suite / 9 条 / 0 失败
+│   ├── unit-test-xml/       本次运行的原始 XML（3 个 TEST-*.xml，未编辑）
 │   └── fixture/             虚构数据：notes.json、两张自绘 PNG、两个生成脚本
 ├── shots/before/            改动前 8 张（01–08）
 ├── shots/after/             改动后 9 张（01–09）
@@ -58,6 +61,14 @@ cmp app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt <
 
 本轮已实跑：`patch` 无 fuzz，`cmp` 逐字节相同。
 
+## 固化
+
+评审通过后固化为提交 `ede4f75`（父 `04f400f`），只含 1 个源码文件、+29 / −3，提交树内 blob `82879f2` 与评审副本 `files/NoteEditorScreen.kt` 逐字节一致（SHA-256 `9c7ec1e9…63a991f8`）。已普通推送到 `ux/daily-ux-4`，未合并 `main`、未建 PR。
+
+调试 APK：57,921,799 字节，SHA-256 `df5ecc29f9fbf65b27222cae1acd8f0b8021c256eb4ba0dfc2d182e5772c8f67`，`assembleDebug` 复跑为 `UP-TO-DATE` 且哈希未变；`*.apk` 不入 Git。
+
+**固化这一轮未重跑测试**：只构建与核对，未执行 `testDebugUnitTest` / `connectedAndroidTest`；`logs/unit-test-xml/` 中的 9 条是检查阶段那次运行的原始结果。细节见 `DELIVERY.md`。
+
 ## 口径
 
 - 判据量是**光标矩形**与**键盘上边界**；`uiautomator dump` 只给整块 EditText 的 bounds，未拿它当光标证据。
@@ -69,6 +80,6 @@ cmp app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt <
 ## 边界
 
 - 历史证据（`daily-ux-1/2/3`、`backup-safe-1a`）未改动，本轮只新增 `daily-ux-4/`。
-- `app/` 下的业务源码未提交到任何分支；本轮只提交本目录的评审材料。
-- 未合并 `main`、未建 PR、未推送功能分支。
+- 源码已提交并推送到 `ux/daily-ux-4`（`ede4f75`）；不影响 `main`、`fix/backup-safe-1`、`ux/daily-ux-1`、`ux/daily-ux-2`。
+- 未合并 `main`、未建 PR。
 - 未上真机，未验证键盘弹出动画期间（约 200 ms）的中间帧。
