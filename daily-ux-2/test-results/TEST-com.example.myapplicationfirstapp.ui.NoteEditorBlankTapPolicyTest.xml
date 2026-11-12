@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-12T12:53:00.473Z" hostname="朱元璋的电" time="0.001">
+  <properties/>
+  <testcase name="tapBelowLastBlockFocusesBody" classname="com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest" time="0.0"/>
+  <testcase name="tapInsideTextKeepsOriginalCaretPlacement" classname="com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest" time="0.0"/>
+  <testcase name="noTextBlockIsNotHandled" classname="com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest" time="0.0"/>
+  <testcase name="tapExactlyOnBottomEdgeIsNotHandled" classname="com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest" time="0.0"/>
+  <testcase name="checklistIsNotHandled" classname="com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
