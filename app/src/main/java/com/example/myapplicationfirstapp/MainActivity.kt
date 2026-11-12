@@ -721,7 +721,9 @@ fun NotesApp(
                             )
                         }
                     },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    // 刚由「+」新建出来的这条才自动落焦点；从列表点开的已有笔记不抢
+                    autoFocusBody = editingNote.id == newNoteId
                 )
             }
         }

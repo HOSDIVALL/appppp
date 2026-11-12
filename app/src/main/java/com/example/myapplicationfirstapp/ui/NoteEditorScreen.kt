@@ -92,6 +92,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -152,7 +153,9 @@ fun NoteEditorScreen(
     onBack: () -> Unit,
     onOpenImages: (files: List<File>, index: Int) -> Unit,
     onSetReminder: (Long?) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 刚从「+」新建出来的笔记：进来就把光标放进正文，省掉「先点一下才能打字」 */
+    autoFocusBody: Boolean = false
 ) {
     // key 用 note.id：切换到另一条笔记时重新初始化
     var title by remember(note.id) { mutableStateOf(note.title) }
@@ -344,6 +347,15 @@ fun NoteEditorScreen(
         ) {
             focusTodoId = first.id
         }
+    }
+
+    // 新建的普通笔记：光标直接落到正文第一块，和上面新建清单的行为对齐。
+    // 从列表打开的已有笔记不抢焦点——那时人多半是想读，不是想改。
+    LaunchedEffect(note.id, autoFocusBody) {
+        if (!shouldAutoFocusBody(autoFocusBody, note.checklist)) return@LaunchedEffect
+        // 等首帧完成布局，FocusRequester 这时才挂到窗口上
+        withFrameNanos { }
+        focusRequest = 0
     }
 
     LaunchedEffect(note.id, title, content) {
@@ -803,6 +815,15 @@ fun NoteEditorScreen(
         )
     }
 }
+
+/**
+ * 新建笔记该不该自动把光标放进正文。
+ *
+ * 只有「刚由 + 新建」且「不是清单」的笔记成立：
+ * 清单有自己的首项聚焦逻辑，已有笔记则不该抢焦点（那时人多半是想读）。
+ */
+internal fun shouldAutoFocusBody(isNewNote: Boolean, checklist: Boolean): Boolean =
+    isNewNote && !checklist
 
 @Composable
 private fun rememberEditorFocusVisibility(): Modifier {
