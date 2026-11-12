@@ -1,0 +1,8 @@
+com.example.myapplicationfirstapp.ExampleUnitTest  tests=1 failures=0 errors=0 skipped=0
+com.example.myapplicationfirstapp.ui.NoteEditorAutoFocusPolicyTest  tests=3 failures=0 errors=0 skipped=0
+com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest  tests=5 failures=0 errors=0 skipped=0
+
+TOTAL tests=9 failures=0 errors=0 skipped=0 suites=3
+
+说明：这些是 JVM 上的策略函数单测（点击空白判定、自动聚焦判定），不覆盖滚动/可见性；
+UI 行为验证见 CHECKLOG.md，用模拟器截图与帧差取证。
