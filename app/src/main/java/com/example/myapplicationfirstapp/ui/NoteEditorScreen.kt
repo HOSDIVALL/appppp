@@ -101,6 +101,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
@@ -108,6 +109,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -882,13 +884,24 @@ internal fun shouldFocusBodyOnBlankTap(
     bodyBottomY: Float
 ): Boolean = !checklist && lastTextIndex >= 0 && tapY > bodyBottomY
 
+/**
+ * 输入框获得焦点、或者键盘高度变化时，把「正在输入的位置」滚进可视区。
+ *
+ * [cursorRect] 给出光标所在行在输入框内的位置时，只请求这一行：正文块常常比
+ * 键盘弹出后的可视区还高，按整块请求会把块顶对齐到视口顶部，光标反而被推到
+ * 键盘下面（长笔记点正文下方空白继续输入时会碰到）。单行输入框不传，仍按整块请求。
+ */
 @Composable
-private fun rememberEditorFocusVisibility(): Modifier {
+private fun rememberEditorFocusVisibility(
+    cursorRect: () -> Rect? = { null }
+): Modifier {
     val requester = remember { BringIntoViewRequester() }
     var focused by remember { mutableStateOf(false) }
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
     LaunchedEffect(focused, imeBottom) {
-        if (focused) requester.bringIntoView()
+        if (!focused) return@LaunchedEffect
+        val caret = cursorRect()
+        if (caret != null) requester.bringIntoView(caret) else requester.bringIntoView()
     }
     return Modifier.bringIntoViewRequester(requester)
         .onFocusChanged { focused = it.isFocused }
@@ -915,6 +928,9 @@ private fun EditableBlock(
     onBottomInRoot: (Float) -> Unit = {}
 ) {
     var value by remember(index) { mutableStateOf(TextFieldValue(text)) }
+    // 最近一次文本布局，用来算光标行位置。用数组而不是 mutableStateOf：
+    // 它只在「要求滚进可视区」时读一次，不该因为每次布局都触发重组。
+    val textLayout = remember(index) { arrayOfNulls<TextLayoutResult>(1) }
     val focusRequester = remember(index) { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -942,6 +958,7 @@ private fun EditableBlock(
             value = next
             onTextChange(next.text)
         },
+        onTextLayout = { textLayout[0] = it },
         textStyle = MaterialTheme.typography.bodyLarge.copy(
             color = MaterialTheme.colorScheme.onSurface
         ),
@@ -951,7 +968,16 @@ private fun EditableBlock(
             .onGloballyPositioned { onBottomInRoot(it.positionInRoot().y + it.size.height) }
             .padding(vertical = 6.dp)
             .focusRequester(focusRequester)
-            .then(rememberEditorFocusVisibility())
+            .then(rememberEditorFocusVisibility {
+                val layout = textLayout[0]
+                if (layout == null) {
+                    null
+                } else {
+                    val offset = value.selection.end
+                        .coerceIn(0, layout.layoutInput.text.length)
+                    layout.getCursorRect(offset)
+                }
+            })
             .onFocusChanged { state -> if (state.isFocused) onFocusGained() },
         decorationBox = { innerTextField ->
             Box {
