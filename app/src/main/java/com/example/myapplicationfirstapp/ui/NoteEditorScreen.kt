@@ -16,6 +16,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -102,6 +103,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
@@ -181,7 +185,14 @@ fun NoteEditorScreen(
 
     // 插入媒体时插到「最后一次聚焦的文字块」后面；没聚焦过就接到正文末尾
     var focusedBlock by remember(note.id) { mutableStateOf(-1) }
-    var focusRequest by remember { mutableStateOf<Int?>(null) }
+    var focusRequest by remember { mutableStateOf<BodyFocusRequest?>(null) }
+
+    // 正文最后一块文字在 root 坐标系里的底边、以及滚动容器的顶边。
+    // 只用它们判断「这次点击是不是落在正文下方的空白里」，不参与布局，所以不放进
+    // mutableStateOf —— 否则滚动时每一帧都会触发重组。
+    val bodyBottomY = remember(note.id) { FloatArray(1) { 0f } }
+    val viewportTopY = remember(note.id) { FloatArray(1) { 0f } }
+    val lastTextIndex = blocks.indexOfLast { it is ContentBlock.Text }
 
     // 按回车续行后，把焦点交给新加的那一行
     var focusTodoId by remember(note.id) { mutableStateOf<String?>(null) }
@@ -209,7 +220,7 @@ fun NoteEditorScreen(
         }
         blocks = list
         focusedBlock = at + 1
-        if (focusAfter) focusRequest = at + 1
+        if (focusAfter) focusRequest = BodyFocusRequest(at + 1)
     }
 
     fun removeBlockAt(index: Int) {
@@ -355,7 +366,7 @@ fun NoteEditorScreen(
         if (!shouldAutoFocusBody(autoFocusBody, note.checklist)) return@LaunchedEffect
         // 等首帧完成布局，FocusRequester 这时才挂到窗口上
         withFrameNanos { }
-        focusRequest = 0
+        focusRequest = BodyFocusRequest(0)
     }
 
     LaunchedEffect(note.id, title, content) {
@@ -414,6 +425,27 @@ fun NoteEditorScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .onGloballyPositioned { viewportTopY[0] = it.positionInRoot().y }
+                // 点正文最后一块下方的空白：把光标送回最后一块末尾，接着写。
+                // 只接管「文本模式 + 点击落在最后一块底边以下」这一种情况；
+                // 正文文字、清单、媒体控件、工具栏的点击都由各自消费，不会走到这里。
+                // 拖动会被 scroll 消费掉，所以滑动不会误触发。
+                .pointerInput(note.checklist, lastTextIndex, blocks.size) {
+                    if (note.checklist) return@pointerInput
+                    detectTapGestures { offset ->
+                        val tappedY = viewportTopY[0] + offset.y
+                        if (shouldFocusBodyOnBlankTap(
+                                checklist = note.checklist,
+                                lastTextIndex = lastTextIndex,
+                                tapY = tappedY,
+                                bodyBottomY = bodyBottomY[0]
+                            )
+                        ) {
+                            focusedBlock = lastTextIndex
+                            focusRequest = BodyFocusRequest(lastTextIndex, caretAtEnd = true)
+                        }
+                    }
+                }
                 .padding(start = 16.dp, end = 16.dp, bottom = 96.dp)
         ) {
 
@@ -653,11 +685,15 @@ fun NoteEditorScreen(
                                 index = index,
                                 text = block.text,
                                 placeholder = if (index == 0) "开始写点什么…" else null,
-                                focusRequested = focusRequest == index,
+                                focusRequested = focusRequest?.index == index,
+                                caretAtEnd = focusRequest?.caretAtEnd == true,
                                 onFocusHandled = {
-                                    if (focusRequest == index) focusRequest = null
+                                    if (focusRequest?.index == index) focusRequest = null
                                 },
                                 onFocusGained = { focusedBlock = index },
+                                onBottomInRoot = { bottom ->
+                                    if (index == lastTextIndex) bodyBottomY[0] = bottom
+                                },
                                 onTextChange = { text -> updateBlockText(index, text) }
                             )
 
@@ -825,6 +861,27 @@ fun NoteEditorScreen(
 internal fun shouldAutoFocusBody(isNewNote: Boolean, checklist: Boolean): Boolean =
     isNewNote && !checklist
 
+/**
+ * 请求把焦点交给正文的第 [index] 块。
+ *
+ * [caretAtEnd] 为 true 时光标落到该块末尾——「点正文下方空白继续写」走这条路；
+ * 其余既有路径保持原样，不改变插入文字/自动聚焦时的光标位置。
+ */
+internal data class BodyFocusRequest(val index: Int, val caretAtEnd: Boolean = false)
+
+/**
+ * 这次点击该不该被当成「点了正文下方的空白」。
+ *
+ * 需要同时满足：文本模式、存在文字块、点击位置在最后一块文字的底边以下。
+ * 正文文字本身、清单、媒体与工具栏都在这个高度之上，因此不会被这条规则接管。
+ */
+internal fun shouldFocusBodyOnBlankTap(
+    checklist: Boolean,
+    lastTextIndex: Int,
+    tapY: Float,
+    bodyBottomY: Float
+): Boolean = !checklist && lastTextIndex >= 0 && tapY > bodyBottomY
+
 @Composable
 private fun rememberEditorFocusVisibility(): Modifier {
     val requester = remember { BringIntoViewRequester() }
@@ -851,9 +908,11 @@ private fun EditableBlock(
     text: String,
     placeholder: String?,
     focusRequested: Boolean,
+    caretAtEnd: Boolean,
     onFocusHandled: () -> Unit,
     onFocusGained: () -> Unit,
-    onTextChange: (String) -> Unit
+    onTextChange: (String) -> Unit,
+    onBottomInRoot: (Float) -> Unit = {}
 ) {
     var value by remember(index) { mutableStateOf(TextFieldValue(text)) }
     val focusRequester = remember(index) { FocusRequester() }
@@ -865,8 +924,12 @@ private fun EditableBlock(
         }
     }
 
-    LaunchedEffect(focusRequested) {
+    LaunchedEffect(focusRequested, caretAtEnd) {
         if (focusRequested) {
+            // 点空白进来的：先把光标放到末尾再要焦点，否则会落回上次停的位置
+            if (caretAtEnd && value.selection != TextRange(value.text.length)) {
+                value = value.copy(selection = TextRange(value.text.length))
+            }
             focusRequester.requestFocus()
             keyboard?.show()
             onFocusHandled()
@@ -885,6 +948,7 @@ private fun EditableBlock(
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         modifier = Modifier
             .fillMaxWidth()
+            .onGloballyPositioned { onBottomInRoot(it.positionInRoot().y + it.size.height) }
             .padding(vertical = 6.dp)
             .focusRequester(focusRequester)
             .then(rememberEditorFocusVisibility())
