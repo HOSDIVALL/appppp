@@ -1,4 +1,5 @@
-a8f287ca71087fd455abe9960c5dd033f4c74d0c97080065d0c033b652307a83 *./INDEX.md
+634ba1a44153d84f04cd0f9f7da56007331c935599ec24def55ebba681ba2866 *./DELIVERY.md
+6f04cf858d08cd129f4d594bc065400ec354ea09e774533f43e605eb10609b91 *./INDEX.md
 2e2472ab29532ec91c82f0b21dc8ad7d2d30ee269ca2b73c19cd4bff74cffedb *./diff/daily-ux-2.diff
 562464d8038a2d40e4ec61528c52eea4591b9537931948c87dc600fdcd7f8269 *./logs/gradle-tests.log
 36b0afdbe11b9dff47b5ad71d5d00872b367a99069857f36df57195c0b24fdb3 *./logs/verify-steps.md
@@ -13,7 +14,7 @@ e9546d59f3a15e6a39412d932f04367874a5b4c0d0e45efa9b5082c853c8cd65 *./screenshots/
 5f65c7f2e9cd9e9ba4286bb64611c476256f6fb5698a51378513f4667e6b4b55 *./screenshots/before/4-existing-tap-blank-no-kb.png
 e5e51a5e2d075ac1dc1239ab2eed6f8ed99e8db9451c524631099209932c02e9 *./source/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt
 6ca9d532886ebca996db0b32bf00a7c21bc41aa9be49b43bf8b8fdcca6524ba0 *./source/app/src/test/java/com/example/myapplicationfirstapp/ui/NoteEditorBlankTapPolicyTest.kt
-cce2893d288814efffe6b69a4e2421b6c61a53881f86ae5f7cf936d9f294dce3 *./supplement/SUPPLEMENT.md
+33aa3bff41636022bb6d1370cf9f147ff9a4007ad947d973db06b684d0d5457e *./supplement/SUPPLEMENT.md
 92ec2e1e8a68c662acf478f008e3314cd72251417457a065fb92b26316f3eb38 *./supplement/fixtures/FIXTURE_AUDIO_01.json
 baf121559078ec0bcb9c59793f33513cc6197dd9bd5c46d1ed63c4444933fc1a *./supplement/fixtures/FIXTURE_IMG_01.png
 a69173b467571a1b3c2aaf8fe5005ce631854408afe82d2c09ef6295de663d2a *./supplement/fixtures/README.md

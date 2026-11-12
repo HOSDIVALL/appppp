@@ -67,11 +67,17 @@ charlie-C-tail
 - "立即"是两条 `adb shell input tap` 之间**不加 sleep**（实测间隔约 100–300ms），不是同一帧注入。它证明的是"切换后很快点击"这条路径没有崩溃/错块，**不证明零延迟下的所有时序**。
 - 切回文本后正文带 `- [ ] ` 前缀，是 `todosToContent` 的既有设计（为了记住勾选状态）；本轮随后用键盘把这些前缀删掉，才回到原始正文，并核对 `content` 相等。
 
-## 4. 环境噪声（如实记录，不归因于本改动）
+## 4. 出现过的 ANR（原因未确定）
 
-`pm clear` 后首次冷启动，**列表页**出现过一次 ANR：`Input dispatching timed out ... Waited 5002ms for FocusEvent(hasFocus=true)`（13:02:34）。主线程栈停在 Compose 绘制（`LinearGradientShader` → `BackgroundNode.draw`），没有任何本改动的帧，且发生在编辑页之外。强制停止后重启未复现。
+`pm clear` 后首次冷启动，**列表页**出现过一次 ANR：`Input dispatching timed out ... Waited 5002ms for FocusEvent(hasFocus=true)`（13:02:34）。主线程栈停在 Compose 绘制（`LinearGradientShader` → `BackgroundNode.draw`）。强制停止后重启未复现。
 
-证据：`logs/anr-coldstart-head.txt`（`dumpsys dropbox --print data_app_anr` 头部）。这条记录只为完整，不作为"改动无回归"的正面证据，也不拿它证明"改动有问题"。
+**定性：原因未确定。未证明由本改动引起，也未排除关联。**
+
+- 支持"不像本改动"的只有两点观察：栈里没有本改动的帧；发生页面是列表页而非编辑页。
+- 这两点只说明"没找到关联路径"，**不构成排除**：焦点事件与编辑页焦点通道同处一个应用进程，本轮没有做隔离实验（例如只回退两文件再冷启动复现），单次未复现也只是单次观察。
+- 因此这条既不写成"环境噪声，与本改动无关"，也不写成"改动引入回归"。
+
+证据：`logs/anr-coldstart-head.txt`（`dumpsys dropbox --print data_app_anr` 头部），原始摘要保留未删。不为这条单独重跑测试，也不拿它当"改动无回归"的正面证据。
 
 ## 5. 仍未验证（不因本轮通过而消失）
 

@@ -5,6 +5,7 @@
 - 工作分支：`ux/daily-ux-2`，独立工作区 `D:/SAVE-ORDER-UX-2-wt`（从基线新检出，未携带 `data/txn` 或任何未提交实验代码）
 - 本轮**只提交证据**；源码留在工作分支工作区，等待固定 SHA 评审。未合并 `main`、未建 PR、未改动 `fix/backup-safe-1` / `ux/daily-ux-1`。
 - 2026-11-12 补证：混排内容（文字 A → 内联图片 → 文字 B → 内联录音 → 文字 C）的模拟器回归，见 `supplement/SUPPLEMENT.md`。**补证未改源码，未重跑既有测试。**
+- 2026-11-12 评审通过后已固化：`ux/daily-ux-2` 上 `04f400f`（父 `ef4d98c`），内容与本目录 `source/` 逐字节一致，交付记录见 `DELIVERY.md`。
 
 ## 1. 先复现，再修改
 
@@ -147,6 +148,7 @@
 ```
 daily-ux-2/
 ├── INDEX.md                    本文件
+├── DELIVERY.md                 固化交付记录（源码 SHA / blob / 一致性 / APK 哈希与获取方式）
 ├── diff/daily-ux-2.diff        相对 ef4d98c 的完整补丁（2 文件，含新增测试）
 ├── source/                     改动文件的完整副本（保持仓库内相对路径）
 ├── test-results/               单测 3 份 XML + 仪器化 1 份 XML
@@ -202,3 +204,18 @@ alpha-A-block  →  ![图片](img_1794488727724.jpg)  →  bravo-B-line  →  !a
 1. 删除"高度判定不成立即保证事件放过"的断言（§2 第 3 条）。检测器与滚动容器同节点，`detectTapGestures` 仍会消费点击，只是不动作。
 2. 区分"本轮实测没有回退"与"实现保证所有情况不回退"（§6.1）。
 3. `git apply -c` 的错误写法改为 `git -c core.autocrlf=false apply`（§9）；混排验证只需模拟器，不需要真机（§6）。
+
+## 11. 固化交付（2026-11-12）
+
+评审通过后按原样固化，未改一行源码、未升级依赖。
+
+| 项 | 值 |
+|---|---|
+| 分支 / 提交 | `ux/daily-ux-2` / `04f400fe`（父 `ef4d98ce`） |
+| 提交内容 | 仅 2 文件，+152 / −7；不含 `data/txn`、`logs/`、配置、AAR、构建产物 |
+| 与 `source/` 一致性 | `cmp` 逐字节相同；blob `22e1471` / `02959c2` |
+| 与 `diff/daily-ux-2.diff` 一致性 | 暂存后 `git diff --cached` 与补丁逐行相同（252 行） |
+| 调试 APK | 57,903,885 字节，`705bb80f…87feca`，`assembleDebug` 产出，未入库 |
+| 测试 | **固化轮未重跑**；9/87 仍是 `bf240c4` 的原始结果 |
+
+细节见 `DELIVERY.md`。ANR 一条（`supplement/SUPPLEMENT.md` §4）已收紧为"原因未确定，未证明由本改动引起，也未排除关联"，原始摘要未删、未为此重跑。
