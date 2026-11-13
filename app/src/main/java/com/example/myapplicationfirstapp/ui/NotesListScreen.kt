@@ -14,7 +14,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,7 +72,6 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.nonInteractiveScrollbar
 import androidx.compose.material3.toShape
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -161,6 +159,29 @@ fun NotesListScreen(
     val pinned = notes.filter { it.pinned }
     val regular = notes.filterNot { it.pinned }
     val showSections = !isFiltering && pinned.isNotEmpty() && regular.isNotEmpty()
+
+    // LazyColumn 显示项 -> 笔记的映射（筛选行/分区标题/空状态记为 null）。
+    // 快速定位气泡按这份映射解析目标笔记，不拿 index 直接当笔记下标；
+    // 顺序与下面 items/item 的添加顺序逐项对应。
+    val displayNotes: List<Note?> = buildList {
+        add(null) // __filters__
+        when {
+            notes.isEmpty() -> add(null) // __empty__
+            showSections -> {
+                add(null) // __h_pin__
+                pinned.forEach { add(it) }
+                add(null) // __h_recent__
+                regular.forEach { add(it) }
+            }
+            else -> notes.forEach { add(it) }
+        }
+    }
+    // 数据/排序/筛选/置顶任一变化的指纹：拖动中变了就终止旧映射
+    val listDataKey = notes.hashCode() * 31 +
+        state.query.hashCode() +
+        state.filter.ordinal * 7 +
+        (state.selectedTag?.hashCode() ?: 0) +
+        state.sortMode.ordinal * 13
 
     Column(
         modifier = modifier
@@ -380,23 +401,13 @@ fun NotesListScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    // 底部让出 96dp：列表和滚动条都止于悬浮导航栏上方，
-                    // 否则滚到底时最后一条会被导航栏压住、滚动条也穿进导航栏
-                    .padding(bottom = 96.dp)
-                    .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    // material3 1.5 官方滚动条
-                    .nonInteractiveScrollbar(
-                        state = listState.scrollIndicatorState!!,
-                        orientation = Orientation.Vertical,
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        trackColor = Color.Transparent,
-                        thickness = 8.dp,
-                        thumbMinLength = 48.dp,
-                        thumbMaxLengthFraction = 0.5f,
-                        isFadeEnabled = false,
-                        mainAxisTrackInset = 10.dp,
-                        crossAxisTrackInset = 6.dp
-                    ),
+                    // 底部让出 96dp：列表止于悬浮导航栏上方，
+                    // 否则滚到底时最后一条会被导航栏压住。
+                    // 滚动条已换成自定义可拖动版本（见下方 NotesListScrollbar），
+                    // 这里不再挂 material3 的 nonInteractiveScrollbar——
+                    // 同一列表不允许同时出现两套指示器。
+                    .padding(bottom = ListVisualTokens.listBottomReserve)
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
                     // 卡片左右缘压在 24dp 页面上；右侧不再额外留 28dp，
                     // 滚动条交给 crossAxisTrackInset 处理，避免「左右不等宽」
@@ -567,6 +578,21 @@ fun NotesListScreen(
                     .offset(y = (-96).dp)
                     .alpha(bottomFade)
                     .background(Brush.verticalGradient(listOf(bg.copy(alpha = 0f), bg)))
+            )
+
+            // 右侧快速定位：替换掉原来的 nonInteractiveScrollbar。
+            // 整层只画，接收手势的只有手柄那一段 40dp；高度扣掉 96dp 导航保留区，
+            // 所以不会盖住顶栏/搜索框，也不会伸进悬浮导航。
+            NotesListScrollbar(
+                listState = listState,
+                displayNotes = displayNotes,
+                sortMode = state.sortMode,
+                strings = s,
+                dataKey = listDataKey,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .fillMaxSize()
+                    .padding(bottom = ListVisualTokens.listBottomReserve)
             )
 
         }
