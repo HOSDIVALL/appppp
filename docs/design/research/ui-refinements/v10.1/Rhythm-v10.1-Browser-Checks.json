@@ -1,0 +1,186 @@
+{
+  "original": {
+    "name": "Rhythm-Reading-Layout-Lab-v10.html",
+    "bytes": 23659,
+    "sha256": "e142b2ee147a450a91038c6c8bfaa866dfc00043bb01c8f75194b6a6930cc10f"
+  },
+  "refined": {
+    "name": "Rhythm-Reading-Layout-Lab-v10.1.html",
+    "bytes": 41889,
+    "sha256": "ca0cc6355cdda347cecd76b5ca9eb26e13ab5da9ccd514376f1e349519bf8671"
+  },
+  "engine": "headless Chromium via Playwright",
+  "baseline": [
+    {
+      "viewport": "1440x1080",
+      "document_width": 1440,
+      "errors": []
+    },
+    {
+      "viewport": "390x844",
+      "document_width": 390,
+      "errors": []
+    }
+  ],
+  "selected_checks": [
+    {
+      "case": "原版机制输出一致：header",
+      "passed": true,
+      "comparison_count": 36
+    },
+    {
+      "case": "原版机制输出一致：enabled",
+      "passed": true,
+      "comparison_count": 32
+    },
+    {
+      "case": "原版机制输出一致：smooth",
+      "passed": true,
+      "comparison_count": 11
+    },
+    {
+      "case": "原版机制输出一致：placements",
+      "passed": true,
+      "comparison_count": 8
+    },
+    {
+      "case": "fraction预设与读数",
+      "passed": true
+    },
+    {
+      "case": "Both禁用不参与的图标策略",
+      "passed": true
+    },
+    {
+      "case": "未接线参数仍不改Both结果",
+      "passed": true
+    },
+    {
+      "case": "初始收起条件",
+      "passed": true
+    },
+    {
+      "case": "初始收起不是永久锁定",
+      "passed": true
+    },
+    {
+      "case": "透明遮罩仍清空像素",
+      "passed": true
+    },
+    {
+      "case": "透明时原文对照仍可读",
+      "passed": true
+    },
+    {
+      "case": "alpha1恢复遮罩文字",
+      "passed": true
+    },
+    {
+      "case": "直接路径不误读全局开关",
+      "passed": true
+    },
+    {
+      "case": "Modifier关闭时停用且alpha不适用",
+      "passed": true
+    },
+    {
+      "case": "Modifier保持原延迟速度",
+      "passed": true
+    },
+    {
+      "case": "Web暂停像素及重复绘制停止",
+      "passed": true
+    },
+    {
+      "case": "暂停时仍响应编辑",
+      "passed": true
+    },
+    {
+      "case": "静态对照可收起",
+      "passed": true
+    },
+    {
+      "case": "中点两侧渐隐",
+      "passed": true
+    },
+    {
+      "case": "state优先级不改",
+      "passed": true
+    },
+    {
+      "case": "零宽取消mask",
+      "passed": true
+    },
+    {
+      "case": "默认满幅渐隐仍50",
+      "passed": true
+    },
+    {
+      "case": "步进边界禁用前移",
+      "passed": true
+    },
+    {
+      "case": "步进实际滚动",
+      "passed": true
+    },
+    {
+      "case": "普通点击保留计数",
+      "passed": true
+    },
+    {
+      "case": "鼠标拖动滚动但不误点",
+      "passed": true
+    },
+    {
+      "case": "侧向布局不伪改首选映射",
+      "passed": true
+    },
+    {
+      "case": "长提示保持正文而非HTML注入",
+      "passed": true
+    },
+    {
+      "case": "手动隐藏与锚点一致",
+      "passed": true
+    },
+    {
+      "case": "深色主题",
+      "passed": true
+    },
+    {
+      "case": "来源导航有效",
+      "passed": true
+    },
+    {
+      "case": "390px无整页横向溢出",
+      "passed": true
+    },
+    {
+      "case": "390px长侧提示不溢出",
+      "passed": true
+    },
+    {
+      "case": "360px无整页横向溢出",
+      "passed": true
+    },
+    {
+      "case": "360px长侧提示不溢出",
+      "passed": true
+    },
+    {
+      "case": "减动效偏好默认暂停Web位移",
+      "passed": true
+    },
+    {
+      "case": "无未捕获JS异常",
+      "passed": true,
+      "errors": []
+    }
+  ],
+  "passed": 37,
+  "mechanism_comparison_cases_included": 87,
+  "renderMarquee_body_byte_identical": true,
+  "original_ids_preserved": 43,
+  "native_validation": false,
+  "repository_written": false
+}

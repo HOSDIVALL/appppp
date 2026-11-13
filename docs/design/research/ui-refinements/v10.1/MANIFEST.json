@@ -1,0 +1,27 @@
+{
+  "scope": "User-supplied v10 HTML refinement only",
+  "original": {
+    "name": "Rhythm-Reading-Layout-Lab-v10.html",
+    "bytes": 23659,
+    "sha256": "e142b2ee147a450a91038c6c8bfaa866dfc00043bb01c8f75194b6a6930cc10f"
+  },
+  "files": [
+    {
+      "name": "Rhythm-Reading-Layout-Lab-v10.1.html",
+      "bytes": 41889,
+      "sha256": "ca0cc6355cdda347cecd76b5ca9eb26e13ab5da9ccd514376f1e349519bf8671"
+    },
+    {
+      "name": "Rhythm-v10.1-UI-Refinement-Notes.md",
+      "bytes": 3416,
+      "sha256": "c8e5ab325ad64a3810c665ad0b09322b18294f22ab00a14dfbbb01ef91420d19"
+    },
+    {
+      "name": "Rhythm-v10.1-Browser-Checks.json",
+      "bytes": 3888,
+      "sha256": "1f6c604cb7be6b0d88e99725b6ce1daf213f16ad422dcef8564467f4b77d3290"
+    }
+  ],
+  "repository_write": false,
+  "database_updated": false
+}
