@@ -1,7 +1,7 @@
 {
   "snapshot": "2026-11-13 11:36 CST",
   "upstream": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
-  "remote_state": "index_only_database_body_not_uploaded",
+  "remote_state": "database_and_json_archived",
   "counts": {
     "inventory_files": 96,
     "complete": 29,
@@ -17,13 +17,15 @@
     "name": "Rhythm-UI-Knowledge-20261113.sqlite3",
     "bytes": 983040,
     "sha256": "c25a8800a59895ff78ce659f9c175bebe96e68f8f57bdcebce63cc1e14b3fb49",
-    "remote_uploaded": false
+    "remote_uploaded": true,
+    "path": "docs/design/research/snapshots/20261113-1136/Rhythm-UI-Knowledge-20261113.sqlite3"
   },
   "json_export": {
     "name": "Rhythm-UI-Knowledge-20261113.json",
     "bytes": 454612,
     "sha256": "3870dafd4d15520941ee019d8ec107586661818bb35f50bfdb3d3f11f143065f",
-    "remote_uploaded": false
+    "remote_uploaded": true,
+    "path": "docs/design/research/snapshots/20261113-1136/Rhythm-UI-Knowledge-20261113.json"
   },
   "zip": {
     "name": "Rhythm-UI-Knowledge-Snapshot-20261113.zip",
