@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -738,18 +739,35 @@ private fun NoteRow(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
-        }
 
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(if (note.pinned) strings.unpin else strings.pin) },
-                leadingIcon = { Icon(Icons.Filled.Star, null) },
-                onClick = {
-                    menuOpen = false
-                    onTogglePin()
+                // 尾部「更多操作」入口：48×48 触控区，图标 20dp，沿用既有色角色。
+                // 点它只把本行的 menuOpen 置真，不调用 onClick、不触发删除或置顶；
+                // 菜单仍是一套——长按与点这里打开的是同一个 menuOpen。
+                Box {
+                    IconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = strings.noteActions(note.displayTitle),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(if (note.pinned) strings.unpin else strings.pin) },
+                            leadingIcon = { Icon(Icons.Filled.Star, null) },
+                            onClick = {
+                                menuOpen = false
+                                onTogglePin()
+                            }
+                        )
+                    }
                 }
-            )
+            }
         }
     }
 }

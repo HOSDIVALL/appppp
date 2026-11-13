@@ -1,0 +1,356 @@
+{
+  "task": "UX-LIST-ACTION-1",
+  "title": "笔记列表行的可见「更多操作」入口",
+  "branch": "ux/list-actions-1",
+  "baseline_commit": "7f141485b57b87fcbd60a4ef98ceeb2420f4bbd8",
+  "baseline_branch": "ux/daily-ux-6",
+  "isolation": "独立 git worktree，与主工作树分离；参考研究 4487ddd 只读，未合并",
+  "device": {
+    "serial": "emulator-5554",
+    "kind": "emulator",
+    "avd": "Medium_Phone_API_37.0",
+    "api": 37,
+    "ro_kernel_qemu": "1",
+    "resolution_px": [1080, 2400],
+    "density_dp_scale": 2.625,
+    "real_device_used": false,
+    "data_cleared": false,
+    "app_uninstalled": false,
+    "install_mode": "adb install -r（保留数据），未使用 -d"
+  },
+  "data": {
+    "pristine": {
+      "notes_sha256": "3fa693ac54c584466a086b9c7750cd1496a8353a5d73f5e4bae22708562df5c4",
+      "notes_size": 17123,
+      "settings_sha256": "c98eb4b71ada669a004b3a66c2b28b058e6e554b2dbf56a937543c0d7bb5098f",
+      "settings_size": 116,
+      "note": "测试前备份，全部验收结束后逐字节写回"
+    },
+    "synthetic": {
+      "notes_sha256": "2a6210ecac663b64a506093b71ff3fd864c5dce52ed8e138f8be2ab61b1300b7",
+      "notes_size": 18527,
+      "count": 45,
+      "deleted_count": 0,
+      "duplicate_title": "UXLA1 同名笔记",
+      "duplicate_ids": ["uxla1-dup-a", "uxla1-dup-b"],
+      "note": "全部为合成数据，标题统一 UXLA1 / UX5-01 前缀；证据截图与层级只用这份数据"
+    },
+    "restored_after_tests": {
+      "notes_sha256": "3fa693ac54c584466a086b9c7750cd1496a8353a5d73f5e4bae22708562df5c4",
+      "settings_sha256": "c98eb4b71ada669a004b3a66c2b28b058e6e554b2dbf56a937543c0d7bb5098f",
+      "verified_by": "adb exec-out run-as <pkg> cat（exec-out 不做 pty 换行转换）",
+      "result": "MATCH"
+    }
+  },
+  "code_change": {
+    "notes_list_screen": {
+      "file": "app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt",
+      "baseline_blob": "a4d9542",
+      "new_blob": "760db89",
+      "added_lines": 28,
+      "deleted_lines": 10,
+      "summary": "在 NoteRow 的 Row 末尾（Column 之后）加一个 Box：内含 IconButton(size 48.dp) 与既有 DropdownMenu；Icon 为 Icons.Filled.MoreVert、20dp、tint=onSurfaceVariant、contentDescription=strings.noteActions(title)；onClick 仅把 menuOpen 置真"
+    },
+    "app_strings": {
+      "file": "app/src/main/java/com/example/myapplicationfirstapp/ui/i18n/AppStrings.kt",
+      "baseline_blob": "37765a8",
+      "new_blob": "8b45674",
+      "added_lines": 9,
+      "deleted_lines": 2,
+      "summary": "新增成员函数 noteActions(title)（中：笔记操作：$title / 英：Note actions: $title）；首页提示改为「共 %d 条 · 左滑删除，长按或点更多」与「%d notes · swipe to delete, hold or tap more」，%d 占位符保留"
+    },
+    "test_file": {
+      "file": "app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListActionsTest.kt",
+      "cases": 6,
+      "summary": "JVM 单测，只锁文案契约（入口无障碍名字带标题、中英都有、首页提示与入口一致）"
+    },
+    "untouched": [
+      "Note / NotesState / AppSettings / NotesRepository / NotesWriteCoordinator / NotesFileOps",
+      "MainActivity / 编辑页 / 录音页",
+      "构建脚本、SDK、Gradle、依赖版本"
+    ]
+  },
+  "checks": [
+    {
+      "id": "T0",
+      "intent": "先证明缺口真实存在：改动前列表行有没有可见的更多入口",
+      "result": "PASS",
+      "method": "完整读 NotesListScreen.kt（837 行）确认 NoteRow 只有 combinedClickable(onLongClick -> menuOpen)，无可见按钮；设备层级实测",
+      "observation": "改动前层级里 content-desc 含「笔记操作」的节点为 0 个；长按 800ms 能弹出菜单（7 节点，仅「置顶」一项），说明能力本来就在、只是没有可见入口",
+      "metrics": { "nodes": 86, "more_entry_count": 0, "longpress_menu_nodes": 7 },
+      "evidence": [
+        "evidence/T0/01-baseline-list.png",
+        "evidence/T0/02-baseline-longpress-menu.png",
+        "evidence/T0/03-baseline-with-synthetic.png",
+        "evidence/T0/t0-hierarchy.xml",
+        "evidence/T0/t0-longpress-menu.xml",
+        "evidence/T0/t0-with-synthetic.xml"
+      ]
+    },
+    {
+      "id": "T1",
+      "intent": "点标题仍然打开笔记，且打开的是点中的那一条",
+      "result": "PASS",
+      "method": "点第一条同名笔记的标题 → 层级核对编辑页正文",
+      "observation": "编辑页正文为 dup-a 的正文「同名笔记 A 的正文，用于确认操作目标按稳定 ID 区分。」；点开后没有把焦点送进正文（键盘未弹出）。键盘状态是当时用 dumpsys input_method 看的，未单独存档",
+      "metrics": { "editor_has_dup_a_body": true },
+      "evidence": [
+        "evidence/T1/01-opened-from-title.png",
+        "evidence/T1/t1-list-before.xml",
+        "evidence/T1/t1-editor.xml"
+      ]
+    },
+    {
+      "id": "T2",
+      "intent": "点「更多」只开菜单，不打开笔记、不改数据",
+      "result": "PASS",
+      "method": "点行尾更多按钮 → 层级与截图 → 拉取 notes.json 比对哈希",
+      "observation": "弹出菜单只有一项「置顶」（7 节点，与基线长按菜单同一套），列表数据哈希保持 2a6210ec 未变，未进入编辑页",
+      "metrics": { "menu_nodes": 7, "menu_items": ["置顶"], "notes_sha256_after": "2a6210ecac663b64a506093b71ff3fd864c5dce52ed8e138f8be2ab61b1300b7" },
+      "evidence": [
+        "evidence/T2/01-more-menu-open.png",
+        "evidence/T2/t2-popup.xml"
+      ]
+    },
+    {
+      "id": "T3",
+      "intent": "长按这条老路没被新按钮挤掉，且和点更多是同一套菜单",
+      "result": "PASS",
+      "method": "长按行 800ms → 层级",
+      "observation": "同样只有一项「置顶」，节点数与 T2 一致（7），无多选模式、无批量操作提示",
+      "metrics": { "menu_nodes": 7, "menu_items": ["置顶"], "selection_mode": false },
+      "evidence": [
+        "evidence/T3/01-longpress-menu.png",
+        "evidence/T3/t3-longpress-popup.xml"
+      ]
+    },
+    {
+      "id": "T4",
+      "intent": "菜单里的置顶照旧生效，且只作用于被点的那一条",
+      "result": "PASS",
+      "method": "从更多菜单点「置顶」→ 拉取数据；再从菜单点「取消置顶」→ 拉取数据",
+      "observation": "置顶后只有 uxla1-dup-b 的 pinned 变 true（逐 id 比对，其余 44 条无字段变化）；取消后数据哈希回到 2a6210ec，与测试前的合成数据集完全一致",
+      "metrics": {
+        "changed_after_pin": [{ "id": "uxla1-dup-b", "field": "pinned", "from": false, "to": true }],
+        "changed_after_unpin": [],
+        "restored_sha256": "2a6210ecac663b64a506093b71ff3fd864c5dce52ed8e138f8be2ab61b1300b7"
+      },
+      "evidence": [
+        "evidence/T4/01-after-pin-menu-tap.png",
+        "evidence/T4/t4-after-pin.xml",
+        "evidence/T4/t4-unpin-menu.xml"
+      ]
+    },
+    {
+      "id": "T5",
+      "intent": "点菜单外部或返回能关闭菜单，回到列表且不改数据",
+      "result": "PASS",
+      "method": "点空白处 / 按返回 → 层级",
+      "observation": "层级回到 102 节点的列表结构，弹出区（右侧 y≈1413 那条）消失；层级里另有两处「置顶」文字（顶部筛选 chip 与列表文本），不是菜单项",
+      "metrics": { "nodes_after_close": 102, "popup_gone": true, "notes_sha256_after": "2a6210ecac663b64a506093b71ff3fd864c5dce52ed8e138f8be2ab61b1300b7" },
+      "evidence": [
+        "evidence/T5/01-outside-tap-closed.png",
+        "evidence/T5/t5-after-close.xml"
+      ]
+    },
+    {
+      "id": "T6",
+      "intent": "横滑取消路径（不跨删除阈值）不受新按钮影响",
+      "result": "PASS",
+      "method": "慢速短距横滑 120px（约 46dp，低于删除阈值的 35% 行宽），松手后回弹",
+      "observation": "条数仍 45，数据哈希仍 2a6210ec，未进编辑页，也未产生回收站条目",
+      "metrics": { "swipe_px": 120, "swipe_dp": 45.7, "threshold_ratio": 0.35, "count_after": 45, "notes_sha256_after": "2a6210ecac663b64a506093b71ff3fd864c5dce52ed8e138f8be2ab61b1300b7" },
+      "evidence": [
+        "evidence/T6/01-swipe-cancel.png",
+        "evidence/T6/02-swipe-below-threshold-cancel.png",
+        "evidence/T6/t6-list-before.xml",
+        "evidence/T6/t6-after-cancel.xml",
+        "evidence/T6/t6-after-cancel2.xml",
+        "evidence/T6/t6-restored.xml"
+      ]
+    },
+    {
+      "id": "T7",
+      "intent": "搜索态下点结果进编辑页、返回后搜索状态还在",
+      "result": "PASS",
+      "method": "搜 UXLA1 → 点结果 → 返回 → 层级",
+      "observation": "返回后仍是「匹配 4 条笔记」，搜索框里 query「UXLA1」还在，focused=true 的节点为 0（焦点没丢在正文里）",
+      "metrics": { "match_count_text": "匹配 4 条笔记", "focused_nodes": 0, "query_kept": "UXLA1", "nodes": 95 },
+      "evidence": [
+        "evidence/T7/01-search-typed.png",
+        "evidence/T7/02-editor-from-search.png",
+        "evidence/T7/03-back-to-results.png",
+        "evidence/T7/t7-search-results.xml",
+        "evidence/T7/t7-editor.xml",
+        "evidence/T7/t7-back-to-results.xml"
+      ]
+    },
+    {
+      "id": "T8",
+      "intent": "两条同名笔记不会串行：置顶只落在被点的那一条",
+      "result": "PASS",
+      "method": "对两条同名笔记分别从各自行的更多菜单置顶，逐 id 比对 pinned",
+      "observation": "置顶 a 后只有 uxla1-dup-a 变 true（uxla1-dup-b 保持 false）；复原后数据哈希回到 2a6210ec",
+      "metrics": {
+        "changed_after_pin_a": [{ "id": "uxla1-dup-a", "field": "pinned", "from": false, "to": true }],
+        "sibling_untouched": "uxla1-dup-b"
+      },
+      "evidence": [
+        "evidence/T8/01-menu-on-first-dup.png",
+        "evidence/T8/02-after-pin-a.png",
+        "evidence/T8/t8-before.xml",
+        "evidence/T8/t8-menu-a.xml",
+        "evidence/T8/t8-after-pin-layout.xml"
+      ]
+    },
+    {
+      "id": "T9",
+      "intent": "中英切换与深色模式下入口可读；触控区尺寸达标",
+      "result": "PASS",
+      "method": "设置里切英文 → 列表层级；切深色 → 截图；复原后核对 settings.xml；用层级 bounds 折算 dp",
+      "observation": "英文下 6 条 content-desc 为「Note actions: …」，中文复原后 6 条为「笔记操作：…」；深色下截图可见图标与文字对比正常；可点容器 126×126px = 48.0dp，内层图标 53×53px ≈ 20.2dp",
+      "metrics": {
+        "en_desc_count": 6,
+        "zh_desc_count_after_restore": 6,
+        "touch_target_px": 126,
+        "touch_target_dp": 48.0,
+        "icon_px": 53,
+        "icon_dp": 20.2,
+        "settings_sha256_after_restore": "c98eb4b71ada669a004b3a66c2b28b058e6e554b2dbf56a937543c0d7bb5098f"
+      },
+      "evidence": [
+        "evidence/T9/01-settings-zh.png",
+        "evidence/T9/02-settings-en.png",
+        "evidence/T9/03-list-en-search.png",
+        "evidence/T9/04-list-en-dark.png",
+        "evidence/T9/06-restored-zh-light.png",
+        "evidence/T9/list-en-dark.xml",
+        "evidence/T9/restored-list.xml",
+        "evidence/T9/settings-en.xml",
+        "evidence/T9/settings-zh.xml"
+      ]
+    },
+    {
+      "id": "T10",
+      "intent": "新建与编辑这类原有主路径没被新按钮挡住",
+      "result": "PASS",
+      "method": "FAB 新建一条笔记 → 拉数据；点已有笔记进编辑页改正文并保存 → 拉数据",
+      "observation": "新建后 45 → 46 条；编辑后只有 uxla1-dup-b 的 content 变化（含 EDIT10 标记），uxla1-dup-a 内容未变。输入时 IME 把连字符吃掉了一次（T10-new-note-body 变成 T10-new--by），如实记录，未重跑掩盖",
+      "metrics": {
+        "count_after_new": 46,
+        "new_note_count": 1,
+        "changed_after_edit": [{ "id": "uxla1-dup-b", "field": "content" }],
+        "sibling_untouched": "uxla1-dup-a"
+      },
+      "evidence": [
+        "evidence/T10/01-new-note-editor.png",
+        "evidence/T10/02-new-note-typed.png",
+        "evidence/T10/03-after-back-to-list.png",
+        "evidence/T10/04-editor-dup-b.png",
+        "evidence/T10/05-body-edited.png",
+        "evidence/T10/list-after-new.xml",
+        "evidence/T10/editor-dup-b.xml"
+      ]
+    },
+    {
+      "id": "T11",
+      "intent": "键盘焦点能走到「更多」并激活、返回关闭",
+      "result": "PASS",
+      "method": "TAB 逐次推进，每次 dump 后动态比对：focused 节点 bounds 是否落在「更多」可点容器集合（该集合由带 content-desc 的图标向上找最近可点祖先算出）",
+      "observation": "第 10 次 TAB 焦点落在 [849,1177][975,1303]（126×126px = 48dp），即该行的更多按钮；按 ENTER 后弹出菜单（7 节点，「取消置顶」——该行本就是置顶笔记）；按 BACK 菜单关闭，回到 100 节点的列表页，未进编辑页，数据哈希仍 2a6210ec",
+      "metrics": {
+        "tab_presses": 10,
+        "focused_bounds": "[849,1177][975,1303]",
+        "focused_size_px": [126, 126],
+        "menu_nodes_after_enter": 7,
+        "nodes_after_back": 100,
+        "notes_sha256_after": "2a6210ecac663b64a506093b71ff3fd864c5dce52ed8e138f8be2ab61b1300b7"
+      },
+      "caveat": "键盘焦点落在可点容器上，容器的 content-desc 为空，说明文本挂在内层图标节点。读屏（TalkBack）走的是语义树、不是键盘焦点，因此本项只证明「键盘可达可激活」，不构成读屏播报内容的实测结论",
+      "evidence": [
+        "evidence/T11/t11-init.xml",
+        "evidence/T11/tab-1.xml",
+        "evidence/T11/tab-10.xml",
+        "evidence/T11/t11-after-enter.xml",
+        "evidence/T11/t11-after-back.xml",
+        "evidence/T11/t11-enter-menu.png",
+        "evidence/T11/t11-back-closed.png"
+      ]
+    }
+  ],
+  "test_self_errors": [
+    {
+      "id": "E1",
+      "case": "T6 第一次横滑",
+      "what": "我给的位移 260px（约 99dp）超过了删除阈值（行宽 35%），把 uxla1-dup-a 移进了回收站",
+      "impact": "污染了合成数据（该条 deletedAt 被写入）",
+      "fix": "force-stop 后写回 device-new/notes.json，哈希回到 2a6210ec、条数回到 45；改用 120px（约 46dp）慢速横滑重测取消路径",
+      "note": "这是测试动作越界，不是产品缺陷；没有把这次误删当成产品问题上报"
+    },
+    {
+      "id": "E2",
+      "case": "T9 / T10 多次按返回",
+      "what": "T9 在语言页返回后已在列表，我又按了一次 BACK 退出到桌面；T10 在编辑页先按 BACK 只关了键盘，再按一次退出了 App",
+      "impact": "打断了操作连续性，需要重新拉起应用并重新定位行",
+      "fix": "用 am start 重新拉起并重新拉层级定位；偏好切换改为最后直接写回 device-pre/settings.xml",
+      "note": "没有把「退到桌面」记成产品行为"
+    },
+    {
+      "id": "E3",
+      "case": "T10 输入文字",
+      "what": "input text 的连字符串被 IME 吞掉，T10-new-note-body 落成 T10-new--by",
+      "impact": "新建笔记的正文与预期字面不同",
+      "fix": "如实记录，未重跑掩盖；后续改用无连字符串",
+      "note": "输入法是模拟器自带 IME，不是 App 的输入问题，未据此下任何结论"
+    },
+    {
+      "id": "E4",
+      "case": "T11 第一版检测",
+      "what": "我只找「content-desc 非空且 focused=true」的节点，据此判定 TAB 走不到更多按钮，当时准备登记 NOT_RUN",
+      "impact": "结论错误：层级里可点容器 focused=true 但 content-desc 为空，文本在内层图标节点（focusable=false），所以过滤条件把真正的焦点筛掉了",
+      "fix": "改为「focused 节点 bounds 是否等于该行更多按钮的 bounds」，TAB 第 10 次即命中并完成激活/关闭；原 NOT_RUN 结论已撤销",
+      "note": "已复核旧层级：after-tabs.xml 里 focused 节点本来就是 [849,1283][975,1409]（126×126），当时就已达达，是解析写错"
+    },
+    {
+      "id": "E5",
+      "case": "settings.xml 校验",
+      "what": "第一次用 adb shell cat 取 settings.xml，得到 120 B、哈希 2dec1581…，看起来被改过",
+      "impact": "一度以为测试污染了偏好文件",
+      "fix": "改用 adb exec-out 取原始字节，得到 116 B、哈希 c98eb4b7…，与测试前完全一致",
+      "note": "差异来自 adb shell 的 pty 把 LF 转成 CRLF，不是数据被改"
+    }
+  ],
+  "not_run": [
+    {
+      "item": "connectedDebugAndroidTest（AGP 托管方式）",
+      "reason": "AGP 跑完会卸载 app 与测试 APK，files/ 与 shared_prefs/ 随之清空（本仓库此前已因此丢过一次现场数据）。本次改为手动 install -r + am instrument",
+      "impact": "无：设备数据已用 exec-out 逐字节核对未变"
+    },
+    {
+      "item": "Compose UI 测试（androidTest）",
+      "reason": "espresso-core 3.5.1 在 API 37 上反射 android.hardware.input.InputManager.getInstance() 抛 NoSuchMethodException，测试规则初始化即失败（7 用例全 Error）；任务禁止升级依赖",
+      "impact": "UI 行为改由模拟器实测覆盖；7 个 Error 不作为通过数"
+    },
+    {
+      "item": "真机验证",
+      "reason": "任务指定的设备就是模拟器 emulator-5554 / API 37",
+      "impact": "无"
+    },
+    {
+      "item": "TalkBack 实际播报内容",
+      "reason": "未在开启读屏的情况下录制播报",
+      "impact": "T11 只证明键盘可达可激活，不声称读屏播报已验证"
+    }
+  ],
+  "boundaries": [
+    "未改 Note / NotesState / AppSettings / NotesRepository / NotesWriteCoordinator / NotesFileOps",
+    "未引入手动排序、MANUAL、rank 等排序概念",
+    "未新增删除、清空等业务动作；菜单仍是既有「置顶 / 取消置顶」一项",
+    "未改 MainActivity、编辑页、录音页",
+    "未新增依赖、未改 SDK / Gradle / 版本号",
+    "未绕开 writer 直接写文件",
+    "未 force push、未合并 main、未创建 PR",
+    "未提交 APK、AAR、笔记数据、录音、图片"
+  ],
+  "conclusion": "两个生产文件改动 + 参数化文案；模拟器上 T0–T11 全部通过；APK 构建成功；APK 作为本地交付物；远端回读完成后才标 DONE"
+}

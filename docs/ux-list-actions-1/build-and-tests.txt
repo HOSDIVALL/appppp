@@ -1,0 +1,120 @@
+UX-LIST-ACTION-1 构建与测试记录
+================================================================
+记录日期：2026-11-13
+基线提交：7f141485b57b87fcbd60a4ef98ceeb2420f4bbd8（ux/daily-ux-6）
+分支：ux/list-actions-1（新工作树，与主工作树隔离）
+设备：emulator-5554，API 37，ro.kernel.qemu=1（模拟器，非真机）
+
+工具链（全部沿用仓库现状，未改动任何版本号）
+----------------------------------------------------------------
+Gradle 9.6.0 / AGP 9.5.0 / compileSdk=targetSdk=37 / minSdk=24
+JDK：<sdk>/jbr（OpenJDK 25.0.4）
+构建参数：./gradlew <task> --console=plain，从未执行 clean
+
+缺失依赖的处理
+----------------------------------------------------------------
+仓库 .gitignore 忽略 app/libs/*.aar，工作树里原本没有
+app/libs/sherpa-onnx-2.0.1.aar，首次构建失败（找不到该 AAR）。
+从同机旧工作区复制同版本文件后构建通过：
+  文件：sherpa-onnx-2.0.1.aar
+  大小：49,441,341 B
+  SHA-256：a8d09d1d32f3eb8520482c6d3d43fae674681c5b050385967c70a3c2c9bf0ee7
+该文件被 .gitignore 忽略，未提交，也未改动任何 Gradle 配置。
+
+1. 基线构建（源码零改动，起点 7f14148）
+----------------------------------------------------------------
+命令：./gradlew assembleDebug
+日志：logs/build-baseline.log
+结果：BUILD SUCCESSFUL in 1m 47s（37 actionable tasks: 37 executed）
+产物：app-debug.apk
+  大小：57,387,528 B
+  SHA-256：3f7d9a1ceb1034e7c3a7b6fec7ef602bc7018835a1af9bc72900981fbb342a57
+说明：该哈希与历史 DAILY-UX-6 交付的 APK 完全一致，说明基线在工作树上
+      可复现；本次构建后该产物被新版构建覆盖，未保留独立副本，
+      复验需 checkout 7f14148 重新构建。
+
+2. 新版构建（两个生产文件改动后）
+----------------------------------------------------------------
+命令：./gradlew assembleDebug
+日志：logs/build-new.log
+结果：BUILD SUCCESSFUL in 25s（37 actionable tasks: 4 executed, 33 up-to-date）
+产物：app-debug.apk
+  大小：57,924,609 B
+  SHA-256：51d3dc0ec3bd82f131343620ef2986c8644348f3456d4c10a79c2c7db8a0f056
+增量：+537,081 B（新增 MoreVert 图标与字符串路径，无新依赖）
+警告：仅 Compose 既有废弃 API 警告（InputField / Icons.Filled.Sort /
+      ListItem / rememberModalBottomSheetState），与本次改动无关，
+      改动前后都存在，未新增警告类型。
+
+3. 尝试为 UI 行为补 androidTest（失败，已撤回）
+----------------------------------------------------------------
+思路：新增 NotesListActionsTest.kt（androidTest + createComposeRule），
+      用 Compose 语义树断言"每行有更多入口 / 触控区 ≥48dp / 点击不打开笔记"。
+命令：./gradlew assembleDebug assembleDebugAndroidTest
+结果：测试 APK 编译打包成功（BUILD SUCCESSFUL in 40s，见
+      logs/build-with-test.log），仅有 createComposeRule 的 v2 API 弃用警告。
+安装：adb install -r（app 与 test APK），保留应用数据。
+执行：adb shell am instrument -w -r \
+        -e class com.example.myapplicationfirstapp.ui.NotesListActionsTest \
+        com.example.myapplicationfirstapp.test/androidx.test.runner.AndroidJUnitRunner
+日志：logs/instrument-NotesListActionsTest.txt
+结果：Tests run: 7, Failures: 7，全部 Error，无一进入断言体。
+
+失败根因（不是本改动引入，也不是测试代码写错）
+  测试规则初始化阶段就崩：
+    AndroidComposeTestRule$apply$1.evaluate
+      -> androidx.compose.ui.test.EspressoLink.runUntilIdle
+        -> androidx.test.espresso.Espresso.onIdle
+          -> java.lang.NoSuchMethodException:
+             android.hardware.input.InputManager.getInstance []
+  即 espresso-core 3.5.1 通过反射调用 InputManager.getInstance()，
+  该方法在 API 31+ 已不可反射访问，API 37 上直接抛异常。
+  7 个用例（含一个只读写沙箱 JSON、不做任何 UI 交互的用例）全部在
+  规则初始化时失败，证明失败点与断言无关。
+
+处置：任务明确禁止新增/升级依赖、禁止改 Gradle，故不升级 espresso。
+      该 androidTest 文件已删除（git status 干净，未进入任何提交），
+      UI 行为改由"模拟器实测 + 层级/截图"覆盖。
+      这条记录保留下来，是为了说明"为什么没有 Compose UI 测试"，
+      而不是把 7 个 Error 当成 7 个通过。
+
+4. JVM 单测（新增 6 个用例 + 既有用例全量重跑）
+----------------------------------------------------------------
+新增文件：app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListActionsTest.kt
+  只锁文案契约（入口的无障碍名字必须带标题、中英都要有、首页提示与入口一致），
+  不假装能替代 UI 行为验证。
+
+4.1 只跑新增用例
+  命令：./gradlew testDebugUnitTest --tests "com.example.myapplicationfirstapp.ui.NotesListActionsTest"
+  日志：logs/unit-NotesListActionsTest.log
+  结果 XML：app/build/test-results/testDebugUnitTest/TEST-com.example.myapplicationfirstapp.ui.NotesListActionsTest.xml
+            tests="6" skipped="0" failures="0" errors="0"
+
+4.2 全量重跑（--rerun-tasks，不沿用旧结果）
+  命令：./gradlew testDebugUnitTest --rerun-tasks
+  日志：logs/unit-all.log
+  结果 XML 逐套：
+    ExampleUnitTest                    tests=1 skipped=0 failures=0 errors=0
+    ui.NoteEditorAutoFocusPolicyTest   tests=3 skipped=0 failures=0 errors=0
+    ui.NoteEditorBlankTapPolicyTest    tests=5 skipped=0 failures=0 errors=0
+    ui.NotesListActionsTest            tests=6 skipped=0 failures=0 errors=0
+  合计：15 个用例，0 跳过，0 失败，0 错误。
+
+5. 设备数据保护
+----------------------------------------------------------------
+跑 instrument 前整包备份应用数据：
+  adb exec-out "run-as <pkg> tar -cf - files shared_prefs" > app-data.tar
+  app-data.tar 大小 23,556 B
+instrument 结束后复核（exec-out 取原始字节，避免 adb shell 的 pty 把 LF 转成 CRLF）：
+  files/notes.json     3fa693ac54c584466a086b9c7750cd1496a8353a5d73f5e4bae22708562df5c4（17,123 B）
+  shared_prefs/settings.xml c98eb4b71ada669a004b3a66c2b28b058e6e554b2dbf56a937543c0d7bb5098f（116 B）
+两个哈希与测试前逐字节一致；测试 APK 已卸载，应用数据未清空、未重装。
+
+6. 未做的事（避免被误读为已做）
+----------------------------------------------------------------
+- 未跑 connectedDebugAndroidTest：AGP 会在结束时卸载 app 与测试 APK，
+  导致 files/ 与 shared_prefs/ 被清空（本仓库此前已因此丢过一次现场数据）。
+  本次改为手动 install -r + am instrument，绕开自动卸载。
+- 未升级 espresso / 未改任何依赖版本。
+- 未做 clean 构建；两次 assembleDebug 都是增量。
+- 真机未参与本次任何一步。

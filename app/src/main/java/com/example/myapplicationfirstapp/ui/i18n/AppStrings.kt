@@ -138,6 +138,13 @@ data class AppStrings(
     fun progressDone(done: Int, total: Int): String = String.format(progressDoneTemplate, done, total)
     fun movedToTrash(title: String): String = String.format(movedToTrashTemplate, title)
     fun confirmEmptyTrashBody(count: Int): String = String.format(confirmEmptyTrashBodyTemplate, count)
+    /**
+     * 列表行尾部「更多操作」按钮的无障碍说明。
+     *
+     * 成员函数而不是构造参数：不动两个实例的构造点，也不新增字段。
+     */
+    fun noteActions(title: String): String =
+        if (english) "Note actions: $title" else "笔记操作：$title"
 }
 
 val ZhStrings = AppStrings(
@@ -153,7 +160,7 @@ val ZhStrings = AppStrings(
     tabNotes = "笔记",
     tabRecords = "录音",
 
-    notesSubtitleTemplate = "共 %d 条 · 左滑删除，长按更多",
+    notesSubtitleTemplate = "共 %d 条 · 左滑删除，长按或点更多",
     searchNotes = "搜索笔记",
     searchClear = "清除",
     filterAll = "全部",
@@ -244,7 +251,7 @@ val EnStrings = AppStrings(
     tabNotes = "Notes",
     tabRecords = "Recordings",
 
-    notesSubtitleTemplate = "%d notes · swipe to delete, hold for more",
+    notesSubtitleTemplate = "%d notes · swipe to delete, hold or tap more",
     searchNotes = "Search notes",
     searchClear = "Clear",
     filterAll = "All",
