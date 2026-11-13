@@ -1,5 +1,6 @@
 a6c5f2125e882863bfcbaede56f9ed5262fe80fd674ab24113eb9d457e3dcc5e  docs/ux-home-visual-1/C-source/NOTES.md
-a24478e459f0005f9908cd69a79e8299a67d9f9ba01f96fc5e9f18964bc3fb0b  docs/ux-home-visual-1/INDEX.md
+611d396228090cd112c6d4023b4e1dc340271ca6327e72caf99ade4a22612d37  docs/ux-home-visual-1/INDEX.md
+53873fbe909ad818af7f54b4a25d569fc6e03999cd2e94375e419347c3624521  docs/ux-home-visual-1/build-and-tests.txt
 05e4c7c13ad798ae91d1ba8df0bddc0595b462a03a0b83afd55e5e681b70de9b  docs/ux-home-visual-1/hierarchy/B-bottom-light.xml
 be949c4c38ed46f39a37812105e11546c46ce26b4355435edbc7f774813bc346  docs/ux-home-visual-1/hierarchy/B-drag-bubble-light.xml
 b6e0dc1b356f2682b76544d79be6c4609e81d3363b785d766c5a4611c083ace3  docs/ux-home-visual-1/hierarchy/B-short-content-hidden.xml
@@ -19,14 +20,14 @@ d39e6ccbb2a1954926596bc424538cc3014bb5a1b79af4c0eadfafdb85c887c4  docs/ux-home-v
 0806f8d8b07520059ab6d008a7961eb459b058ccfa50424b4ce7c1fd6c56ebbe  docs/ux-home-visual-1/logs/TEST-com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest.xml
 53826506a0c09082102eedc7eee448d385520f14171fc0db49e995a55eb5327c  docs/ux-home-visual-1/logs/TEST-com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest.xml
 7e48931e23ae0d250317d7e8e4fc1eb4990e7e839ae3af6be48742ac25871db7  docs/ux-home-visual-1/logs/build-A-stage-a-2.log
-2d11999f6d789dfc60179c5d5c7ee6e55853b9601c654a71d9533f8dc857fd4d  docs/ux-home-visual-1/logs/build-A-stage-a.log
+c3326535473d43ee62adf4fc8c4495d2d8bcc4c65d94e2e7f82c550c69ba738e  docs/ux-home-visual-1/logs/build-A-stage-a.log
 a870b57e1bdff3e1e6f8f74c15925675532e265fb296b8bf5a25c38b6687140e  docs/ux-home-visual-1/logs/build-B-stage-b.log
-b183b095a8fafac395113638e5114d0bbab5006393bd68dbb40fc01ad61c9ced  docs/ux-home-visual-1/logs/build-C5-menu.log
-e8055fd0c4f1b934760ad43d4bec1009deb0bd654e42fda0e5c8193d256f38ea  docs/ux-home-visual-1/logs/build-C6-menu-pad.log
+b5c1df8ff3487fed4bde2169069aab0423cd43325b79ae3f61752785bdc8d115  docs/ux-home-visual-1/logs/build-C5-menu.log
+36387f794fd07f13bd17fe6af14f009b0a7b293cd2762ee446cb791819c3e5c8  docs/ux-home-visual-1/logs/build-C6-menu-pad.log
 757b8801d5fbae2bc46f511d60eb3dcb95e74ec7e2977d47351c75e550af9561  docs/ux-home-visual-1/logs/build-C7-tests.log
 d4d343c6eb859a8d05a8e4621e993eb420fc52b3c92d318df70d6dc7f4e4b86c  docs/ux-home-visual-1/logs/build-C8-tests.log
 0ee86dbf712faa3b9b6306d83893457d7e71d82bdabd504ac11dd8507dfb87f1  docs/ux-home-visual-1/logs/build-V0-baseline-rebuild.log
-24fa6cd0224ddee7c4d59d9c1d8afe56f1caeee4674fee98a71c790ed60491f1  docs/ux-home-visual-1/logs/build-V0-baseline.log
+2b5a8d4f5a464a09b5150a55a1e05f48c38357ede4da6e9fad27b565cc5f4b60  docs/ux-home-visual-1/logs/build-V0-baseline.log
 67b6a4f54fc1a2e7561d161ed585dbb2074bcd71d9514d6bbae27370a6dfe47f  docs/ux-home-visual-1/screens/A-stage-a-group-boundary.png
 280be60fb8ed8e27265c01d6e829f075e56c8640ed9d6123ca10033bea408e52  docs/ux-home-visual-1/screens/A-stage-a-top.png
 e78c6b96bafc46aff6bb8d0c669d3f5ffd68d8e447af34fd1a4813a3f1abef89  docs/ux-home-visual-1/screens/AB-light-first-group.png
@@ -55,6 +56,7 @@ beeced4f6c39725ff76913e6cddc92f84157049e48f973e099d15a6b4b714edd  docs/ux-home-v
 d3605abdf99aa2ab0f5d30fd13847c045f4aee07719c5ecded0a629920e1522e  docs/ux-home-visual-1/screens/C-source/C7-menu-single.png
 5481af752dc787a1bb8a96da81639186d5860ddf9a932c4f4dac2eeea470555f  docs/ux-home-visual-1/screens/C-source/C8-more-press.png
 ae560297f6d5913860dec65fa09022eb7028ac9e1736fc2fa59bf793f8bfb631  docs/ux-home-visual-1/screens/C-source/C9-drag-bubble-dark.png
+955d092dcde68d6d7f56467ca0606d499044727a66fe8fcc24770bb4b3b8f3a9  docs/ux-home-visual-1/screens/D-realdevice/D1-phone-first-screen.png
 bb89ba98043e39d018029475d33ab7199ff4b5bcbc04518db8f64b56ef825b23  docs/ux-home-visual-1/screens/V0-baseline-bottom.png
 9930a2312f91beee96e7061c6c9d2cd86493a013a5b2ea8ea3d042a2ba5bb509  docs/ux-home-visual-1/screens/V0-baseline-scroll.mp4
 dd0ba0bfe0d490cf36352ce1a4a61830f002f2ba4737d96ee8fd3eeb290e3281  docs/ux-home-visual-1/screens/V0-baseline-top.png

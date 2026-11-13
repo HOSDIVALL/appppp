@@ -1,0 +1,65 @@
+UX-HOME-VISUAL-1 · C 轮（按源重写）构建与测试记录
+==================================================
+
+环境
+----
+JAVA_HOME   D:/Android/jbr（JDK 由 Android Studio 自带 JBR 提供）
+构建        Gradle wrapper，`--offline`
+设备        emulator-5554（API 37，1080x2400，density 420 → 1dp = 2.625px）
+真机        Redmi 23078RKD5C / Android 16（SDK 36），仅部署，见 INDEX §8
+
+命令
+----
+./gradlew --offline :app:assembleDebug :app:testDebugUnitTest
+
+构建结果（docs/ux-home-visual-1/logs/ 下的原始日志）
+----------------------------------------------------
+build-V0-baseline.log            BUILD SUCCESSFUL in 1m 40s   基线 APK 重建（源 e7bcdab）
+build-V0-baseline-rebuild.log    BUILD SUCCESSFUL in 1m 11s   基线第二次重建（校验可复现）
+build-A-stage-a.log              BUILD SUCCESSFUL in 30s      阶段A（历史，非本轮）
+build-A-stage-a-2.log            BUILD SUCCESSFUL in 15s      阶段A 补构建（历史）
+build-B-stage-b.log              BUILD SUCCESSFUL in 31s      阶段B（历史，已被本轮替换）
+build-C5-menu.log                BUILD SUCCESSFUL in 42s      本轮：16/4 菜单
+build-C6-menu-pad.log            BUILD SUCCESSFUL in 33s      本轮：菜单容器 8dp 内边
+build-C7-tests.log               BUILD SUCCESSFUL in 34s      本轮：新增 ListVisualTokensTest
+build-C8-tests.log               BUILD SUCCESSFUL in 1m 16s   本轮：气泡曲线纯函数 + 语言用例
+
+注意：BUILD SUCCESSFUL 不作为测试判据（历史上出现过 system_server 崩溃导致 0 条用例却 BUILD SUCCESSFUL）。
+判据一律取 test-results XML 的 tests/failures/errors/skipped。
+
+单元测试（JVM，testDebugUnitTest）—— 48 条，0 失败，0 错误，0 跳过
+------------------------------------------------------------------
+ExampleUnitTest                       1
+ui.ListVisualTokensTest               5    锁住源数值：常态 8dp、手柄 48dp、按住 28dp、右留白 4、
+                                           轨道 gap 8、动画 200/180ms、更多按钮 32x44、菜单 16/4
+ui.NoteEditorAutoFocusPolicyTest      3
+ui.NoteEditorBlankTapPolicyTest       5
+ui.NotesListActionsTest               6
+ui.NotesListGroupShapeTest            7    列表行 24/6 分组形状
+ui.NotesListScrollbarMathTest         21   中位数步长、按项缓存、前缀修正、目标/进度互逆、
+                                           端点吸附、内容不足一屏隐藏、70ms 平滑判据、
+                                           非笔记项吸附、标签取值、气泡 scale/slide 端点与单调性
+合计                                  48   failures=0 errors=0 skipped=0
+
+原始结果：logs/TEST-*.xml（7 个文件）
+
+产物
+----
+APK          app/build/outputs/apk/debug/app-debug.apk
+SHA256       cb253f8f12e4905afea6ffa46a8d5340b60f1cc72de35a22ea382e3ca34b531b
+大小         57,958,421 B
+版本         2.0 / versionCode 2（未改，项目约定不改版本号）
+本地副本     <local-artifacts>/notes-go-ux-home-visual-1-c.apk
+
+真机部署（非测试）
+------------------
+adb -s 6LZT7T7TM7NZL799 install -r <apk>     → Success（2.7s）
+安装前后 files/notes.json 均为
+  79c332ba871fbd810a394e13a275642d7139a64f20a91301bb320f9c6be00b6f
+未在真机跑 connectedDebugAndroidTest / 任何仪器测试。
+
+未完成的验证
+------------
+180ms 气泡入场、200ms 宽度动画的逐帧曲线没有测出来（模拟器 screenrecord 按需出帧，
+12s 仅 11 帧；10x 动画时长下 1800ms 窗口约 8 帧；气泡半透明期与列表底色混叠无法分割）。
+只以常量、代码路径和纯函数单测为证，不声称做过逐帧拟合。

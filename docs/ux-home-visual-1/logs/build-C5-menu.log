@@ -37,8 +37,8 @@ Calculating task graph as no cached configuration is available for tasks: :app:a
 > Task :app:processDebugResources UP-TO-DATE
 
 > Task :app:compileDebugKotlin
-w: file:///D:/UX-HOME-VISUAL-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:328:35 'fun InputField(query: String, onQueryChange: (String) -> Unit, onSearch: (String) -> Unit, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., colors: TextFieldColors = ..., interactionSource: MutableInteractionSource? = ...): Unit' is deprecated. Use SearchBarDefaults.InputField with TextFieldState and SearchBarState.
-w: file:///D:/UX-HOME-VISUAL-1-wt/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:915:44 'val Icons.Filled.Sort: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Sort.
+w: file:///<workspace>/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:328:35 'fun InputField(query: String, onQueryChange: (String) -> Unit, onSearch: (String) -> Unit, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., colors: TextFieldColors = ..., interactionSource: MutableInteractionSource? = ...): Unit' is deprecated. Use SearchBarDefaults.InputField with TextFieldState and SearchBarState.
+w: file:///<workspace>/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:915:44 'val Icons.Filled.Sort: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Sort.
 
 > Task :app:compressDebugJavaRes UP-TO-DATE
 > Task :app:mergeDebugJavaResource UP-TO-DATE

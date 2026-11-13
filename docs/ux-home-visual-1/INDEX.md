@@ -72,18 +72,23 @@ screens/C-source/           本轮（最终 APK）实机帧
   C10-menu-sort-dark.png    深色菜单
   C11-row-idle/press.png    卡片按压前后宽度对照（.98）
 screens/V0-baseline-*       改版前基线（同数据/同主题/同密度）
+screens/D-realdevice/       真机部署后首屏（D1，仅证明装得上打得开，非验收证据）
 screens/A-stage-a-*、B-*    阶段 A / 阶段 B 历史证据（不覆盖、不删除）
 hierarchy/C-*.xml           本轮层级：列表顶部/底部、排序菜单（浅/深）、单行菜单
 logs/build-C5…C8.log        本轮四次构建
 logs/TEST-*.xml             本轮 48 条单测结果
 ```
 
+`build-and-tests.txt` 是从这些日志汇总出的一页纸（构建结论、单测分项、产物指纹、真机部署），方便不用翻原始日志。
+
+入库前做过脱敏：`logs/*.log` 里的本地工作区绝对路径已替换成 `<workspace>`，本机产物目录替换成 `<local-artifacts>`，其余字节未改。如果拿 `a686f31` 的日志对比，差异只有这些路径替换。
+
 ## 5. 已知限制（不许当成已验收）
 
 - **帧级动画曲线没测出来**：`screenrecord` 在模拟器上按需出帧——12s 只出 11 帧；开 10× 动画时长后，1800ms 入场窗口里也只拿到约 8 帧，且气泡半透明期与列表底色混叠，无法稳定分割出每帧的 scale。所以本轮把入场曲线抽成纯函数（`bubbleScale` / `bubbleSlidePx`）用单测锁住端点与单调性，**不声称**做过逐帧拟合。宽度动画 200ms 同理，只有常量与代码路径为证。
 - **无障碍节点会虚报尺寸**：`uiautomator` 里更多按钮报 `[859,638][985,764]`（126×126 = 48dp），那是平台最小触控目标膨胀，不是布局盒。真实盒用按压高亮差分证明是 84×116px（32×44dp）。任何"按层级 bounds 量尺寸"的结论都要先排除这一点。
 - **滚动条位置仍是估算**：LazyColumn 只暴露可见项，`Estimator` 用中位数步长 + 按项缓存 + 前缀修正，越滚越准但不保证像素精确；不存在"知道全表真实高度"的实现。
-- **未做真机**：全部在 `emulator-5554`/API 37 上验证，没有碰物理设备。
+- **真机只做了部署，没做验证**：全部功能验证在 `emulator-5554`/API 37 上完成。物理机（Redmi `23078RKD5C` / Android 16）只做了 `install -r` 覆盖安装与一次启动确认（见 §8），**没有在真机上跑仪器测试、也没有在真机上逐项复核 14 项验收**。
 - **上一轮的 R2/R3/R4 部分证据来自上一构建**：这几处代码本轮未改，已在表中标注来源；本轮新增的只有滚动条、菜单、更多按钮、气泡。
 
 ## 6. 本轮操作中的误触（如实记录）
@@ -107,3 +112,21 @@ adb -s emulator-5554 shell am start -n com.example.myapplicationfirstapp/.MainAc
 ```
 
 拖动取证不要用 `input swipe`（长时长不可靠，会提前抬手）：用 `input motionevent DOWN/MOVE/UP` 分步发送，再夹 `screencap`。
+
+## 8. 真机部署（交付动作，非验收证据）
+
+14 项验收全部在模拟器上完成。之后用户要求"只更新手机里的软件、不做测试"，因此对物理机只做了一次覆盖安装：
+
+| 项 | 值 |
+| --- | --- |
+| 设备 | `6LZT7T7TM7NZL799`，Redmi `23078RKD5C`，Android 16（SDK 36），1220×2712 @480dpi |
+| 安装包 | `cb253f8f12e4905afea6ffa46a8d5340b60f1cc72de35a22ea382e3ca34b531b`（57,958,421 B）——与 §3 B1 同一个包 |
+| 方式 | `adb install -r`，不卸载 → 数据保留 |
+| 签名 | APK 与已装应用同为 `CN=Android Debug`（`b45eb6001aeb29d9b142105ea6e16a5b9325a199e5f8b6321d30e87ecf8482a8`） |
+| 版本 | `2.0 / versionCode 2` 未改（项目约定不改版本号），`lastUpdateTime` 由 `2026-11-13 02:09:08` → `23:29:25` |
+| 数据 | 装前 / 装后 `files/notes.json` 均为 `79c332ba871fbd810a394e13a275642d7139a64f20a91301bb320f9c6be00b6f`；`asr / attachments / notes.json / profileInstalled / recordings` 全部在位 |
+| 备份 | 安装前整包 `run-as … tar -cf - files shared_prefs` 到本机 `<local-artifacts>/phone-backup-20261113/data.tar`（249,130,496 B），不入库 |
+| 启动 | `am start` 后 `mCurrentFocus` 为本应用 `MainActivity`，首屏正常渲染（11 条真实笔记，右侧可见 48dp 固定手柄） |
+
+**没有做的事**：真机上没跑 `connectedDebugAndroidTest`、没跑仪器测试、没逐项复核验收。真机数据是用户真实笔记（11 条），与模拟器上的合成数据（64 条）不是同一份，因此真机截图只能证明"装得上、打得开、数据没丢"，**不能**当作任何验收项的判据。
+
