@@ -1,0 +1,63 @@
+{
+  "snapshot": "2026-11-13 11:36 CST",
+  "upstream": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+  "remote_state": "index_only_database_body_not_uploaded",
+  "counts": {
+    "inventory_files": 96,
+    "complete": 29,
+    "partial": 3,
+    "pending": 64,
+    "focused_extra": 1,
+    "component_records": 53,
+    "facts": 240,
+    "embedded_asset_bodies_in_local_db": 8,
+    "missing_original_html": 3
+  },
+  "database": {
+    "name": "Rhythm-UI-Knowledge-20261113.sqlite3",
+    "bytes": 983040,
+    "sha256": "c25a8800a59895ff78ce659f9c175bebe96e68f8f57bdcebce63cc1e14b3fb49",
+    "remote_uploaded": false
+  },
+  "json_export": {
+    "name": "Rhythm-UI-Knowledge-20261113.json",
+    "bytes": 454612,
+    "sha256": "3870dafd4d15520941ee019d8ec107586661818bb35f50bfdb3d3f11f143065f",
+    "remote_uploaded": false
+  },
+  "zip": {
+    "name": "Rhythm-UI-Knowledge-Snapshot-20261113.zip",
+    "bytes": 460819,
+    "sha256": "37c492955c070f7074092fd345d3b5a65801d3a4885dcc2a9ed1fd5dd1c9fc70",
+    "remote_uploaded": false
+  },
+  "missing_html": [
+    {
+      "id": "v7",
+      "filename": "Rhythm-Cookie-Arc-Sliders-v7.html",
+      "body_available": false,
+      "bytes": null,
+      "sha256": null,
+      "expected_sha256": "497a1396da4116d3ee318b29a42f386d5fd5bbd2cd8a90d76d8e9fde742ebbb1"
+    },
+    {
+      "id": "v8",
+      "filename": "Rhythm-Navigation-Shapes-EmptyState-v8.html",
+      "body_available": false,
+      "bytes": null,
+      "sha256": null,
+      "expected_sha256": "6f407da42e6890baf16b08a6099a40fcecd17224ba204d804fc39d39924d6178"
+    },
+    {
+      "id": "v9",
+      "filename": "Rhythm-BottomSheet-Dialog-Lab-v9.html",
+      "body_available": false,
+      "bytes": null,
+      "sha256": null,
+      "expected_sha256": "860940398a639032aadd731208238d8688db67685ab76b1cdb83804abb25da3e"
+    }
+  ],
+  "input_draft_sha256": "a15f390637a85caccffca06350f4b5a0846fc0a27b9facc3327dd6e2d5524ab3",
+  "original_test_json_available": false,
+  "native_validation": false
+}
