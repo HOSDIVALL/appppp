@@ -1,0 +1,33 @@
+{
+ "aar_sources": [
+  {
+   "aar": "animation-android-1.12.1.aar",
+   "classes": 326,
+   "methods": 1981
+  },
+  {
+   "aar": "animation-core-android-1.12.1.aar",
+   "classes": 178,
+   "methods": 1438
+  },
+  {
+   "aar": "material3-android-1.5.0-beta01.aar",
+   "classes": 1328,
+   "methods": 14659
+  }
+ ],
+ "edges_in": 1403,
+ "sites_in": 3809,
+ "resolved_distinct": 121,
+ "resolved_sites": 3080,
+ "match_kinds": {
+  "app_shorter": 515,
+  "exact": 173,
+  "ambiguous": 205,
+  "aar_shorter": 134
+ },
+ "ambiguous_distinct": 72,
+ "unresolved_edges": 54,
+ "unresolved_sites": 729,
+ "animation_members": 28
+}

@@ -1,0 +1,18 @@
+{
+ "dex_files": [
+  "classes.dex",
+  "classes2.dex"
+ ],
+ "own_classes_decoded": 3540,
+ "own_methods_decoded": 13055,
+ "total_invoke_sites": 136741,
+ "invoke_by_group": {
+  "m3": 2378,
+  "anim": 1431,
+  "anim_core": 895,
+  "foundation": 3893
+ },
+ "distinct_m3_members_called": 127,
+ "distinct_m3_classes_called": 59,
+ "own_classes_using_m3": 286
+}

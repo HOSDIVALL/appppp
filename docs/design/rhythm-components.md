@@ -76,3 +76,36 @@ MotionScheme影响实际使用其规格的组件，不保证覆盖全部自定�
 先补调用位置，再选原生独立样板；不修改笔记生产UI、不操作真机。网页重建保留WEB-REBUILD标记，不能反向充当NATIVE-TEST。
 新增组件继续使用RH编号，记录固定SHA/路径/blob/参数单位/覆盖范围/未知项；修订只追加版本，不改写历史原件。
 本索引经Git提交后，以分支docs/material-context-1的返回提交SHA作为后续对话入口；本地文件生成不等于远端已入库。
+
+## 增补：研究入口与第 06 批修订（2026-11-13）
+
+上面八条（RH-01～RH-08）与全部历史说明**保持原样**，本节只追加，不改写任何一条既有结论。
+
+### 研究入口
+
+| 路径 | 用途 |
+|---|---|
+| `docs/design/research/README.md` | 批次索引、证据等级、三条边界（未运行 / 二进制不可逐项对齐 / 原型不是证据） |
+| `docs/design/research/records-02-05.md` | 第 02～05 批的产物与数字，以及"已归档 / 只有对话摘要 / 未取得"三张账 |
+| `docs/design/research/rhythm-list-items-06.md` | RH-09：播放列表行（`PlaylistSongItem`）的定点核验 |
+| `docs/design/research/SHA256SUMS` | **只覆盖 `research/` 目录**；同目录的 `docs/design/SHA256SUMS` 仍只覆盖两份历史原件，未被扩写为全库清单 |
+
+### RH-09 摘要（完整参数见研究文档）
+
+对象：`features/local/presentation/screens/PlaylistDetailScreen.kt`（166,578 B / 3,114 行 / blob `a141fe5c304568097b4fbc55740070d63eba4886`），`PlaylistSongItem` 声明于 2753 行。
+等级：SOURCE；**无 NATIVE-TEST**。
+
+- 行缩放三态：拖动 **1.005**、排序或选择态 **0.98**、常态 **1**；`spring(MediumBouncy, StiffnessMedium)`；`graphicsLayer` 同时写 scaleX/scaleY（2865–2896）。
+- 行容器：外 8dp/2dp、内 16dp/10dp；分组圆角 24/6dp；tonalElevation 拖动 0 / 排序 1 / 其余 2，shadowElevation 恒 0（2875–2901、3097–3113）。
+- 封面 56dp + `SONG_ART` 表达形状（兜底 12dp）；播放角标 20dp、3 条 12×10dp。
+- 尾部三态：排序 36dp 手柄（12dp 圆角）／多选 40dp 移除按钮（errorContainer α0.8）／常态 32×44dp 更多按钮（HEAVY 触觉）。
+
+### 第 06 批的三条更正与两条边界
+
+1. **1.025 作废。** 先前互动网页里的"按下抬升 1.025"是 WEB-REBUILD 的观感值，不是源码值；现存三份原型 HTML 中检索 `1.025` 为 0 命中，无法追溯，故不得引用。行缩放以 1.005 / 0.98 / 1 为准。
+2. **`PlaylistDetailScreen.kt` 未通读。** 只核验 2753–3114 行与若干命中行；1–2752 行的页头、筛选、排序菜单逻辑不在结论范围内，不得据本文推断。
+3. **容器不是 `DragDropLazyColumn`。** 该页用裸 `LazyColumn` + `ReorderableItem`（1455/1673、2084/2356）；`DragDropLazyColumn`（161 行，已完整读取）只被四个 bottom sheet 使用（EQ 预设排序、首页分区排序、库页签排序、流媒体分区排序）。
+4. 边界一：仍未运行原生，声明、接线、实际观感三者不得合并。
+5. 边界二：`RhythmGroupedMenu.kt`（149 行，已完整读取）的圆角是 16/4dp，与列表项的 24/6dp 是两套常量，不能互相套用。
+
+

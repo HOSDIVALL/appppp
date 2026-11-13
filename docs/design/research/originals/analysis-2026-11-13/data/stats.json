@@ -1,0 +1,141 @@
+{
+ "apk": {
+  "size": 23572778,
+  "sha256": "a13cc67e0eb1873451326544ca19391ca0598913fc441110a91455ba852f52fe",
+  "entries": 2215,
+  "dex": [
+   "classes.dex",
+   "classes2.dex"
+  ]
+ },
+ "classes": {
+  "own_total_incl_inner": 3367,
+  "own_top_level": 835,
+  "files_with_recovered_functions": 245,
+  "recovered_function_names": 1039
+ },
+ "packages_top": [
+  [
+   "chromahub/rhythm/app/network",
+   83
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/screens/settings",
+   81
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/components/bottomsheets",
+   71
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/components/common",
+   71
+  ],
+  [
+   "chromahub/rhythm/app/util",
+   69
+  ],
+  [
+   "chromahub/rhythm/app/features/local/presentation/screens",
+   51
+  ],
+  [
+   "chromahub/rhythm/app/shared/data/model",
+   33
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/components/player",
+   30
+  ],
+  [
+   "chromahub/rhythm/app/infrastructure/widget/glance",
+   27
+  ],
+  [
+   "chromahub/rhythm/app/features/local/presentation/navigation",
+   19
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/components/dialogs",
+   17
+  ],
+  [
+   "chromahub/rhythm/app/features/streaming/data/repository",
+   16
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/navigation",
+   16
+  ],
+  [
+   "chromahub/rhythm/app/activities",
+   15
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/components/lyrics",
+   15
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/components",
+   14
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/screens",
+   14
+  ],
+  [
+   "chromahub/rhythm/app/ui/theme/festive",
+   12
+  ],
+  [
+   "chromahub/rhythm/app/features/streaming/data/provider",
+   10
+  ],
+  [
+   "chromahub/rhythm/app/features/streaming/domain/model",
+   10
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/screens/player",
+   10
+  ],
+  [
+   "chromahub/rhythm/app/features/local/data/database/dao",
+   9
+  ],
+  [
+   "chromahub/rhythm/app/ui/theme",
+   9
+  ],
+  [
+   "chromahub/rhythm/app/shared/presentation/viewmodel",
+   8
+  ],
+  [
+   "chromahub/rhythm/app/core/device",
+   7
+  ]
+ ],
+ "api_refs": {
+  "anim": {
+   "distinct": 1172,
+   "refs": 1244
+  },
+  "anim_core": {
+   "distinct": 527,
+   "refs": 572
+  },
+  "m3": {
+   "distinct": 2880,
+   "refs": 3103
+  },
+  "graphics": {
+   "distinct": 1214,
+   "refs": 1304
+  },
+  "dynanim": {
+   "distinct": 63,
+   "refs": 70
+  }
+ }
+}

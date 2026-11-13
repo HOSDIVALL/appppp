@@ -1,0 +1,297 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Rhythm · 成品组件源码核验台</title><style>
+:root{color-scheme:light;--bg:#faf8ff;--surface:#fff;--soft:#f0eafa;--text:#24212a;--muted:#625c6d;--line:#dcd4e6;--accent:#62449d;--onaccent:#fff;--green:#236743;--greenbg:#e5f3e9;--warn:#724f00;--warnbg:#fff1cc;--code:#f2eef7;font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text)}:root.dark{color-scheme:dark;--bg:#15121b;--surface:#211d28;--soft:#2e263c;--text:#ece5f4;--muted:#c5bace;--line:#4b4058;--accent:#d4b8ff;--onaccent:#2b174b;--green:#a5daba;--greenbg:#203e2e;--warn:#f1d58e;--warnbg:#3e341b;--code:#18141f}*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}a{color:var(--accent);text-underline-offset:4px}button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}header{border-bottom:1px solid var(--line)}.top{max-width:1250px;margin:auto;display:flex;justify-content:space-between;align-items:center;padding:20px 28px;gap:15px}.brand{font-weight:700;font-size:20px}.sub{font-size:11px;letter-spacing:1px;color:var(--muted)}button{border:1px solid var(--line);border-radius:24px;background:var(--surface);color:var(--text);padding:9px 16px}button:hover{border-color:var(--accent)}.hero{max-width:1250px;margin:auto;padding:48px 28px 28px;display:grid;grid-template-columns:1.5fr 1fr;gap:35px}.eyebrow{color:var(--accent);font-size:12px;letter-spacing:2px;font-weight:700}h1{font-size:clamp(32px,4.6vw,56px);font-weight:600;line-height:1.18;letter-spacing:-1.4px;margin:17px 0 20px}.intro{font-size:17px;color:var(--muted);max-width:660px}.version-card{background:var(--soft);border-radius:24px;padding:24px;align-self:start}.version-card code{font-size:12px;overflow-wrap:anywhere}.version-card p{margin:10px 0;font-size:13px}.notice{max-width:1194px;margin:0 auto 25px;background:var(--warnbg);color:var(--warn);border-radius:18px;padding:18px 22px}.notice p{margin:5px 0;font-size:14px}.layout{max-width:1250px;margin:auto;padding:0 28px 64px;display:grid;grid-template-columns:190px minmax(0,1fr);gap:28px}nav{position:sticky;top:15px;align-self:start}nav a{display:block;color:var(--muted);text-decoration:none;padding:9px 12px;border-radius:20px;font-size:13px}nav a:hover{background:var(--soft);color:var(--accent)}nav small{display:block;font-size:11px;color:var(--accent);padding:12px;letter-spacing:1px}main{min-width:0}section{scroll-margin-top:20px;margin-bottom:30px}.section-heading{font-size:26px;line-height:1.3;margin:0 0 12px;font-weight:600}.section-intro{color:var(--muted);font-size:14px;margin-top:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.stat{border:1px solid var(--line);border-radius:18px;padding:18px;background:var(--surface)}.stat b{font-size:26px;color:var(--accent);display:block}.stat span{font-size:13px;color:var(--muted)}.toolbar{display:flex;gap:12px;align-items:center;margin:22px 0;flex-wrap:wrap}input[type=search]{border:1px solid var(--line);background:var(--surface);color:var(--text);padding:12px 17px;border-radius:26px;width:100%;flex:1;min-width:180px}.badge{display:inline-block;padding:3px 10px;border-radius:30px;font-size:11px;font-weight:600}.verified{background:var(--greenbg);color:var(--green)}.muted{background:var(--soft);color:var(--muted)}.pending{background:var(--warnbg);color:var(--warn)}.cardtop{display:flex;gap:8px;flex-wrap:wrap}.component{scroll-margin-top:20px;background:var(--surface);border:1px solid var(--line);padding:26px;border-radius:24px;margin-bottom:20px}.component h2{font-size:25px;line-height:1.25;margin:15px 0 8px;font-weight:600}.kind{color:var(--accent);font-size:13px;font-weight:600;margin:0}.leadsmall{color:var(--muted);font-size:14px}.scrolltable{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px;margin:16px 0}th,td{border-bottom:1px solid var(--line);padding:12px 8px;text-align:left;vertical-align:top}th{font-weight:600;min-width:100px;width:22%;color:var(--muted)}details{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:12px 15px}summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)}pre{font:12px/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--code);padding:16px;border-radius:12px;max-height:500px;overflow:auto}.source{padding:14px 0 0}.source a{font-size:13px}.source code{display:block;font:11px/1.7 ui-monospace,monospace;overflow-wrap:anywhere;color:var(--muted);margin-top:5px}.caution{font-size:12px;padding-left:12px;border-left:3px solid var(--line);color:var(--muted)}.state-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.state-btn{font-size:12px;padding:7px 12px}.state-btn[aria-pressed=true]{background:var(--accent);color:var(--onaccent)}.state-output{font-size:13px;color:var(--muted)}.panel{border-radius:22px;padding:24px;background:var(--surface);border:1px solid var(--line)}.panel p,.panel li{font-size:14px}.pending-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.candidate{background:var(--surface);border:1px dashed var(--line);border-radius:18px;padding:18px}.candidate h3{font-size:15px;margin:10px 0}.candidate p{font-size:12px;color:var(--muted)}.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.step{border-radius:16px;background:var(--soft);padding:16px;font-size:13px}.step b{display:block;color:var(--accent);margin-bottom:8px}.original{font-size:12px;max-height:650px}.footer{font-size:12px;color:var(--muted);margin-top:26px}.statusline{color:var(--muted);font-size:12px}.source-list{padding-left:18px}.source-list li{margin:10px 0}.empty{padding:24px;color:var(--muted)}[hidden]{display:none!important}.provenance{font-size:12px;color:var(--muted);word-break:break-all}
+@media(max-width:850px){.hero{grid-template-columns:1fr;padding-top:30px;gap:18px}.layout{grid-template-columns:1fr}nav{position:static;display:flex;overflow:auto}nav small{display:none}nav a{white-space:nowrap}.notice{margin-left:20px;margin-right:20px}.pipeline{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.top,.hero{padding-left:20px;padding-right:20px}.layout{padding-left:14px;padding-right:14px}.component,.panel{padding:20px 16px}.grid,.pending-grid{grid-template-columns:1fr}.pipeline{grid-template-columns:1fr}.component h2{font-size:22px}}
+</style></head><body><header><div class="top"><div><div class="brand">Rhythm / 成品组件核验台</div><div class="sub">PINNED SOURCE REVIEW · 2026.11.13</div></div><button id="theme" type="button">切换深色</button></div></header><div class="hero"><div><div class="eyebrow">FROM FINISHED UI TO IMPLEMENTATION</div><h1>不是再画一套。<br>先看清成品怎么实现。</h1><p class="intro">从你提供的解包报告出发，逐项对照指定 Release。把官方能力、作者封装和项目特效拆开，记录到具体源码与 blob。</p></div><aside class="version-card"><span class="badge verified">已锁定源码</span><p>Rhythm <b>5.5.499.1302 Stable</b></p><code>6f26f963b82ed592ec28f05824bb7f12b65b82ea</code><p>版本目录声明 Material3 <b>1.5.0-beta01</b>；你的笔记项目声明 beta02。两者需要接口核对，不能整套照搬。</p><p>解包报告对象为 fdroid 构建；尚未证明与 stable APK 二进制相同。</p></aside></div><div class="notice"><strong>这是离线查阅网页，不是 Android 动画运行器。</strong><p>这里展示已读源码与条件说明，没有用 CSS 波浪或近似形变冒充官方组件。尚无原生录屏或样板 APK，运行体验仍待执行。</p></div><div class="layout"><nav><small>RESEARCH INDEX</small><a href="#overview">核验进展</a><a href="#components">已核验组件</a><a href="#discovery">本轮重要修正</a><a href="#pending">报告候选</a><a href="#next">原生样板路线</a><a href="#original">原始解包报告</a><a href="#sources">来源与限制</a></nav><main><section id="overview"><h2 class="section-heading">把“知道”分成不同证据等级。</h2><p class="section-intro">文件存在、读到实现、在页面调用、编译成功、运行一致，是不同结论。本页只提升真正完成的部分。</p><div class="grid"><div class="stat"><b>4</b><span>完整读取的组件实现文件</span></div><div class="stat"><b>1</b><span>固定 Release 提交，不再用 main 混代</span></div><div class="stat"><b>0</b><span>本轮编译 / 设备运行验证</span></div><div class="stat"><b>原件保留</b><span>报告全文可展开与检索，不修改历史结论</span></div></div></section><section id="components"><h2 class="section-heading">四份已核验实现</h2><p class="section-intro">所有源码入口都绑定同一个完整 SHA。参数为该文件的实现事实，不自动成为 Material 官方默认。</p><div class="toolbar"><input id="search" type="search" aria-label="筛选组件" placeholder="搜索：WaveSlider、加载、官方、自定义…"><button id="expand" type="button">展开所有参数说明</button></div><div class="statusline" id="count">显示 4 / 4</div><article class="component" id="play" data-search="形变播放 / 暂停按钮 官方图形能力＋Rhythm 编排 app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/MorphingPlayPauseButton.kt"><div class="cardtop"><span class="badge verified">源码已核验</span><span class="badge muted">未运行验证</span></div><h2>形变播放 / 暂停按钮</h2><p class="kind">官方图形能力＋Rhythm 编排</p><p class="leadsmall">不是“把圆角变大”：Circle 与 Cookie9Sided 通过 Morph 做真实路径插值。</p><div class="scrolltable"><table><tr><th>官方基础</th><td>MaterialShapes.Circle / Cookie9Sided；androidx.graphics.shapes.Morph；Compose Canvas</td></tr><tr><th>形变</th><td>播放目标 1，暂停目标 0；MediumBouncy + StiffnessLow</td></tr><tr><th>按压</th><td>0.92 → 1；同类弹簧</td></tr><tr><th>旋转</th><td>播放时按 15 秒 / 圈绘制，LinearEasing；暂停绘制角为 0</td></tr><tr><th>图标</th><td>Crossfade 220ms，FastOutSlowInEasing；尺寸 size × 0.5</td></tr><tr><th>加载</th><td>切入 M3CircularLoader；尺寸 size × 0.42</td></tr><tr><th>颜色</th><td>MaterialTheme.colorScheme.primary / onPrimary</td></tr></table></div><details><summary>状态条件解释 · 不是动画预览</summary><div class="state-buttons"><button class="state-btn" data-card="play" data-state="paused">暂停条件</button><button class="state-btn" data-card="play" data-state="playing">播放条件</button><button class="state-btn" data-card="play" data-state="loading">加载条件</button></div><p class="state-output" id="state-play">选择一个条件，查看源码行为解释。这里不模拟 Android 动画。</p></details><details><summary>调用结构 / 定位摘录</summary><pre>val morph = remember {
+    Morph(MaterialShapes.Circle, MaterialShapes.Cookie9Sided)
+}
+// 源码定位摘录；不是完整可运行组件。</pre></details><div class="source"><a href="https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/MorphingPlayPauseButton.kt" target="_blank" rel="noopener noreferrer">打开固定 SHA 源码 ↗</a><code>app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/MorphingPlayPauseButton.kt</code><code>blob a7941d0611ac856e239e9465b1f9e045439c0c15</code></div><p class="caution">未运行、未测中断与语义；只核验函数实现，未追踪它在具体播放器布局中的调用。</p></article><article class="component" id="wave" data-search="WaveSlider 波浪进度拖动 官方波浪轨道＋自定义交互 app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/WaveSlider.kt"><div class="cardtop"><span class="badge verified">源码已核验</span><span class="badge muted">未运行验证</span></div><h2>WaveSlider 波浪进度拖动</h2><p class="kind">官方波浪轨道＋自定义交互</p><p class="leadsmall">关键发现：轨道来自真正的 LinearWavyProgressIndicator，作者补上拖动、手柄形变、进度平滑与辅助操作。</p><div class="scrolltable"><table><tr><th>官方轨道</th><td>LinearWavyProgressIndicator；WavyProgressIndicatorDefaults</td></tr><tr><th>正常手柄</th><td>默认半径 8dp，即 16×16dp；Canvas 圆角矩形</td></tr><tr><th>拖动手柄</th><td>宽度插值到 strokeWidth × 1.2；高度到 24dp；默认 strokeWidth 5dp</td></tr><tr><th>手柄过渡</th><td>250ms，FastOutSlowInEasing</td></tr><tr><th>振幅</th><td>enabled &amp;&amp; isPlaying &amp;&amp; !isInteracting 时目标为 1，否则为 0；ProgressAnimationSpec</td></tr><tr><th>波长 / 波速</th><td>波长采用库 LinearDeterminateWavelength；默认 waveSpeed 为该值的一半</td></tr><tr><th>轨道细节</th><td>gapSize = thumbRadius + 4dp；stopSize = 3dp</td></tr><tr><th>可访问进度</th><td>progressBarRangeInfo + setProgress；带业务提交回调</td></tr><tr><th>额外参数</th><td>waveAmplitudeWhenPlaying 虽声明为 4dp，但已读函数体没有使用；不能把它写成实际波幅</td></tr></table></div><details><summary>状态条件解释 · 不是动画预览</summary><div class="state-buttons"><button class="state-btn" data-card="wave" data-state="paused">暂停条件</button><button class="state-btn" data-card="wave" data-state="playing">播放条件</button><button class="state-btn" data-card="wave" data-state="loading">加载条件</button></div><p class="state-output" id="state-wave">选择一个条件，查看源码行为解释。这里不模拟 Android 动画。</p></details><details><summary>调用结构 / 定位摘录</summary><pre>LinearWavyProgressIndicator(
+    progress = { renderedNormalizedProgress.floatValue },
+    wavelength = wavelength,
+    waveSpeed = waveSpeed,
+    amplitude = { p -&gt; if (p &gt; 0f) animatedAmplitude else 0f },
+    // 省略其余参数；定位摘录，不能单独编译。
+)</pre></details><div class="source"><a href="https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/WaveSlider.kt" target="_blank" rel="noopener noreferrer">打开固定 SHA 源码 ↗</a><code>app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/WaveSlider.kt</code><code>blob 79c72b050d9feb1907e21edf8dcd1f9508558c74</code></div><p class="caution">未量测真实波形曲线/像素与帧时序。这里不把“官方组件＋自绘手柄”误写为全自绘或完全未定制。</p></article><article class="component" id="loader" data-search="加载指示器家族 官方组件封装 app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/Loaders.kt"><div class="cardtop"><span class="badge verified">源码已核验</span><span class="badge muted">未运行验证</span></div><h2>加载指示器家族</h2><p class="kind">官方组件封装</p><p class="leadsmall">线性波浪、圆形波浪、形态加载指示器，已经可以定位到直接的官方调用。</p><div class="scrolltable"><table><tr><th>M3LinearLoader</th><td>调用 LinearWavyProgressIndicator；progress 非空为确定进度，否则为不确定进度</td></tr><tr><th>M3CircularLoader</th><td>调用 CircularWavyProgressIndicator；同样分确定 / 不确定</td></tr><tr><th>M3FourColorCircularLoader</th><td>实际调用 LoadingIndicator；不能只凭函数名保证固定四种颜色</td></tr><tr><th>SimpleCircularLoader</th><td>实际调用 ContainedLoadingIndicator</td></tr><tr><th>需要纠正</th><td>strokeWidth、fourColor、isExpressive 等部分封装参数未传入内部组件；入参存在不代表效果已实现</td></tr><tr><th>适配依据</th><td>具体默认动效与尺寸来自对应构件，不能从这一层封装推定全部库默认值</td></tr></table></div><details><summary>状态条件解释 · 不是动画预览</summary><div class="state-buttons"><button class="state-btn" data-card="loader" data-state="paused">暂停条件</button><button class="state-btn" data-card="loader" data-state="playing">播放条件</button><button class="state-btn" data-card="loader" data-state="loading">加载条件</button></div><p class="state-output" id="state-loader">选择一个条件，查看源码行为解释。这里不模拟 Android 动画。</p></details><details><summary>调用结构 / 定位摘录</summary><pre>// 独立调用示意；未在本环境编译。
+LoadingIndicator(modifier = modifier)
+// 或使用 LinearWavyProgressIndicator / CircularWavyProgressIndicator。</pre></details><div class="source"><a href="https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/Loaders.kt" target="_blank" rel="noopener noreferrer">打开固定 SHA 源码 ↗</a><code>app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/Loaders.kt</code><code>blob 8716f5759d8104048dec9b308d06531ebb251144</code></div><p class="caution">没有运行录像；未展开目标版库内部 token。名称为“Segmented/Buffered/Dot”的封装，也不能仅凭名称判定有独立分段/缓冲/点动画。</p></article><article class="component" id="group" data-search="ExpressiveButtonGroup Rhythm 自定义选择组 app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/ExpressiveButtonGroup.kt"><div class="cardtop"><span class="badge verified">源码已核验</span><span class="badge muted">未运行验证</span></div><h2>ExpressiveButtonGroup</h2><p class="kind">Rhythm 自定义选择组</p><p class="leadsmall">名称带 Expressive，不代表内部就是官方 ButtonGroup。这个文件是 Row / Box / clickable 组合。</p><div class="scrolltable"><table><tr><th>业务语义</th><td>单选集合；selectedIndex 决定唯一选中项</td></tr><tr><th>布局</th><td>等权重；间隔 4dp；默认高度 48dp，Compact 为 40dp</td></tr><tr><th>颜色</th><td>按钮与内容颜色 tween 250ms</td></tr><tr><th>勾选图标</th><td>alpha 目标 0/1，tween 200ms；显示逻辑另受选中状态约束</td></tr><tr><th>形状</th><td>选中 CircleShape，否则 RoundedCornerShape(10dp)；本函数未声明连续路径插值</td></tr><tr><th>禁用</th><td>容器 alpha 0.38，clickable(enabled=false)</td></tr><tr><th>不要混淆</th><td>它不是报告里的 ExpressivePlayerControlGroup；不能把后者权重联动参数套到这个函数</td></tr></table></div><details><summary>状态条件解释 · 不是动画预览</summary><div class="state-buttons"><button class="state-btn" data-card="group" data-state="paused">暂停条件</button><button class="state-btn" data-card="group" data-state="playing">播放条件</button><button class="state-btn" data-card="group" data-state="loading">加载条件</button></div><p class="state-output" id="state-group">选择一个条件，查看源码行为解释。这里不模拟 Android 动画。</p></details><details><summary>调用结构 / 定位摘录</summary><pre>// 此条不复制项目实现。
+// 结构：Row → 每项等权 Box → 主题颜色与文字 → clickable。</pre></details><div class="source"><a href="https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/ExpressiveButtonGroup.kt" target="_blank" rel="noopener noreferrer">打开固定 SHA 源码 ↗</a><code>app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/ExpressiveButtonGroup.kt</code><code>blob 48e085dc219e9874108c5ef90f182edf3e51104d</code></div><p class="caution">只核验本文件；未运行，无论函数名或注释都不算官方组件认证。报告中的播放器控制组仍待另查。</p></article><div class="empty" id="empty" hidden>没有匹配组件，试试“波浪”或“官方”。</div></section><section id="discovery"><h2 class="section-heading">本轮最重要的修正</h2><div class="panel"><h3>WaveSlider 的波浪轨道，就是官方组件。</h3><p>固定版本 WaveSlider.kt 直接调用 LinearWavyProgressIndicator，再叠加自绘手柄和拖动层。因此把它笼统称作“自绘波浪滑块”不够准确。原解包报告保持原样，修订以本页核验结果为准。</p><h3>“M3CircularLoader”也已经追到了底层。</h3><p>Loaders.kt 中它调用 CircularWavyProgressIndicator。LoadingIndicator 与 ContainedLoadingIndicator 则由其他封装使用；不能把所有加载效果混成一个组件。</p><h3>参数签名不等于参数生效。</h3><p>WaveSlider 的 waveAmplitudeWhenPlaying、加载封装的部分 strokeWidth/fourColor 等参数虽然存在，但函数体未实际接入相应底层调用。不能仅按参数名或注释编写“效果说明”。</p><h3>命名不是认证。</h3><p>ExpressiveButtonGroup 是一份自定义选择组实现，并非直接调用官方同名组件；它也不是报告里另一份播放器控制组。需要继续按精确符号和调用链拆解。</p></div></section><section id="pending"><h2 class="section-heading">报告中的其他候选，尚未升级为发布版核验。</h2><p class="section-intro">这些线索来自用户原报告；不伪装成新增已确认数据。</p><div class="pending-grid"><div class="candidate"><span class="badge pending">待核验</span><h3>ExpressivePlayerControlGroup</h3><p>按钮权重联动、圆角过渡。需要读取对应函数与页面调用，不套用 ExpressiveButtonGroup 参数。</p></div><div class="candidate"><span class="badge pending">待核验</span><h3>TabAnimation / SmallTabAnimation</h3><p>选中弹跳、相邻页签让位；本轮只确认目录文件存在，未逐函数核验。</p></div><div class="candidate"><span class="badge pending">待核验</span><h3>Arc / Cookie Slider</h3><p>弧形、曲奇滑块需要分别检查，不将所有波形都视为官方 LinearWavyProgressIndicator。</p></div><div class="candidate"><span class="badge pending">待核验</span><h3>歌词 catch-up / Scrollbar</h3><p>原报告含推断，不能凭函数名补出真实曲线、时长或性能。</p></div></div></section><section id="next"><h2 class="section-heading">下一阶段：原生样板，而非另一个旧组件网页。</h2><div class="pipeline"><div class="step"><b>01 / 版本可用</b>核对笔记 beta02 构件中的公开接口，不默认升级整套工具链。</div><div class="step"><b>02 / 独立样板</b>先运行官方线性/圆形波浪与形态 loader，再做 Circle↔Cookie 的独立组合。</div><div class="step"><b>03 / 原生证据</b>只指定模拟器。录制实际操作，测试中断、反向、取消、加载和主题。</div><div class="step"><b>04 / 浏览器查阅</b>将原生实录接入本页；浏览器播放实录，不伪称浏览器运行 Compose。</div></div><div class="panel" style="margin-top:18px"><p>当前没有可用的新原生实录，所以本页没有“假播放”或重建的 CSS 演示。上一轮普通 Material Web 展厅不作为本研究的原生体验证明。</p><p>本页不连接笔记 App、不访问设备、不加载外部脚本、不发送输入数据；外部源码链接需要网络。</p></div></section><section id="original"><h2 class="section-heading">原始解包报告</h2><p class="section-intro">原文不改写，保留其 [A]/[B]/[C] 分类。报告中的“所有组件自动变化”“70% 高级感”等表述不是本页核验结果；许可证论述亦未在本轮作为法律意见核验。</p><details><summary>展开 REPORT.md 全文（原文可能含尚未核实或已被修正的陈述）</summary><input type="search" id="report-search" placeholder="查找原报告关键词，例如 morph" aria-label="查找原报告" style="margin-top:15px"><p class="statusline" id="report-count">使用浏览器 Ctrl+F / 查找页面，也可以检索全文。</p><pre class="original" id="report-text"># Rhythm 的 Material 组件体系与动效实现
+
+&gt; 对象：`chromahub.rhythm.app` 5.5.499.1302-fdroid（arm64-v8a，SHA-256 `a13cc67e…52fe`）  
+&gt; 对照源码：`github.com/cromaguy/Rhythm` @ main  
+&gt; 标注：**[A]** 源码原文 ｜ **[B]** 构建产物实证 ｜ **[C]** 推断（勿当事实引用）
+
+---
+
+## 1. 它是什么，先排掉一个常见误会
+
+很多人以为 Rhythm 是 Flutter 应用。**这一版不是。**
+
+| 判定项   | 观察                                                                                                         | 结论                       |
+| ----- | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
+| 原生库   | `lib/arm64-v8a/` 只有 `libffmpegJNI.so`、`libtaglib.so`、`libandroidx.graphics.path.so`，**没有 `libflutter.so`** | 不是 Flutter               |
+| UI 资源 | `res/` 下只有 `color`(39)、`color-v23`(7)、`color-night-v8`(1)，**零 layout、零 drawable**                          | 界面全代码绘制                  |
+| 框架痕迹  | 两个 dex 共 20.36 MB；`META-INF/` 里有 `activity-compose.kotlin_module`、`animation*.kotlin_module`               | Kotlin + Jetpack Compose |
+| 页面实现  | 自有类中含大量 `*Kt$*$1$1$1` 形式的 Composable lambda 类                                                              | Compose 声明式 UI           |
+
+**[B]** 顺带可以确认它把音频链路做得很重：`androidx.media3.exoplayer`（1150 个类描述符）、`org.jaudiotagger`（322）、ffmpeg JNI、taglib，以及 `androidx.glance.appwidget`（941，桌面小组件）。这些不在本次分析范围内，只作上下文。
+
+### 依赖版本矩阵（决定&quot;它用的是哪一代 Material&quot;）
+
+| 组件                                                         | 版本               |
+| ---------------------------------------------------------- | ---------------- |
+| `compose.runtime / ui / foundation / animation / material` | **1.12.1**       |
+| **`compose.material3`**                                    | **1.5.0-beta01** |
+| `activity`                                                 | 1.13.0           |
+| `lifecycle`                                                | 2.11.0           |
+| `navigation`                                               | 2.10.2           |
+| `dynamicanimation`                                         | 1.1.0            |
+| `glance`                                                   | 1.2.0            |
+
+**[B]** 这个组合很关键：Material3 1.5 才把 **Expressive** 的那套东西（`MotionScheme`、`MaterialShapes`、morph 版 `LoadingIndicator`、`FloatingToolbar`、`SplitButton`、`ButtonGroup`、`Carousel`、`WideNavigationRail`）正式铺开。Rhythm 的&quot;高级感&quot;有一半来自&quot;直接用上了这一代 API&quot;，而不是自研。
+
+---
+
+## 2. 主题层：动效的地基
+
+### 2.1 根主题只做了一件关键事
+
+**[A]** `shared/presentation/theme/Theme.kt`（APK 内包名 `ui.theme`）：
+
+```kotlin
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+MaterialTheme(
+    colorScheme = colorScheme,
+    motionScheme = MotionScheme.expressive(),
+    typography = typography,
+    shapes = Shapes,
+    content = content
+)
+```
+
+一行 `motionScheme = MotionScheme.expressive()` 就把所有 M3 组件（按钮按压、Sheet、Chip、FAB、Switch…）的默认时长与弹簧换成了 Expressive 节奏。**这是&quot;整体看起来是同一套动画&quot;的根本原因**，比逐个组件调 `tween` 省事得多。
+
+对自建项目的直接启示：想统一手感，先统一 `motionScheme`，再谈单个组件的曲线。
+
+### 2.2 颜色不是普通的 Material You
+
+**[A]** 它没有直接吃 `dynamicLightColorScheme` 了事，而是自建了一条色彩管线：
+
+```
+种子色(HCT) ─┬─ paletteStyle: TONAL_SPOT / VIBRANT / MONOCHROME / EXPRESSIVE
+             ├─ 强度: STANDARD / MEDIUM / VIVID
+             └─ 明暗 + AMOLED 覆写 → ColorScheme
+```
+
+- **13 个预设**：Default、Warm、Cool、Forest、Rose、Monochrome、Lavender、Ocean、Aurora、Amber、Crimson、Emerald、Mint；其中 Default/Forest 用 `TONAL_SPOT`，Lavender/Mint 用 `EXPRESSIVE`，多数用 `VIBRANT`。
+- **强度**：`VIVID → (contrastLevel 0.22, chroma ×1.25)`，`MEDIUM → (0.12, ×1.12)`，其余 `(0.0, ×1.0)`。
+- **封面取色**：从专辑封面提 seed，`chroma &gt; 18` 走 `VIBRANT`，否则 `TONAL_SPOT`；`chroma ≤ 8` 判为近灰，强制 `MONOCHROME`，避免灰封面色调映射出脏色。
+- **Expressive 色集重映射**（容易被忽略但很出效果）：
+  - 深色：`background = surface = surfaceContainerLowest`
+  - 浅色：`background = surface = surfaceContainerLow`，`surfaceContainer / surfaceContainerLowest = White`
+  - 结果是&quot;面板靠 container 分层、底色统一收进最低层&quot;，看起来更整、更少灰雾。
+- **AMOLED**：纯黑 `background/surface/surfaceDim`，container 用 `#0A0A0A`→`#2A2A2A` 阶梯。
+
+### 2.3 形状与字体
+
+**[B]** 形状相关类：`MusicShapes`、`ExpressiveShapeTokens`、`ShapeKt`、`SettingsExpressiveShapes`、`ExpressiveShapes`、`ShapePresetOption`（说明形状是可切换预设，用户能在设置里换）。  
+**[A]** 常用令牌（来自 `ExpressiveComponents.kt`）：
+
+| 令牌                                               | 值                                                    |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| Full                                             | `CircleShape`（胶囊：按钮 / FAB / Chip）                    |
+| ExtraLarge / Large / Medium / Small / ExtraSmall | 28 / 24 / 16 / 12 / 8 dp                             |
+| Squircle 系                                       | 32 / 28 / 20 / 14 dp                                 |
+| 高度层级                                             | Level0–5 = 0 / 1 / 3 / 6 / 8 / 12 dp；按下 2 dp、悬停 4 dp |
+
+字体支持系统字体与自定义字体文件（`FontLoader` + `fontSource = SYSTEM / CUSTOM`），并有一整屏字体选择 BottomSheet。
+
+---
+
+## 3. 组件体系：三层，别只看最外层
+
+理解 Rhythm 的组件，关键是分清三层，否则会把&quot;它自己写的&quot;和&quot;Material 自带的&quot;混在一起。
+
+### 第一层：M3 原生组件
+
+**[B]** DEX 里实际引用的 M3 API 覆盖了相当完整的面：`Button`、`Card`、`Surface`、`Slider/RangeSlider`、`Switch`、`Checkbox`、`RadioButton`、`NavigationBar/NavigationRail`、`SearchBar/DockedSearchBar`、`ModalBottomSheet`、`TopAppBar`、`PullToRefresh`、`Snackbar`、`Badge`、`Tooltip`、`SegmentedButton`、`FilterChip`、`AlertDialog`（含 Predictive Back）。
+
+Expressive 专属的也都在：`MotionScheme`、`MaterialShapes`、`LoadingIndicator`（shape-morph 版本）、`FloatingToolbar`（含 `ExitAlways` 滚动行为）、`SplitButton`、`ButtonGroup`、`Carousel`、`ModalWideNavigationRail`、`ToggleButton`（含 `IconToggleButton`）、`AnimatedShapeState`。
+
+### 第二层：自家 Expressive 封装（真正&quot;Rhythm 味&quot;的来源）
+
+**[A]** `shared/presentation/components/common/ExpressiveComponents.kt` 把 M3 重新包了一层，统一了**按压弹簧 + 缩放梯度**：
+
+| 组件              | 按压缩放              | 弹簧                                               |
+| --------------- | ----------------- | ------------------------------------------------ |
+| 文字/填充/描边按钮      | `0.96f`           | `spring(DampingRatioMediumBouncy, StiffnessLow)` |
+| 图标按钮、FAB（小/中/大） | `0.88f` ~ `0.95f` | MediumBouncy + `StiffnessMedium`                 |
+| Chip 系列         | `0.95f`           | MediumBouncy + StiffnessMedium                   |
+| 可点 Surface      | `0.98f`           | MediumBouncy + StiffnessLow                      |
+
+规律很清楚：**视觉越&quot;重&quot;的元素缩得越狠、弹得越快；越&quot;轻&quot;的越克制、越软。** 两档弹簧（Low / Medium）覆盖了全部交互，没有第三种曲线——这是它手感统一的技术原因。
+
+### 第三层：手工实现的特殊组件
+
+这些是 M3 没有、自己画的，也是最有参考价值的部分：
+
+| 组件                                                            | 文件                                             | 做了什么                          |
+| ------------------------------------------------------------- | ---------------------------------------------- | ----------------------------- |
+| `MorphingPlayPauseButton`                                     | `components/player/MorphingPlayPauseButton.kt` | **播放/暂停按钮的容器在圆形与九瓣曲奇之间做路径形变** |
+| `ExpressivePlayerControlGroup`                                | `components/common/ExpressiveComponents.kt`    | 多按钮&quot;权重联动&quot;形变 + 圆角 morph        |
+| `ExpressiveMorphingToggleButton`                              | 同上                                             | 激活时收窄成图标、非激活展开显示文字            |
+| `TabAnimation` / `SmallTabAnimation`                          | `components/common/`                           | 选中页签&quot;弹一下&quot;、相邻页签让位              |
+| `WaveSlider` / `ArcProgressSlider` / `CookieHorizontalSlider` | `components/common/`                           | 自绘滑块（波形 / 弧形 / 曲奇形）           |
+| `ExpressiveScrollBar`                                         | `components/common/`                           | 带网格线与标签解析的自绘滚动条               |
+| `SyncedLyricsView` / `WordByWordLyricsView`                   | `components/lyrics/`                           | 歌词同步滚动、&quot;追赶式&quot;定位、逐字高亮           |
+| `SnowfallEffect` / `ChristmasDecorations`                     | `theme/festive/`                               | 节日粒子层                         |
+| `CanvasArtworkPlayer`                                         | `components/player/`                           | Canvas 绘制封面（随播放状态变形/旋转）       |
+| `DigitTickerText`                                             | `components/common/`                           | 数字滚动（时间、进度）                   |
+
+完整清单见 `COMPONENTS.md`。
+
+---
+
+## 4. 动效体系：七个可拆解的做法
+
+### 4.1 全局节奏：交给 `MotionScheme`
+
+**[A]** 见 §2.1。所有 M3 组件的时长/曲线由 `MotionScheme.expressive()` 决定，业务代码不重复声明。**建议照抄这个决策**，而不是在每个组件上手写 `tween(300)`。
+
+### 4.2 形变（morph）：路径插值，不是缩放
+
+最出彩的一处。**[A]** `MorphingPlayPauseButton`：
+
+```kotlin
+val morph = remember { Morph(MaterialShapes.Circle, MaterialShapes.Cookie9Sided) }
+val morphProgress by animateFloatAsState(
+    targetValue = if (isPlaying) 1f else 0f,
+    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+)
+```
+
+要点：
+
+- `androidx.graphics.shapes.Morph` 在两个 `MaterialShapes` 之间做**顶点插值**，`morph.toPath(progress, path)` 每帧拿到 `Path`，再用 `Canvas` 的 `drawPath` 画。不是改变圆角，是真的换轮廓。
+- `Matrix` 把归一化路径（0..1）拉伸到控件尺寸，再按 `bounds.center` 平移居中——这是 `MaterialShapes` 路径的标准用法，忘了这步就会画在左上角。
+- 播放中额外叠加 **15 秒一圈的线性旋转**（`infiniteRepeatable(tween(15000, LinearEasing), Restart)`）；暂停时旋转角直接归零。
+- 图标切换用 `Crossfade(220ms, FastOutSlowInEasing)`，并且图标尺寸 = `size * 0.5f`。
+- 按压反馈：`graphicsLayer { scaleX = scaleY = pressScale }`，`0.92f`，同一条 MediumBouncy + Low 弹簧。
+- 加载态：内部换成 `M3CircularLoader`，尺寸 `size * 0.42f`，线宽 2.5，track alpha 0.24——**尺寸用比例而非固定 dp**，所以 48/56/72 dp 下都不歪。
+
+&gt; 复刻门槛：`androidx.graphics:graphics-shapes` + Material3 1.5 的 `MaterialShapes`。低版本 M3 拿不到 `Cookie9Sided`，只能自己用 `Path` 手写曲线。
+
+### 4.3 权重联动形变：一组按钮像流体
+
+**[A]** `ExpressivePlayerControlGroup` 里，按下任一按钮时整组按钮的 `weight` 同时变化：
+
+| 状态   | 播放/暂停  | 其它按钮    |
+| ---- | ------ | ------- |
+| 按下   | `1.3f` | `1.1f`  |
+| 正在播放 | `1.2f` | `1.0f`  |
+| 空闲   | `0.8f` | `0.65f` |
+
+弹簧 MediumBouncy + StiffnessMedium。同时播放键圆角在 `60dp ↔ 26dp` 之间 morph（NoBouncy + StiffnessMedium），容器圆角随断点 `40 / 36 / 32 / 28 dp`。
+
+这套组合的效果是：**按一下，主按钮胖起来、邻居被挤窄，松手回弹**。它没有任何位移动画，全靠 `weight` + `cornerRadius` 两个连续量。
+
+### 4.4 宽度 morph：胶囊 ↔ 图标态
+
+**[A]** `ExpressiveMorphingToggleButton`（随机播放、歌词、循环）：
+
+```
+激活   : 48dp（紧凑 40dp）       ← 只剩图标
+非激活 : 100dp（紧凑 84dp）      ← 图标 + 文字
+弹簧   : spring(MediumBouncy, StiffnessLow)
+```
+
+文字用 `AnimatedVisibility` + `fadeIn() + expandHorizontally()` 展开，**进入用 MediumBouncy/Low，退出用 NoBouncy/StiffnessHigh**——收得比开得快，视觉上不会拖泥带水。标签样式 `labelMedium + Bold + letterSpacing 0.8sp`。
+
+`ExpressiveMorphingPlayPauseButton` 是同一个思路的另一个用例：宽度 `110↔120`（或 `130↔140`、`140↔150`），圆角恒等于 `height / 2`，并且**暂停且无 seek 按钮时延迟 2000 ms 才把 &quot;PAUSE&quot; 文字淡入**（避免一暂停就跳字）。
+
+### 4.5 页签：弹一下 + 邻居让位
+
+**[A]** `TabAnimation`，参数给得很典型：
+
+| 项       | 值                                       |
+| ------- | --------------------------------------- |
+| 主曲线     | `tween(250, FastOutSlowInEasing)`       |
+| 选中&quot;弹一下&quot; | `scale 1f → 1.05f → 1f`（同一条 250ms）      |
+| 邻居让位    | 仅相邻页签，`translationX ±12f`，出去再回来         |
+| 颜色过渡    | `animateColorAsState(tween(200))`       |
+| 触觉      | 点击 `HapticType.LIGHT`，长按 `HEAVY`        |
+| 尺寸      | 高 44dp，水平 padding 16dp，`CircleShape` 裁剪 |
+
+两个实现细节值得抄：
+
+1. **非选中页签立即 `snapTo(1f)`**，不做反向动画——否则来回切换时会有&quot;追赶&quot;的滞后感。
+2. **只让相邻页签位移**，隔得远的直接 `snapTo(0f)`，避免整排抖动。
+
+### 4.6 歌词：catch-up 滚动
+
+**[B]** 两个函数名直接暴露了策略：`animateToSyncedItemWithCatchUp`、`animateToLyricItemWithCatchUp`。
+
+**[C]** 从命名与同类实现推断：目标行在当前行之上/之下时，用&quot;先快速追上、再缓入对齐&quot;的两段式滚动，而不是匀速 `animateScrollToItem`。逐字视图另有 `WordAnimationPreset` 类，说明高亮动效是可切换预设。
+
+&gt; 这一块是本包里**最没坐实**的部分——APK 里只能看到函数名与 `WordAnimationPreset` 类存在，具体时长没取到。真要复刻建议直接读源码 `components/lyrics/`。
+
+### 4.7 加载、占位与装饰
+
+| 场景        | 做法                                       | 参数                                              | 级别      |
+| --------- | ---------------------------------------- | ----------------------------------------------- | ------- |
+| 骨架屏       | `ShimmerBox`：线性渐变横向位移                    | `animateFloat 0→1000f`，`tween(1000, delay 300)` | [A]     |
+| 播放等待      | 脉冲                                       | `infiniteRepeatable(tween(1000), Reverse)`，60dp | [A]     |
+| 呼吸容器      | 脉冲                                       | `infiniteRepeatable(tween(1500), Reverse)`      | [A]     |
+| 数字变化      | 计数过渡                                     | `animateFloatAsState(tween(600))`               | [A]     |
+| 折叠卡       | 箭头旋转 180° ↔ 0°                           | `tween(300)` + `fadeIn + expandVertically`      | [A]     |
+| M3 loader | Expressive 形变 loader                     | 用 M3 1.5 `LoadingIndicator` 的 morph 版本          | [B]     |
+| 节日雪花      | `SnowfallEffect` / `SnowfallWithSparkle` | Canvas 粒子 + 无限动画，支持雪花形状生成器                      | [B]/[C] |
+| 崩溃页背景     | `RotatingBackgroundCookies`（曲奇形旋转背景）     | —                                               | [B]     |
+
+---
+
+## 5. 如果要复刻，按这个顺序做
+
+1. **先把 `motionScheme` 统一。** 升级到 Material3 1.5，根主题传 `MotionScheme.expressive()`。这一步能白拿 70% 的&quot;高级感&quot;。
+2. **建两档弹簧常量**：`Soft = spring(MediumBouncy, Low)`、`Snappy = spring(MediumBouncy, Medium)`，全项目只用这两个，配一套缩放梯度（0.98 / 0.96 / 0.95 / 0.92 / 0.88）。
+3. **再挑 2–3 个&quot;重点 morph&quot;**：播放键路径形变、按钮组权重联动、页签弹跳。这三个是记忆点，其余保持克制。
+4. **最后加一层氛围**：Expressive 色集重映射（底色收进 container 最低层）+ 骨架屏 shimmer + 一个节日粒子层（可选）。
+
+反面教材也在包里：它没有给每个页面写自定义转场，页面级动画主要靠 `AnimatedContent` / `Crossfade` / `SharedTransitionScope`（**[B]** 三者都有引用）。**动效浓度靠集中在少数组件上，而不是到处加。**
+
+---
+
+## 6. 许可与合规（重要）
+
+Rhythm 的每个源文件头都是：
+
+```
+SPDX-FileCopyrightText: 2024-2026 Anjishnu Nandi
+SPDX-License-Identifier: GPL-3.0-or-later
+```
+
+也就是说：
+
+- **可以**读源码、学思路、照着参数自己实现、在自己的项目里用同样的设计语言。
+- **不可以**把它的 Kotlin 代码片段直接拷进闭源或上架商业应用——GPL-3.0 具传染性，会要求你的整个作品以 GPL 分发。
+
+
+- 本报告给的是**做法、参数与判定依据**，没有搬运可直接编译的源码片段；`MorphingPlayPauseButton` 那段引用仅用于说明技术路径，不构成可用代码。
+
+---
+
+## 7. 本次没覆盖的
+
+- 音频链路（ffmpeg / taglib / Media3 / AutoEQ / 播放引擎的 overlap transition）只做了存在性确认，未深入。
+- 桌面小组件（Glance，941 个类描述符）未分析。
+- 歌词 catch-up 的具体曲线、`MaterialShapesUtils.kt`（14 KB 的形状工具）的细节、`ExpressiveScrollBar` 的标签解析算法，都只到&quot;存在且被使用&quot;这一层。
+- 未做动态验证（没有安装运行、没有抓帧比对）。所有动效参数来自源码；**实际观感是否与参数一致，未验证**。
+- 源码 `main` 与 APK 5.5.499.1302 存在版本位移（见 README 限制说明），常量不保证逐字对应该二进制。
+</pre></details><p class="provenance">原件 SHA-256：af1618ca50a4f76553806b09ec7dee47160ecbee04c5ca0739e97d55c91c1989</p></section><section id="sources"><h2 class="section-heading">来源、版本与验证限制</h2><div class="panel"><ul class="source-list"><li><a href="https://github.com/cromaguy/Rhythm/releases/tag/v5.5.499.1302-stable" target="_blank" rel="noopener noreferrer">指定 Release</a> · tag 指向 6f26f963b82ed592ec28f05824bb7f12b65b82ea</li><li><a href="https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/gradle/libs.versions.toml" target="_blank" rel="noopener noreferrer">发布版版本目录</a> · blob 33bd54b0325762dc04dcfc40ad2866c0aff08f6c；声明不代替重新解析依赖。</li><li><a href="https://rhythmweb.vercel.app/" target="_blank" rel="noopener noreferrer">Rhythm 产品网站</a> · 视觉线索，不替代 Android 运行证据。</li><li><a href="https://github.com/cromaguy" target="_blank" rel="noopener noreferrer">作者主页</a> · 作者身份入口，不作为参数证明。</li><li>Rhythm 已读文件头为 GPL-3.0-or-later。本页主要提供事实性分析和源链接，不搬运完整第三方实现；实际复制代码/素材需单独核对许可证。</li><li>只完成静态源码阅读；未构建、安装、抓帧或证明 APK 与源码逐字节对应。</li><li>网页制作只做结构校验，没有本环境内的浏览器交互/视觉实测。没有新部署网站或写入 GitHub。</li></ul><button id="download" type="button">导出本页核验索引 JSON</button></div></section><p class="footer">Rhythm pinned component reader · 研究用离线页面 · 生成日期 2026-11-13 · 页面交互控件是阅读工具，不是 Material 官方控件演示</p></main></div><script>
+const stateData={"play": {"paused": "目标形变进度 0；绘制角度 0；显示播放图标。", "playing": "目标形变进度 1；圆形向九瓣形插值；叠加播放旋转；显示暂停图标。", "loading": "绘制圆形底容器，内部使用 M3CircularLoader；不进入普通形变图标分支。"}, "wave": {"paused": "振幅目标 0，手柄恢复常态；进度仍可显示。", "playing": "启用且未拖动时振幅目标 1，波浪由官方轨道组件绘制。", "loading": "本组件没有独立“加载”分支。请查看 Loaders；不要从名称补造行为。"}, "loader": {"paused": "不适用：这些封装按 progress 是否为空选择调用，未定义播放器暂停态。", "playing": "确定进度随调用者 progress 更新；不能当成音频播放逻辑。", "loading": "progress 为 null 时，线性/圆形封装使用官方不确定进度重载。"}, "group": {"paused": "不适用：这是选择组，不接收播放器暂停态。", "playing": "不适用：selectedIndex 的业务选择不能等同 isPlaying。", "loading": "不适用：本函数没有加载态。"}},registry={"project": "Rhythm", "tag": "v5.5.499.1302-stable", "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea", "original_report_sha256": "af1618ca50a4f76553806b09ec7dee47160ecbee04c5ca0739e97d55c91c1989", "version_catalog_blob": "33bd54b0325762dc04dcfc40ad2866c0aff08f6c", "files": [{"id": "play", "name": "形变播放 / 暂停按钮", "kind": "官方图形能力＋Rhythm 编排", "file": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/MorphingPlayPauseButton.kt", "blob": "a7941d0611ac856e239e9465b1f9e045439c0c15", "caveat": "未运行、未测中断与语义；只核验函数实现，未追踪它在具体播放器布局中的调用。"}, {"id": "wave", "name": "WaveSlider 波浪进度拖动", "kind": "官方波浪轨道＋自定义交互", "file": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/WaveSlider.kt", "blob": "79c72b050d9feb1907e21edf8dcd1f9508558c74", "caveat": "未量测真实波形曲线/像素与帧时序。这里不把“官方组件＋自绘手柄”误写为全自绘或完全未定制。"}, {"id": "loader", "name": "加载指示器家族", "kind": "官方组件封装", "file": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/Loaders.kt", "blob": "8716f5759d8104048dec9b308d06531ebb251144", "caveat": "没有运行录像；未展开目标版库内部 token。名称为“Segmented/Buffered/Dot”的封装，也不能仅凭名称判定有独立分段/缓冲/点动画。"}, {"id": "group", "name": "ExpressiveButtonGroup", "kind": "Rhythm 自定义选择组", "file": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/ExpressiveButtonGroup.kt", "blob": "48e085dc219e9874108c5ef90f182edf3e51104d", "caveat": "只核验本文件；未运行，无论函数名或注释都不算官方组件认证。报告中的播放器控制组仍待另查。"}], "validation": "static-source-only", "native_recording_available": false};
+document.querySelector('#theme').onclick=()=>{const dark=document.documentElement.classList.toggle('dark');document.querySelector('#theme').textContent=dark?'切换浅色':'切换深色'};
+document.querySelector('#search').addEventListener('input',e=>{const q=e.target.value.trim().toLowerCase();let n=0;document.querySelectorAll('.component').forEach(c=>{const ok=c.textContent.toLowerCase().includes(q);c.hidden=!ok;if(ok)n++});document.querySelector('#count').textContent='显示 '+n+' / 4';document.querySelector('#empty').hidden=n>0});
+document.querySelectorAll('.state-btn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.state-btn[data-card="'+b.dataset.card+'"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));document.querySelector('#state-'+b.dataset.card).textContent=stateData[b.dataset.card][b.dataset.state]});
+let allExpanded=false;document.querySelector('#expand').onclick=()=>{allExpanded=!allExpanded;document.querySelectorAll('.component:not([hidden]) details').forEach(d=>d.open=allExpanded);document.querySelector('#expand').textContent=allExpanded?'收起所有参数说明':'展开所有参数说明'};
+const reportEl=document.querySelector('#report-text'),raw=reportEl.textContent;document.querySelector('#report-search').addEventListener('input',e=>{const q=e.target.value.trim();reportEl.textContent='';if(!q){reportEl.textContent=raw;document.querySelector('#report-count').textContent='使用浏览器 Ctrl+F / 查找页面，也可以检索全文。';return}let at=0,n=0;const lower=raw.toLowerCase(),needle=q.toLowerCase();while(true){const i=lower.indexOf(needle,at);if(i<0)break;reportEl.append(document.createTextNode(raw.slice(at,i)));const m=document.createElement('mark');m.textContent=raw.slice(i,i+q.length);reportEl.append(m);at=i+q.length;n++}reportEl.append(document.createTextNode(raw.slice(at)));document.querySelector('#report-count').textContent='匹配 '+n+' 处';const first=reportEl.querySelector('mark');if(first)reportEl.scrollTop=Math.max(0,first.offsetTop-reportEl.offsetTop-50)});
+document.querySelector('#download').onclick=()=>{const blob=new Blob([JSON.stringify(registry,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='rhythm-pinned-index.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+</script></body></html>
