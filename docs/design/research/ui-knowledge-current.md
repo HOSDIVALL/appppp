@@ -1,29 +1,26 @@
 # Rhythm UI知识库 · 当前恢复入口
 
-当前数据快照：20261113-1213；基于30d66c5d82daa28d5a39471d221f58aff1ab08b8的历史1136快照补回v7/v8/v9真实HTML。
+当前数据快照：20261113-1553。基于已归档1213快照，新增用户提供的v11.1完整HTML资产；本地制作不等于已推送，发布状态以新manifest及真实Git对象为准。
 
-## 恢复文件
+## 当前恢复文件
 
-- SQLite：snapshots/20261113-1213/Rhythm-UI-Knowledge-20261113.sqlite3
-- 完整JSON：snapshots/20261113-1213/Rhythm-UI-Knowledge-20261113.json
-- 原件：snapshots/20261113-1213/originals/ 下三份HTML
-- 当前校验与发布状态：snapshots/20261113-1213/manifest.json
+- SQLite：snapshots/20261113-1553/Rhythm-UI-Knowledge-20261113.sqlite3
+- 完整JSON：snapshots/20261113-1553/Rhythm-UI-Knowledge-20261113.json
+- v11.1原文件：snapshots/20261113-1553/originals/Rhythm-Player-Container-Control-Lab-v11.1.html
+- 当前校验与发布状态：snapshots/20261113-1553/manifest.json
 
-本文件与上述文件实际入仓并核验后，才算远端补档完成；本地准备不等于上传。
+## 本次入库范围
 
-## 本次状态变化
+assets由11条变12条，12条均带正文，missing_assets=0。正文是v2-v9及v11.1九份HTML，加三份历史参考文档。v10与v10.1仍独立归档，不在该资产计数中；没有把所有历史网页都算作数据库已嵌入。
+97条源码记录、53条组件/机制、240项事实、35个形状ID、7个默认目标不变。本次只新增HTML原字节和存储metadata，不改组件结论、事实或测试记录，不把网页文字自动提升为已核验源码证据。
+v11.1被登记为用户提供的源码重建实验修订，不冒称原v11的字节级补丁。本次没有执行其JavaScript或重新运行浏览器，没有新增原生、设备、读屏或视频解码验收。
 
-assets仍11条；有正文由8条变11条；missing_assets为0。11份正文为v2-v9八份HTML与三份参考文档。
-97条源码记录、53条组件/机制记录、240项事实、35形状ID、7默认目标不变。仅改变资产恢复内容及快照metadata，不重写研究结论。
-新补的三份HTML在独立originals目录中，并同时嵌入SQLite BLOB和JSON base64，三种载体逐字节一致。
+## 历史与状态口径
 
-## 历史与边界
-
-1136目录及旧登记/manifest保留为历史时点，旧missing状态不是当前快照状态。当前请先读本入口，再读1213 manifest，不回写历史快照。
-数据库/JSON内的制作时prepared标记及部分record_archive_states属于历史生成字段；当前远端状态以本目录manifest及真实Git对象为准。
-旧整合草稿只作为输入原件保留，不复活已作废的综合站。
-v7-v9原件齐全不表示原始测试JSON已经补齐。原始测试JSON仍不可得；未重跑浏览器、未构建、未做Rhythm原生或设备验收。
-ZIP未归档。research/SHA256SUMS仍是其历史覆盖范围，不扩称全库校验表；新快照按自己的manifest校验。
+1136与1213快照、两份1136登记及research/SHA256SUMS保持不变。新快照用自己的manifest，不扩大旧校验表的覆盖范围。
+v7-v9正文继续保留在数据库及JSON中，其独立文件仍在1213/originals；原始测试JSON仍未补回。
+文件内prepared及部分archive_state是生成时/历史字段；当前远端存在性以仓库manifest为准，不为改这些字段而破坏原件哈希。ZIP未归档。
+旧整合草稿只保留为输入证据，不复活已作废的综合站。
 
 ## 独立网页精修：v10.1
 
@@ -32,4 +29,4 @@ ZIP未归档。research/SHA256SUMS仍是其历史覆盖范围，不扩称全库�
 - 修改说明、浏览器检查JSON与MANIFEST：同目录。
 
 这是用户上传v10的Web UI精修，不是新增Rhythm源码完整核验，也不是Android App改版。包内记录37项选定浏览器检查，其中包含87组机制输出对照；本次入库不等于重新执行这些检查。原生/设备验收未开展。
-这些文件独立归档，尚未嵌入1213 SQLite/JSON；现有数据库统计、1136/1213历史快照和校验范围不因此改变。包内repository_written等标记保留制作时值，远端存在性以本次Git提交为准。ZIP未归档。
+该批仍为独立归档，尚未嵌入1553 SQLite/JSON；其原文件与证据未修改。

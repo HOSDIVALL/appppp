@@ -1,0 +1,49 @@
+{
+  "snapshot": "2026-11-13 15:53 CST",
+  "remote_state": "archived_with_v11_1_asset",
+  "base_commit": "c8ea43e505e107eb6225c4fb7b9dae731bad940e",
+  "supersedes_snapshot": "20261113-1213",
+  "upstream_commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+  "scope": "v11.1 user-uploaded HTML asset ingestion; no new source or UI test claim",
+  "counts": {
+    "source_files": 97,
+    "components": 53,
+    "facts": 240,
+    "assets": 12,
+    "shape_catalog": 35,
+    "shape_defaults": 7,
+    "embedded_asset_bodies": 12,
+    "missing_asset_bodies": 0,
+    "html_asset_bodies": 9,
+    "reference_documents": 3
+  },
+  "added_asset_ids": [
+    "v11.1"
+  ],
+  "missing_html": [],
+  "original_test_json_added": false,
+  "original_test_json_available_for_v7_v9": false,
+  "native_validation": false,
+  "browser_tests_rerun": false,
+  "zip_remote_uploaded": false,
+  "files": [
+    {
+      "path": "docs/design/research/snapshots/20261113-1553/Rhythm-UI-Knowledge-20261113.sqlite3",
+      "bytes": 1114112,
+      "sha256": "52b7d57f2ef410f6fb85384c71bbe58f72692f7dc16a4cd6b51b885cb125a56f",
+      "remote_uploaded": true
+    },
+    {
+      "path": "docs/design/research/snapshots/20261113-1553/Rhythm-UI-Knowledge-20261113.json",
+      "bytes": 629147,
+      "sha256": "f99786d42352ccdc7dd34a4b84826cb7cd3be1b5564d302b9e3b5b27b3932cbb",
+      "remote_uploaded": true
+    },
+    {
+      "path": "docs/design/research/snapshots/20261113-1553/originals/Rhythm-Player-Container-Control-Lab-v11.1.html",
+      "bytes": 48291,
+      "sha256": "bce374de8a86af439b56e25180bee1189560e3fa4372b827a4528e5d1c546e5b",
+      "remote_uploaded": true
+    }
+  ]
+}
