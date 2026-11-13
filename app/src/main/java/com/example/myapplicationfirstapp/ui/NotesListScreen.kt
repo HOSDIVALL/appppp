@@ -6,8 +6,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -32,6 +35,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,9 +85,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -401,7 +407,9 @@ fun NotesListScreen(
                     // 滚动条也才有真实行程（否则内容刚好一屏，滑块无处可走）
                     bottom = 120.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(AppSpacing.rowGap)
+                // 行距不再交给全局 rowGap：分组后组内 4 / 组间 12 是两种间距，
+                // 统一 spacedBy 会把筛选行、分区标题也挤成同一个值。
+                verticalArrangement = Arrangement.Top
             ) {
                 // 类型筛选
                 item(key = "__filters__") {
@@ -483,41 +491,68 @@ fun NotesListScreen(
                             strings = s,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(top = ListVisualTokens.listTopGap)
                                 .height(300.dp)
                         )
                     }
                 } else if (showSections) {
-                    item(key = "__h_pin__") { ListSectionHeader(s.pinnedSection) }
-                    items(pinned, key = { it.id }) { note ->
-                        NoteRowWithSwipe(
-                            note = note,
-                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
-                            strings = s,
-                            onClick = { openNote(note.id) },
-                            onDelete = { onDelete(note) },
-                            onTogglePin = { state.togglePin(note.id) }
+                    // 两个分区各自是一条逻辑组：首条外角、末条外角各自算，
+                    // 分区标题不参与组内接缝，也不改 visibleNotes 的顺序。
+                    item(key = "__h_pin__") {
+                        ListSectionHeader(
+                            text = s.pinnedSection,
+                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
                         )
                     }
-                    item(key = "__h_recent__") { ListSectionHeader(s.recentSection) }
-                    items(regular, key = { it.id }) { note ->
+                    itemsIndexed(pinned, key = { _, note -> note.id }) { index, note ->
                         NoteRowWithSwipe(
                             note = note,
                             thumbnail = note.images.firstOrNull()?.let(state::imageFile),
                             strings = s,
                             onClick = { openNote(note.id) },
                             onDelete = { onDelete(note) },
-                            onTogglePin = { state.togglePin(note.id) }
+                            onTogglePin = { state.togglePin(note.id) },
+                            topGap = ListVisualTokens.intraGroupGap,
+                            shape = ListGrouping.shapeOf(
+                                ListGrouping.slotOf(indexInGroup = index, groupSize = pinned.size)
+                            )
+                        )
+                    }
+                    item(key = "__h_recent__") {
+                        ListSectionHeader(
+                            text = s.recentSection,
+                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
+                        )
+                    }
+                    itemsIndexed(regular, key = { _, note -> note.id }) { index, note ->
+                        NoteRowWithSwipe(
+                            note = note,
+                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+                            strings = s,
+                            onClick = { openNote(note.id) },
+                            onDelete = { onDelete(note) },
+                            onTogglePin = { state.togglePin(note.id) },
+                            topGap = ListVisualTokens.intraGroupGap,
+                            shape = ListGrouping.shapeOf(
+                                ListGrouping.slotOf(indexInGroup = index, groupSize = regular.size)
+                            )
                         )
                     }
                 } else {
-                    items(notes, key = { it.id }) { note ->
+                    // 搜索/筛选视图是一整组：组内顺序仍是 visibleNotes 的原顺序
+                    itemsIndexed(notes, key = { _, note -> note.id }) { index, note ->
                         NoteRowWithSwipe(
                             note = note,
                             thumbnail = note.images.firstOrNull()?.let(state::imageFile),
                             strings = s,
                             onClick = { openNote(note.id) },
                             onDelete = { onDelete(note) },
-                            onTogglePin = { state.togglePin(note.id) }
+                            onTogglePin = { state.togglePin(note.id) },
+                            topGap = if (index == 0) ListVisualTokens.listTopGap
+                            else ListVisualTokens.intraGroupGap,
+                            shape = ListGrouping.shapeOf(
+                                ListGrouping.slotOf(indexInGroup = index, groupSize = notes.size)
+                            )
                         )
                     }
                 }
@@ -541,15 +576,16 @@ fun NotesListScreen(
 // ============ 列表行 ============
 
 @Composable
-private fun ListSectionHeader(text: String) {
+private fun ListSectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary,
         // 已在 LazyColumn 的 24dp contentPadding 里，不再叠加起始内边距，
-        // 文字字形侧距本身让视觉左缘落在 24dp 上
-        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
+        // 文字字形侧距本身让视觉左缘落在 24dp 上。
+        // 上沿留白由调用点的 interGroupGap 给，这里只留 2dp 作为标题与首条卡的呼吸。
+        modifier = modifier.padding(bottom = 2.dp)
     )
 }
 
@@ -561,7 +597,8 @@ private fun NoteRowWithSwipe(
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onTogglePin: () -> Unit,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp)
+    topGap: androidx.compose.ui.unit.Dp = ListVisualTokens.intraGroupGap,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(ListVisualTokens.groupOuterCorner)
 ) {
     // 用 remember(note.id)：撤销恢复后卡片状态也跟着重建
     val dismissState = remember(note.id) {
@@ -571,9 +608,33 @@ private fun NoteRowWithSwipe(
         )
     }
 
+    // 按压缩放与点击用的是同一个 InteractionSource：长按、单击仍然走原有那条路，
+    // 缩放只是绘制变换（drawWithContent），不参与测量，所以命中框、行高、
+    // 滑动判定都不会跟着动；松手/取消/开始滚动时 pressed 自然回落。
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) ListVisualTokens.pressScale else 1f,
+        animationSpec = tween(ListVisualTokens.pressAnimationMillis),
+        label = "noteRowPressScale"
+    )
+
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = false,
+        // 背景与卡片必须共用同一个 shape：只改卡片会让滑动时露出的红底还是直角。
+        // 缩放放在这一层，背景跟着一起缩，按下时不会在边缘漏出一圈红色。
+        modifier = Modifier
+            .padding(top = topGap)
+            .drawWithContent {
+                if (pressScale == 1f) {
+                    drawContent()
+                } else {
+                    scale(scaleX = pressScale, scaleY = pressScale) {
+                        this@drawWithContent.drawContent()
+                    }
+                }
+            },
         onDismiss = { onDelete() },
         backgroundContent = {
             Box(
@@ -609,6 +670,7 @@ private fun NoteRowWithSwipe(
             strings = strings,
             onClick = onClick,
             onTogglePin = onTogglePin,
+            interactionSource = interactionSource,
             shape = shape
         )
     }
@@ -622,7 +684,8 @@ private fun NoteRow(
     strings: AppStrings,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp)
+    interactionSource: MutableInteractionSource,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(ListVisualTokens.groupInnerCorner)
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val cookie = MaterialShapes.Cookie12Sided.toShape()
@@ -661,16 +724,29 @@ private fun NoteRow(
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
-                .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+                // 72dp 是下限而不是硬高度：两行摘要时行可以长高，不裁字
+                .heightIn(min = ListVisualTokens.rowMinHeight)
+                // 点击与长按仍是原来那一套；沿用同一个 interactionSource，
+                // 上面那层的按压反馈才不会变成第二套手势/第二套组件
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    onClick = onClick,
+                    onLongClick = { menuOpen = true }
+                )
         ) {
             Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                    .fillMaxWidth()
+                    .padding(
+                        start = ListVisualTokens.cardInset,
+                        end = ListVisualTokens.cardInset,
+                        top = 8.dp,
+                        bottom = 8.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 保留十二瓣曲奇图形遮罩（48dp 图标/缩略图），嵌入 72dp 行高
+                // 保留十二瓣曲奇图形遮罩（48dp 图标/缩略图），嵌在行高里垂直居中
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -716,7 +792,25 @@ private fun NoteRow(
                             )
                         }
                     }
+                    // 摘要：正文/清单项的一句话预览。没有正文也没有媒体时不占行，
+                    // 免得每张卡都挂一句「暂无内容」把层级拉平。
+                    val hasPreview = note.content.isNotBlank() ||
+                        note.hasTodos ||
+                        note.images.isNotEmpty() ||
+                        note.audio.isNotEmpty()
+                    if (hasPreview) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = note.preview,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
+                    // 元信息（时间/清单进度/图片/录音/标签）降到第三层级：
+                    // 字号比摘要更小，颜色仍是 onSurfaceVariant，保持对比度可读
                     Text(
                         text = buildString {
                             append(formatNoteTime(note.updatedAt, strings.english))
@@ -733,7 +827,7 @@ private fun NoteRow(
                                 append(" · " + note.tags.take(3).joinToString(" ") { "#$it" })
                             }
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -743,10 +837,12 @@ private fun NoteRow(
                 // 尾部「更多操作」入口：48×48 触控区，图标 20dp，沿用既有色角色。
                 // 点它只把本行的 menuOpen 置真，不调用 onClick、不触发删除或置顶；
                 // 菜单仍是一套——长按与点这里打开的是同一个 menuOpen。
-                Box {
+                // 尾额外让出 4dp：卡片内 16dp 已让按钮右缘距屏幕 40dp，正好等于滑块
+                // 局部命中区宽度，贴边没有间隔；再让 4dp 才有可测量的空档。
+                Box(modifier = Modifier.padding(end = ListVisualTokens.moreTrailingClearance)) {
                     IconButton(
                         onClick = { menuOpen = true },
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(ListVisualTokens.moreButtonSize)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
