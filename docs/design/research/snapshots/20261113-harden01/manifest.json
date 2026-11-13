@@ -1,0 +1,62 @@
+{
+  "snapshot": "20261113-harden01",
+  "remote_state": "source_evidence_hardened_archived",
+  "base_commit": "c4aae793310c7567fe3c8371d6fa7a069b589b15",
+  "supersedes_snapshot": "20261113-1553",
+  "scope": "Source evidence and candidate roadmap only",
+  "counts": {
+    "source_files": 97,
+    "components": 56,
+    "facts": 305,
+    "assets": 12,
+    "roadmap": 8
+  },
+  "inventory_read": {
+    "complete": 32,
+    "partial": 3,
+    "pending": 61,
+    "focused_extra": 1
+  },
+  "native_validation": false,
+  "browser_tests_rerun": false,
+  "app_modified": false,
+  "zip_remote_uploaded": false,
+  "files": [
+    {
+      "path": "docs/design/research/snapshots/20261113-harden01/findings.md",
+      "bytes": 2760,
+      "sha256": "9092ab4a189cdc432999ceaa1a9c4a3d7620c03e5a735c07811a96b8c22c23bb",
+      "remote_uploaded": true
+    },
+    {
+      "path": "docs/design/research/snapshots/20261113-harden01/logic-checks.json",
+      "bytes": 1736,
+      "sha256": "e21a19e5c264201e0a84d8dd5f1c3a77e811280f8806619a5c5f61d4c172fb5a",
+      "remote_uploaded": true
+    },
+    {
+      "path": "docs/design/research/snapshots/20261113-harden01/pilot-list-state.md",
+      "bytes": 1529,
+      "sha256": "6fa55122a579e7bfc5b4bb08300ea3e2d059ac224ac4422efd37d8e9633171cc",
+      "remote_uploaded": true
+    },
+    {
+      "path": "docs/design/research/snapshots/20261113-harden01/Rhythm-UI-Knowledge-20261113.json",
+      "bytes": 639190,
+      "sha256": "37b219ad05532f58d3d98760254ace4a92cb09b2493614ba6ebc9e9b15534eb9",
+      "remote_uploaded": true
+    },
+    {
+      "path": "docs/design/research/snapshots/20261113-harden01/Rhythm-UI-Knowledge-20261113.sqlite3",
+      "bytes": 1138688,
+      "sha256": "2022d2a66e27be7d7f984a88db2de11e2e91f6c029b1cdeaf632ca4a7ecef7e4",
+      "remote_uploaded": true
+    },
+    {
+      "path": "docs/design/research/snapshots/20261113-harden01/source-delta.json",
+      "bytes": 20782,
+      "sha256": "d315a20f6e1843cb543223de2ad6981b6dd3a896ffe966db06aface672871bb5",
+      "remote_uploaded": true
+    }
+  ]
+}

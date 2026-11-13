@@ -1,0 +1,79 @@
+{
+  "scope": "Record checks, Python control-flow models and SQLite/JSON ingestion fixture; not native, browser or App tests. Production c4aae baseline not executed by this local fixture.",
+  "checks": [
+    {
+      "case": "新增机制ID不冲突",
+      "passed": true
+    },
+    {
+      "case": "事实key在每条机制内唯一",
+      "passed": true
+    },
+    {
+      "case": "三份source确为pending后改complete",
+      "passed": true
+    },
+    {
+      "case": "没有提升为原生通过",
+      "passed": true
+    },
+    {
+      "case": "65项新增事实",
+      "passed": true
+    },
+    {
+      "case": "不重复MiniPlayer选择壳",
+      "passed": true
+    },
+    {
+      "case": "候选路线不授权App修改",
+      "passed": true
+    },
+    {
+      "case": "依赖仅声明",
+      "passed": true
+    },
+    {
+      "case": "严格门槛不含等号",
+      "passed": true
+    },
+    {
+      "case": "dismiss条件先于expand",
+      "passed": true
+    },
+    {
+      "case": "异常前后清理区别仅模型",
+      "passed": true
+    },
+    {
+      "case": "SQLite/JSON入库fixture行数",
+      "passed": true
+    },
+    {
+      "case": "SQLite基库fixture未写入",
+      "passed": true
+    },
+    {
+      "case": "读取状态fixture符合32/3/61",
+      "passed": true
+    },
+    {
+      "case": "拒绝覆写已有输出",
+      "passed": true
+    },
+    {
+      "case": "拒绝不匹配的读取状态前置",
+      "passed": true
+    }
+  ],
+  "source_verified_by_native_runtime": false,
+  "real_database_updated": false,
+  "production_cli_hash_guard_executed": false,
+  "fixture_after": {
+    "source_files": 97,
+    "components": 56,
+    "facts": 305,
+    "assets": 12,
+    "roadmap": 8
+  }
+}

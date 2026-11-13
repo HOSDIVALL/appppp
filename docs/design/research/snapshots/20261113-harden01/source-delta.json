@@ -1,0 +1,659 @@
+{
+  "id": "RHYTHM-KB-HARDEN-01",
+  "base_commit": "c4aae793310c7567fe3c8371d6fa7a069b589b15",
+  "base_snapshot": "20261113-1553",
+  "expected_base": {
+    "sqlite_sha256": "52b7d57f2ef410f6fb85384c71bbe58f72692f7dc16a4cd6b51b885cb125a56f",
+    "json_sha256": "f99786d42352ccdc7dd34a4b84826cb7cd3be1b5564d302b9e3b5b27b3932cbb",
+    "counts": {
+      "source_files": 97,
+      "components": 53,
+      "facts": 240,
+      "assets": 12,
+      "roadmap": 7
+    }
+  },
+  "source_updates": [
+    {
+      "id": "RhythmPlayerSheet.kt",
+      "before": {
+        "id": "RhythmPlayerSheet.kt",
+        "name": "RhythmPlayerSheet.kt",
+        "group": "player",
+        "scope": "inventory",
+        "path": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/RhythmPlayerSheet.kt",
+        "bytes": 14564,
+        "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+        "blob": null,
+        "read_status": "pending",
+        "url": "https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/RhythmPlayerSheet.kt",
+        "evidence_note": "已确认目录存在，未完成固定版本解析。",
+        "native_validation": "not_run"
+      },
+      "after": {
+        "id": "RhythmPlayerSheet.kt",
+        "name": "RhythmPlayerSheet.kt",
+        "group": "player",
+        "scope": "inventory",
+        "path": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/RhythmPlayerSheet.kt",
+        "bytes": 14564,
+        "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+        "blob": "4df85aef0c8eb1dfdf8fedb11323bc230bf662bb",
+        "read_status": "complete",
+        "url": "https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/RhythmPlayerSheet.kt",
+        "evidence_note": "2026-11-13重新从固定提交完整读取；仅静态机制核验，不表示调用链、SDK、构建或原生已验收。",
+        "native_validation": "not_run"
+      }
+    },
+    {
+      "id": "VolumeSlider.kt",
+      "before": {
+        "id": "VolumeSlider.kt",
+        "name": "VolumeSlider.kt",
+        "group": "player",
+        "scope": "inventory",
+        "path": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/VolumeSlider.kt",
+        "bytes": 6500,
+        "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+        "blob": null,
+        "read_status": "pending",
+        "url": "https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/VolumeSlider.kt",
+        "evidence_note": "已确认目录存在，未完成固定版本解析。",
+        "native_validation": "not_run"
+      },
+      "after": {
+        "id": "VolumeSlider.kt",
+        "name": "VolumeSlider.kt",
+        "group": "player",
+        "scope": "inventory",
+        "path": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/VolumeSlider.kt",
+        "bytes": 6500,
+        "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+        "blob": "8be4a43feadd99402f58881dbd7893207bfc4bdf",
+        "read_status": "complete",
+        "url": "https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/VolumeSlider.kt",
+        "evidence_note": "2026-11-13重新从固定提交完整读取；仅静态机制核验，不表示调用链、SDK、构建或原生已验收。",
+        "native_validation": "not_run"
+      }
+    },
+    {
+      "id": "CanvasArtworkPlayer.kt",
+      "before": {
+        "id": "CanvasArtworkPlayer.kt",
+        "name": "CanvasArtworkPlayer.kt",
+        "group": "player",
+        "scope": "inventory",
+        "path": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/CanvasArtworkPlayer.kt",
+        "bytes": 7251,
+        "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+        "blob": null,
+        "read_status": "pending",
+        "url": "https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/CanvasArtworkPlayer.kt",
+        "evidence_note": "已确认目录存在，未完成固定版本解析。",
+        "native_validation": "not_run"
+      },
+      "after": {
+        "id": "CanvasArtworkPlayer.kt",
+        "name": "CanvasArtworkPlayer.kt",
+        "group": "player",
+        "scope": "inventory",
+        "path": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/CanvasArtworkPlayer.kt",
+        "bytes": 7251,
+        "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+        "blob": "e131b83601bde1cd5d80fbc41018b848fa1b6ffb",
+        "read_status": "complete",
+        "url": "https://github.com/cromaguy/Rhythm/blob/6f26f963b82ed592ec28f05824bb7f12b65b82ea/app/src/main/java/chromahub/rhythm/app/shared/presentation/components/player/CanvasArtworkPlayer.kt",
+        "evidence_note": "2026-11-13重新从固定提交完整读取；仅静态机制核验，不表示调用链、SDK、构建或原生已验收。",
+        "native_validation": "not_run"
+      }
+    }
+  ],
+  "component_inserts": [
+    {
+      "id": "RUI-054",
+      "title": "播放器容器几何与松手回调",
+      "group": "播放器机制",
+      "source_ids": [
+        "RhythmPlayerSheet.kt"
+      ],
+      "demo_ids": [
+        "v11.1"
+      ],
+      "summary": "自定义拖动容器；决策偏移和绘图偏移不同，不是ModalBottomSheet。",
+      "facts": [
+        {
+          "key": "song_null",
+          "value": "return",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "mini_height_expressive",
+          "value": 84,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "mini_height_other",
+          "value": 110,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "bottom_offset_default",
+          "value": 8,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "collapsed_offset",
+          "value": "Hpx-(bottomOffsetDp+miniHeightDp)*density",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "expanded_offset",
+          "value": 0,
+          "unit": "px",
+          "note": ""
+        },
+        {
+          "key": "draw_target",
+          "value": "targetOffset+dragOffset",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "draw_animation_spec",
+          "value": [
+            "DampingRatioNoBouncy",
+            "StiffnessLow"
+          ],
+          "unit": "",
+          "note": "没有提取SDK数值或运行原生弹簧"
+        },
+        {
+          "key": "fraction",
+          "value": "clamp((collapsedOffset-animatedOffset)/collapsedOffset,0,1)",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "top_corner",
+          "value": "32*(1-clamp((fraction-.82)/.18,0,1)^3)",
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "bottom_corner",
+          "value": "28*(1-fraction)",
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "sheet_height",
+          "value": "max(0,Hpx-bottomOffsetPx*(1-fraction)-animatedOffset)",
+          "unit": "px",
+          "note": ""
+        },
+        {
+          "key": "drag_bounds",
+          "value": "[-targetOffset,Hpx-targetOffset]",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "release_decision_offset",
+          "value": "targetOffset+dragOffset",
+          "unit": "px",
+          "note": "不是animatedOffset"
+        },
+        {
+          "key": "expanded_collapse",
+          "value": "currentOffset>.3*C OR velocity>1000",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "collapsed_dismiss_first",
+          "value": "currentOffset>C+40dp*density OR velocity>1000",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "collapsed_expand_second",
+          "value": "currentOffset<.7*C OR velocity< -1000",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "drag_reset",
+          "value": "0 after callback returns; no finally",
+          "unit": "",
+          "note": "同步抛错时不能保证执行到清零，不等于已复现产品故障"
+        },
+        {
+          "key": "tablet_check",
+          "value": "windowScreenWidthDp>=600",
+          "unit": "",
+          "note": "没有Book/Separated判断"
+        },
+        {
+          "key": "tablet_outer_bypass",
+          "value": "tablet && fraction<.15",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "layer_z_switch",
+          "value": 0.5,
+          "unit": "fraction",
+          "note": ""
+        },
+        {
+          "key": "mini_vertical_drag_passed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "player_swipe_dismiss_passed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "background_alpha",
+          "value": "isExpanded?1:(dragOffset!=0?fraction:0)",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "limits": "完整读取此文件；PlayerScreen.kt、MaterialPlayerScreen.kt、ExpressivePlayerScreen.kt与两个大MiniPlayer实现未闭环。",
+      "status": "source_complete",
+      "risks": [
+        "回调抛错后的drag清理仅为源控制流风险，未原生复现。",
+        "dragOffset没有显式以主题/父状态作为remember键；同一组合位置保留条件待验证。",
+        "透明度切换不能推断命中/焦点/读屏已停用。"
+      ],
+      "native_validation": "not_run",
+      "archive_state": "prepared_for_knowledge_update"
+    },
+    {
+      "id": "RUI-055",
+      "title": "音量轨道图标与SDK默认边界",
+      "group": "播放器机制",
+      "source_ids": [
+        "VolumeSlider.kt"
+      ],
+      "demo_ids": [
+        "v11.1"
+      ],
+      "summary": "SDK Slider加项目图标覆盖；声明手柄常量不等于实际使用。",
+      "facts": [
+        {
+          "key": "track_height",
+          "value": 40,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "track_corner_argument",
+          "value": 12,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "unused_declared_handle_width",
+          "value": 4,
+          "unit": "dp",
+          "note": "本函数未读取，不能作为SDK实际手柄宽"
+        },
+        {
+          "key": "unused_declared_handle_height",
+          "value": 52,
+          "unit": "dp",
+          "note": "本函数未读取，不能作为SDK实际手柄高"
+        },
+        {
+          "key": "custom_thumb_provided",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "icon_size",
+          "value": 24,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "icon_padding",
+          "value": 10,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "min_icon_space",
+          "value": 44,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "thumb_track_gap_argument",
+          "value": 6,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "stop_radius",
+          "value": 4,
+          "unit": "dp",
+          "note": ""
+        },
+        {
+          "key": "stop_draw_condition",
+          "value": "value<.90",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "current_icon_rules",
+          "value": [
+            "value<=0:off",
+            "value<.33:mute",
+            "value<.66:down",
+            "else:up"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "active_width",
+          "value": "W*clamp(value,0,1)-gapPx",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "inactive_start",
+          "value": "W*clamp(value,0,1)+gapPx",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "inactive_width",
+          "value": "W-inactiveStart",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "icon_priority",
+          "value": [
+            "active>=minSpace:currentIcon",
+            "else inactive>=minSpace:volumeOff",
+            "else:none"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "active_icon_color",
+          "value": "colors.activeTickColor = onPrimary",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "inactive_icon_color",
+          "value": "colors.inactiveTickColor = onSurfaceVariant",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "stop_color",
+          "value": "onSurfaceVariant",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "stop_coordinate",
+          "value": "offset supplied by SliderDefaults.Track",
+          "unit": "",
+          "note": "不能固定成网页示意W-5"
+        },
+        {
+          "key": "slider_state",
+          "value": "remember SliderState, then sliderState.value=value each composition",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "limits": "调用此VolumeSlider的真实业务位置尚未核实；W是轨道绘图区，不保证等于外部Slider宽。SDK Thumb/Track、禁用色、RTL与构建尚未验收。",
+      "status": "source_complete",
+      "risks": [],
+      "native_validation": "not_run",
+      "archive_state": "prepared_for_knowledge_update"
+    },
+    {
+      "id": "RUI-056",
+      "title": "封面视频播放与回退生命周期",
+      "group": "播放器机制",
+      "source_ids": [
+        "CanvasArtworkPlayer.kt"
+      ],
+      "demo_ids": [
+        "v11.1"
+      ],
+      "summary": "ExoPlayer+TextureView的静音视频层，不是普通图片或Compose Canvas。",
+      "facts": [
+        {
+          "key": "implementation",
+          "value": [
+            "ExoPlayer",
+            "AndroidView",
+            "AspectRatioFrameLayout",
+            "TextureView"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "initial",
+          "value": "nonblank primary ?: nonblank fallback ?: return",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "remember_key",
+          "value": "initial",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "effective_playing",
+          "value": "alwaysPlay OR isPlaying",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "volume",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "repeat_mode",
+          "value": "ONE",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "handle_audio_focus",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "buffer_ms",
+          "value": {
+            "min": 2000,
+            "max": 6000,
+            "start": 500,
+            "rebuffer": 1000
+          },
+          "unit": "ms",
+          "note": "配置不代表实测播放延迟"
+        },
+        {
+          "key": "extension_renderers",
+          "value": "OFF",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "decoder_fallback",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "error_next",
+          "value": "currentUrl==primary ? fallback : null",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "first_frame",
+          "value": "isVideoReady=true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "alpha_tween",
+          "value": 500,
+          "unit": "ms",
+          "note": "未提取实际SDK插值/运行效果"
+        },
+        {
+          "key": "aspect_ratio",
+          "value": "width*pixelWidthHeightRatio/height when width,height>0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "resize_mode",
+          "value": "ZOOM",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "url_load_order",
+          "value": [
+            "ready=false",
+            "ratio=0",
+            "stop",
+            "clearMediaItems",
+            "setMediaItem",
+            "prepare",
+            "playWhenReady=currentIsPlaying"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "mime_priority",
+          "value": [
+            ".m3u8 ignoreCase OR apple.com/itunes.apple substring: HLS",
+            "else .mp4 ignoreCase: MP4",
+            "else HLS"
+          ],
+          "unit": "",
+          "note": "仅启发式，不是HTTP/格式探测"
+        },
+        {
+          "key": "view_factory",
+          "value": "setVideoTextureView",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "view_update",
+          "value": "setAspectRatio only when ratio>0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "key": "dispose",
+          "value": "release",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "limits": "没有播放媒体或运行Media3；View重绑定、首帧、裁剪与SDK生命周期需要原生对照。",
+      "status": "source_complete",
+      "risks": [
+        "initial变化创建新player后，旧AndroidView重绑需核验；不宣布黑屏bug。",
+        "仅改变fallback不保证替换currentUrl。",
+        "没有next fallback时错误监听器本身不清ready。",
+        "ratio状态归零不等于View ratio显式重置。"
+      ],
+      "native_validation": "not_run",
+      "archive_state": "prepared_for_knowledge_update"
+    }
+  ],
+  "roadmap_insert": {
+    "id": "PILOT-LIST-STATE",
+    "priority": "候选/不执行App修改",
+    "title": "笔记与录音列表状态/重排迁移试点",
+    "sources": [
+      "DragDropList.kt",
+      "Material3SettingsGroup.kt"
+    ],
+    "status": "candidate_only",
+    "next": "先选择当前App固定实现基线与列表入口，对照已有writer和排序契约后再实施。",
+    "spec": {
+      "implementation_baseline": "not_selected",
+      "app_entrypoints_verified": false,
+      "destructive_actions_added": false,
+      "data_model_change_allowed": false,
+      "acceptance": [
+        "播放当前项、选中集合、拖动项分别建模，互不冒充",
+        "稳定ID识别，重名标题不合并，不把位置当身份",
+        "手动排序以外禁用重排入口",
+        "普通点击与拖动起点不冲突，拖动不误开编辑器",
+        "拖动中数据集或模式变化先终止预览，不能把过期顺序写回",
+        "明确正常drop、取消、失败三条路径；UI预览回滚不冒称持久化已回滚",
+        "提交顺序仍走现有数据写入接口，若需保存重构或模型改动立即停报",
+        "增加已批准范围内的键盘/触屏、取消、快速切换与重名条目测试，不预先宣称通过"
+      ]
+    }
+  },
+  "dependency_declarations": {
+    "upstream_commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+    "app_build_blob": "83967df878bdcbc5c0d3f02254c4b69c28dc2eee",
+    "catalog_blob": "33bd54b0325762dc04dcfc40ad2866c0aff08f6c",
+    "declarations": {
+      "androidx.compose.material3:material3-android": "1.5.0-beta01",
+      "androidx.compose:compose-bom": "2026.09.00",
+      "androidx.compose.animation:animation-core": "1.12.1",
+      "androidx.media3:media3-exoplayer": "1.11.1",
+      "sh.calvin.reorderable:reorderable": "3.1.0"
+    },
+    "scope": "Catalog declarations and app aliases only; not Gradle resolved versions, classpath or build verification.",
+    "sensitive_config_copied": false
+  },
+  "projected_after": {
+    "source_files": 97,
+    "components": 56,
+    "facts": 305,
+    "assets": 12,
+    "roadmap": 8,
+    "inventory_read_complete": 32,
+    "inventory_partial": 3,
+    "inventory_pending": 61,
+    "focused_extra": 1
+  },
+  "native_validation": false,
+  "new_html_created": false,
+  "database_write_performed": false,
+  "repository_write_performed": false
+}
