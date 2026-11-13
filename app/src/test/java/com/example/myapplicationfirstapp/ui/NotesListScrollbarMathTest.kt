@@ -8,165 +8,230 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 滚动条的纯计算：可见性、位置比例、手柄长度、目标下标、下标->笔记的吸附、排序标签。
+ * 滚动条纯计算：代表步长（中位数）、前缀修正、固定长度手柄几何、目标下标、标签解析。
  *
- * 这里锁的是「估算不能算出越界或空转」：整表高度拿不到真实值，只能按可见项均值估算，
- * 所以边界（到顶/到底/内容不足一屏/全为非笔记项）都要有明确结果，不能靠界面兜。
+ * 这一版按 Rhythm ExpressiveScrollBarMetrics 的语义重写：
+ * 手柄高恒定、步长取中位数、已观察步长按项缓存、progress≥1 直接给最后一项。
+ * 锁的是「估算不能越界、不能空转、不能被单条超高行带偏」。
  */
 class NotesListScrollbarMathTest {
 
-    private fun metrics(
-        total: Int = 100,
-        firstIndex: Int = 0,
-        firstOffset: Int = 0,
-        viewport: Float = 2000f,
-        average: Float = 200f,
-        forward: Boolean = true,
-        backward: Boolean = false,
-        track: Float = 2000f
-    ) = ScrollbarMath.metrics(
-        totalItems = total,
-        firstVisibleIndex = firstIndex,
-        firstVisibleOffsetPx = firstOffset,
-        viewportPx = viewport,
-        averageItemPx = average,
-        canScrollForward = forward,
-        canScrollBackward = backward,
-        minThumbPx = 126f, // 48dp @ density 2.625
-        trackPx = track
-    )
+    private fun items(vararg sizes: Int): List<ScrollbarEstimate.Item> {
+        var offset = 0
+        return sizes.mapIndexed { index, size ->
+            ScrollbarEstimate.Item(index = index, offsetPx = offset, sizePx = size)
+                .also { offset += size }
+        }
+    }
+
+    private fun estimatorOf(items: List<ScrollbarEstimate.Item>, total: Int, key: Int = 0) =
+        ScrollbarEstimate.Estimator().also { it.update(items, total, key) }
+
+    // ---------- 中位数 ----------
 
     @Test
-    fun `内容不足一屏时隐藏`() {
-        val m = metrics(total = 3, average = 100f, viewport = 2000f, forward = false, backward = false)
-        assertFalse(m.visible)
+    fun `中位数不被单条超高行带偏`() {
+        assertEquals(200f, ScrollbarEstimate.median(listOf(200, 200, 200)), 0.01f)
+        // 一条 900 的行：均值会被拉到 375，中位数仍是 200
+        assertEquals(200f, ScrollbarEstimate.median(listOf(200, 900, 200)), 0.01f)
+        val mean = (200 + 900 + 200) / 3f
+        assertTrue("均值应明显偏大：$mean", mean > ScrollbarEstimate.median(listOf(200, 900, 200)) + 200)
+        // 偶数个取中间两个均值
+        assertEquals(250f, ScrollbarEstimate.median(listOf(200, 300)), 0.01f)
+        assertEquals(0f, ScrollbarEstimate.median(emptyList()), 0.01f)
     }
 
     @Test
-    fun `没有项目或轨道为零时隐藏`() {
-        assertFalse(metrics(total = 0).visible)
-        assertFalse(metrics(track = 0f).visible)
-        assertFalse(metrics(viewport = 0f).visible)
+    fun `相邻步长只保留正数并按下标排序`() {
+        val mixed = listOf(
+            ScrollbarEstimate.Item(2, 400, 200),
+            ScrollbarEstimate.Item(0, 0, 200),
+            ScrollbarEstimate.Item(1, 200, 200)
+        )
+        assertEquals(listOf(200, 200), ScrollbarEstimate.stepsOf(mixed))
+    }
+
+    // ---------- 估算器 ----------
+
+    @Test
+    fun `代表步长取可见相邻步长中位数`() {
+        // 步长 200/200/900：中位数 200，均值被抬到 433
+        val est = estimatorOf(items(200, 200, 900, 200), 64)
+        assertEquals(200f, est.representativeStepPx(), 0.01f)
     }
 
     @Test
-    fun `到顶时比例为0到底为1`() {
-        val top = metrics(firstIndex = 0, forward = true, backward = false)
-        assertEquals(0f, top.fraction, 0.0001f)
-        val bottom = metrics(firstIndex = 90, forward = false, backward = true)
-        assertEquals(1f, bottom.fraction, 0.0001f)
+    fun `已观察步长会修正前缀距离`() {
+        // 前 4 条 200，第 5 条 500：可见 5 条时中位步长 200，但第 4 条的步长被单独记下
+        // 尺寸 200/200/500/200/200：步长是 200/500/200/200，中位数 200
+        val est = estimatorOf(items(200, 200, 500, 200, 200), 10)
+        assertEquals(200f, est.representativeStepPx(), 0.01f)
+        // 未观察到的下标仍按代表步长
+        assertEquals(400f, est.prefixDistancePx(2), 0.01f)
+        // 已观察到的第 3 段用真实 500，而不是代表步长 200
+        assertEquals(400f + 500f, est.prefixDistancePx(3), 0.01f)
+        assertEquals(400f + 500f + 200f + 200f, est.prefixDistancePx(5), 0.01f)
     }
 
     @Test
-    fun `中段比例落在区间内且随下标单调不减`() {
+    fun `总条数或内容键变化时清空已观察步长`() {
+        val est = estimatorOf(items(200, 200, 400), 10, 1)
+        assertEquals(600f, est.prefixDistancePx(3), 0.01f)
+        // 条数变了：观测清空，回到只有代表步长的状态
+        estimatorOf(items(200, 200, 400), 64, 1).let { fresh ->
+            assertEquals(fresh.prefixDistancePx(3), 600f, 0.01f)
+        }
+        est.update(items(200, 200, 400), 64, 1)
+        assertEquals(600f, est.prefixDistancePx(3), 0.01f)
+        // 同样的下标，换了内容键也应重算（这里断言不崩且仍非负）
+        est.update(items(300, 300, 300), 64, 2)
+        assertTrue(est.prefixDistancePx(3) >= 900f)
+    }
+
+    @Test
+    fun `目标下标与前缀距离互为逆运算`() {
+        val est = estimatorOf(items(198, 225, 240, 210, 260, 190), 20)
+        for (i in 0 until 6) {
+            val distance = est.prefixDistancePx(i)
+            val (index, offsetInItem) = est.targetFor(distance, 20)
+            assertEquals("下标 $i 反查不一致", i, index)
+            assertEquals(0, offsetInItem)
+        }
+    }
+
+    @Test
+    fun `目标下标不越界且空表返回零`() {
+        val est = estimatorOf(items(200, 200), 3)
+        assertEquals(0 to 0, est.targetFor(-100f, 3))
+        val (lastIndex, _) = est.targetFor(1_000_000f, 3)
+        assertEquals(2, lastIndex)
+        assertEquals(0 to 0, est.targetFor(500f, 0))
+    }
+
+    @Test
+    fun `进度在端点被校正为中段单调`() {
+        val est = estimatorOf(items(200, 200, 200), 30)
+        assertEquals(
+            0f,
+            est.progressOf(0, 0, 2000f, canScrollForward = true, canScrollBackward = false),
+            0.001f
+        )
+        assertEquals(
+            1f,
+            est.progressOf(28, 0, 2000f, canScrollForward = false, canScrollBackward = true),
+            0.001f
+        )
         var prev = -1f
-        for (i in 0..80 step 8) {
-            val m = metrics(firstIndex = i, forward = true, backward = i > 0)
-            assertTrue("index=$i fraction=${m.fraction}", m.fraction in 0f..1f)
-            assertTrue("index=$i 应不小于前一档", m.fraction >= prev - 0.0001f)
-            prev = m.fraction
+        for (index in 5..25 step 5) {
+            val p = est.progressOf(index, 0, 2000f, canScrollForward = true, canScrollBackward = true)
+            assertTrue("进度应单调不减：$prev -> $p", p >= prev)
+            assertTrue("进度应在 0..1：$p", p in 0f..1f)
+            prev = p
         }
     }
 
     @Test
-    fun `手柄长度不小于48dp且不超过轨道`() {
-        val m = metrics(total = 64, average = 220f, viewport = 2000f, track = 2000f)
-        val thumbPx = m.thumbFraction * 2000f
-        assertTrue("thumb=$thumbPx", thumbPx >= 126f)
-        assertTrue("thumb=$thumbPx", thumbPx <= 2000f)
+    fun `内容不足一屏时不显示`() {
+        val est = estimatorOf(items(200, 200), 2)
+        assertFalse(
+            ScrollbarEstimate.isVisible(
+                totalItems = 2,
+                estimatedTotalPx = est.estimatedTotalPx(),
+                viewportPx = 2000f,
+                trackPx = 2000f,
+                canScrollForward = false,
+                canScrollBackward = false
+            )
+        )
+        // 能滚动但轨道为零也不显示
+        assertFalse(
+            ScrollbarEstimate.isVisible(60, 12000f, 2000f, 0f, true, true)
+        )
+        assertTrue(
+            ScrollbarEstimate.isVisible(60, 12000f, 2000f, 2000f, true, false)
+        )
+    }
+
+    // ---------- 固定长度手柄几何 ----------
+
+    @Test
+    fun `手柄长度恒定不随内容变`() {
+        val thumb = 126f      // 48dp @ density 2.625
+        val track = 1418f
+        val gap = 21f         // 8dp
+        val travel = ScrollbarEstimate.travelPx(track, thumb, gap)
+        assertEquals(track - 2 * gap - thumb, travel, 0.01f)
+        // 顶端与底端都不贴边，且不越界
+        assertEquals(gap, ScrollbarEstimate.thumbTopPx(0f, track, thumb, gap), 0.01f)
+        assertEquals(gap + travel, ScrollbarEstimate.thumbTopPx(1f, track, thumb, gap), 0.01f)
+        assertEquals(track - gap - thumb,
+            ScrollbarEstimate.thumbTopPx(1f, track, thumb, gap), 0.01f)
+        // 超界夹紧
+        assertEquals(gap, ScrollbarEstimate.thumbTopPx(-1f, track, thumb, gap), 0.01f)
+        assertEquals(gap + travel, ScrollbarEstimate.thumbTopPx(2f, track, thumb, gap), 0.01f)
     }
 
     @Test
-    fun `目标下标随拖动比例单调且不越界`() {
-        val total = 64
-        val avg = 220f
-        val viewport = 2000f
-        var prev = -1
+    fun `手柄顶端与进度互逆`() {
+        val thumb = 126f
+        val track = 1200f
+        val gap = 21f
         for (step in 0..10) {
-            val (index, offset) = ScrollbarMath.targetScroll(step / 10f, total, avg, viewport)
-            assertTrue("index=$index", index in 0 until total)
-            assertTrue("offset=$offset", offset >= 0)
-            assertTrue("比例增大时下标不应回退", index >= prev)
-            prev = index
+            val p = step / 10f
+            val top = ScrollbarEstimate.thumbTopPx(p, track, thumb, gap)
+            assertEquals(p, ScrollbarEstimate.progressOfThumbTop(top, track, thumb, gap), 0.001f)
         }
-        assertEquals(0, ScrollbarMath.targetScroll(0f, total, avg, viewport).first)
-
-        // 拖到底时第一个可见项不是最后一条：视口还装着约 viewport/avg 条，
-        // 把最后一条顶到列表顶端反而是「滚过头」。所以断言按行程反算。
-        val maxOffset = avg * total - viewport
-        val expectedIndex = (maxOffset / avg).toInt()
-        val (endIndex, endOffset) = ScrollbarMath.targetScroll(1f, total, avg, viewport)
-        assertEquals(expectedIndex, endIndex)
-        assertTrue("末尾偏移应仍在项内：$endOffset", endOffset <= avg.toInt())
-        assertEquals(maxOffset.toInt(), (endIndex * avg).toInt() + endOffset)
     }
 
     @Test
-    fun `空列表拖动不产生负下标`() {
-        val (index, offset) = ScrollbarMath.targetScroll(0.5f, 0, 200f, 1000f)
-        assertEquals(0, index)
-        assertEquals(0, offset)
+    fun `轨道太矮时行程至少一像素不除零`() {
+        val travel = ScrollbarEstimate.travelPx(trackPx = 100f, thumbPx = 126f, gapPx = 21f)
+        assertEquals(1f, travel, 0.01f)
+        val p = ScrollbarEstimate.progressOfThumbTop(80f, 100f, 126f, 21f)
+        assertTrue("不应出现 NaN 或越界：$p", p in 0f..1f)
     }
 
     @Test
-    fun `端点吸附到首项与末项而不靠估算`() {
-        val total = 67          // 含筛选行、两个分区标题、64 条笔记
-        val avg = 220f          // 可见项均值，和真实整表高度不等
-        val viewport = 1418f
-
-        // 估算式在比例 1 时给出的下标明显小于末项（混合行高），所以端点必须吸附
-        val estimated = (avg * total - viewport) / avg
-        assertTrue("估算下标应小于末项：$estimated", estimated < total - 1)
-
-        assertEquals(0 to 0, ScrollbarMath.resolveTarget(0f, total, avg, viewport))
-        assertEquals(0 to 0, ScrollbarMath.resolveTarget(-0.2f, total, avg, viewport))
-        assertEquals(
-            (total - 1) to 0,
-            ScrollbarMath.resolveTarget(1f, total, avg, viewport)
-        )
-        assertEquals(
-            (total - 1) to 0,
-            ScrollbarMath.resolveTarget(1.5f, total, avg, viewport)
-        )
-        // 中段仍走估算，不被端点吸附吃掉
-        assertEquals(
-            ScrollbarMath.targetScroll(0.5f, total, avg, viewport),
-            ScrollbarMath.resolveTarget(0.5f, total, avg, viewport)
-        )
-        // 空表不产生负下标
-        assertEquals(0 to 0, ScrollbarMath.resolveTarget(1f, 0, avg, viewport))
+    fun `70ms平滑只在判据满足时启用`() {
+        val step = 42f   // 16dp
+        val jump = 27f   // 10dp
+        assertTrue(ScrollbarEstimate.shouldSmooth(false, 50f, 40f, step, jump))
+        assertFalse("源已滚动不加平滑", ScrollbarEstimate.shouldSmooth(true, 50f, 40f, step, jump))
+        assertFalse("单步太小不加平滑", ScrollbarEstimate.shouldSmooth(false, 30f, 40f, step, jump))
+        assertFalse("总跳变太小不加平滑", ScrollbarEstimate.shouldSmooth(false, 50f, 20f, step, jump))
     }
+
+    // ---------- 标签 ----------
 
     @Test
     fun `下标落到非笔记项时吸附到最近的笔记`() {
         // 0=筛选行 1=标题 2/3=笔记 4=标题 5=笔记
         val isNote = { i: Int -> i == 2 || i == 3 || i == 5 }
-        assertEquals(2, ScrollbarMath.nearestNoteIndex(6, 0, isNote))
-        assertEquals(2, ScrollbarMath.nearestNoteIndex(6, 1, isNote))
-        assertEquals(3, ScrollbarMath.nearestNoteIndex(6, 3, isNote))
-        // 4 是标题，向后找到 5
-        assertEquals(5, ScrollbarMath.nearestNoteIndex(6, 4, isNote))
-        // 越界下标按末尾处理
-        assertEquals(5, ScrollbarMath.nearestNoteIndex(6, 99, isNote))
+        assertEquals(2, ScrollbarEstimate.nearestNoteIndex(6, 0, isNote))
+        assertEquals(2, ScrollbarEstimate.nearestNoteIndex(6, 1, isNote))
+        assertEquals(3, ScrollbarEstimate.nearestNoteIndex(6, 3, isNote))
+        assertEquals(5, ScrollbarEstimate.nearestNoteIndex(6, 4, isNote))
+        assertEquals(5, ScrollbarEstimate.nearestNoteIndex(6, 99, isNote))
     }
 
     @Test
     fun `全部是非笔记项时返回负一而不是猜一条`() {
-        assertEquals(-1, ScrollbarMath.nearestNoteIndex(3, 0) { false })
-        assertEquals(-1, ScrollbarMath.nearestNoteIndex(0, 0) { true })
+        assertEquals(-1, ScrollbarEstimate.nearestNoteIndex(3, 0) { false })
+        assertEquals(-1, ScrollbarEstimate.nearestNoteIndex(0, 0) { true })
     }
 
     @Test
-    fun `标题标签数字记井号拉丁大写汉字原字`() {
-        assertEquals("#", ScrollbarMath.titleGlyph("3 月旅行计划"))
-        assertEquals("#", ScrollbarMath.titleGlyph("2026 年度目标"))
-        assertEquals("A", ScrollbarMath.titleGlyph("Alpha 项目交接"))
-        assertEquals("Z", ScrollbarMath.titleGlyph("zebra 采购清单"))
-        assertEquals("季", ScrollbarMath.titleGlyph("季度复盘与下周计划"))
+    fun `标题标签扫第一个字母数字且不转拼音`() {
+        assertEquals("#", ScrollbarEstimate.titleGlyph("3 月旅行计划"))
+        assertEquals("#", ScrollbarEstimate.titleGlyph("2026 年度目标"))
+        assertEquals("A", ScrollbarEstimate.titleGlyph("Alpha 项目交接"))
+        assertEquals("Z", ScrollbarEstimate.titleGlyph("zebra 采购清单"))
+        assertEquals("季", ScrollbarEstimate.titleGlyph("季度复盘与下周计划"))
         // 前导标点不是有效字符，取后面第一个字母数字
-        assertEquals("重", ScrollbarMath.titleGlyph("「重点」待办"))
-        assertEquals("X", ScrollbarMath.titleGlyph("  xyz"))
-        assertEquals("#", ScrollbarMath.titleGlyph(""))
+        assertEquals("重", ScrollbarEstimate.titleGlyph("「重点」待办"))
+        assertEquals("X", ScrollbarEstimate.titleGlyph("  xyz"))
+        assertEquals("#", ScrollbarEstimate.titleGlyph(""))
+        assertEquals("#", ScrollbarEstimate.titleGlyph("!!! ??"))
     }
 
     @Test
@@ -177,13 +242,56 @@ class NotesListScrollbarMathTest {
             createdAt = 1_700_000_000_000L,
             updatedAt = 1_700_000_000_000L
         )
-        assertEquals("A", ScrollbarMath.bubbleLabel(note, SortMode.TITLE, english = false))
-        val updated = ScrollbarMath.bubbleLabel(note, SortMode.UPDATED, english = false)
-        val created = ScrollbarMath.bubbleLabel(note, SortMode.CREATED, english = false)
+        assertEquals("A", ScrollbarEstimate.bubbleLabel(note, SortMode.TITLE, english = false))
+        val updated = ScrollbarEstimate.bubbleLabel(note, SortMode.UPDATED, english = false)
+        val created = ScrollbarEstimate.bubbleLabel(note, SortMode.CREATED, english = false)
         assertTrue(updated.isNotBlank())
         assertTrue(created.isNotBlank())
-        // 不同排序必须给出不同的东西，不能所有排序都显示同一个标题
         assertTrue(updated != "A")
-        assertEquals(updated, created) // 这条数据两个时间戳相同
+        assertEquals(updated, created)
+    }
+
+    @Test
+    fun `气泡文案随语言切换`() {
+        val note = Note(
+            id = "n2",
+            title = "旅行清单",
+            createdAt = 1_700_000_000_000L,
+            updatedAt = 1_700_000_000_000L
+        )
+        val zh = ScrollbarEstimate.bubbleLabel(note, SortMode.UPDATED, english = false)
+        val en = ScrollbarEstimate.bubbleLabel(note, SortMode.UPDATED, english = true)
+        assertTrue(zh.contains("月") || zh.contains("今天") || zh.contains("昨天"))
+        assertFalse(en.any { it.code in 0x4E00..0x9FFF })
+        assertTrue(en.any { it.isDigit() })
+    }
+
+    @Test
+    fun `气泡入场缩放从 082 到 1`() {
+        assertEquals(0.82f, ScrollbarEstimate.bubbleScale(0f), 1e-6f)
+        assertEquals(1f, ScrollbarEstimate.bubbleScale(1f), 1e-6f)
+        assertEquals(0.91f, ScrollbarEstimate.bubbleScale(0.5f), 1e-6f)
+    }
+
+    @Test
+    fun `气泡入场位移从 slide 到 0 且随进度单调`() {
+        val slide = 21f
+        assertEquals(slide, ScrollbarEstimate.bubbleSlidePx(0f, slide), 1e-6f)
+        assertEquals(0f, ScrollbarEstimate.bubbleSlidePx(1f, slide), 1e-6f)
+        assertEquals(slide / 2f, ScrollbarEstimate.bubbleSlidePx(0.5f, slide), 1e-6f)
+        var last = Float.MAX_VALUE
+        for (i in 0..10) {
+            val v = ScrollbarEstimate.bubbleSlidePx(i / 10f, slide)
+            assertTrue(v <= last)
+            last = v
+        }
+    }
+
+    @Test
+    fun `气泡入场进度越界不放大也不倒滑`() {
+        assertEquals(ScrollbarEstimate.BUBBLE_MIN_SCALE, ScrollbarEstimate.bubbleScale(-3f), 1e-6f)
+        assertEquals(1f, ScrollbarEstimate.bubbleScale(4f), 1e-6f)
+        assertEquals(30f, ScrollbarEstimate.bubbleSlidePx(-1f, 30f), 1e-6f)
+        assertEquals(0f, ScrollbarEstimate.bubbleSlidePx(2f, 30f), 1e-6f)
     }
 }

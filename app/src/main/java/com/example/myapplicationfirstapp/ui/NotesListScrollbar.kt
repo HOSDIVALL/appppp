@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -30,11 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.myapplicationfirstapp.data.Note
 import com.example.myapplicationfirstapp.data.SortMode
@@ -42,104 +42,203 @@ import com.example.myapplicationfirstapp.data.formatNoteTime
 import com.example.myapplicationfirstapp.ui.i18n.AppStrings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * 右侧快速定位滚动条的纯计算部分。
+ * 滚动条的位置估算。
  *
- * LazyColumn 只暴露「已测量的可见项」，拿不到整表真实高度，所以整表行程是**估算**：
- * 可见项平均高度 × 总项数。证据里必须写明这一点，不能声称像素精确。
- * 首/尾两个端点用 canScrollForward / canScrollBackward 校正，保证到顶到底时手柄贴边。
+ * 对齐 Rhythm 的 ExpressiveScrollBarMetrics 语义：
+ * - 代表步长取「可见相邻项步长的中位数」，不是平均值——一条超高行不会把整条行程带偏；
+ * - 已观察到的步长按项下标缓存，用来修正「前缀距离」；
+ * - 前缀距离 = 下标×代表步长 + 已观察步长相对代表值的修正，
+ *   所以混合行高下越滚越准，但**不假设**知道全表真实高度；
+ * - progress ≥ 1 直接给最后一项，不靠估算算末尾。
+ *
+ * LazyColumn 只暴露可见项，所以这里仍然只能"估算"，证据里不许写成像素精确。
  */
-object ScrollbarMath {
+object ScrollbarEstimate {
 
-    data class Metrics(
-        val visible: Boolean,
-        /** 当前滚动位置占可滚动行程的比例，0 = 顶部，1 = 底部 */
-        val fraction: Float,
-        /** 手柄长度占轨道长度的比例（已含最小高度） */
-        val thumbFraction: Float
+    /** LazyColumn 的一个显示项：下标、相对视口上沿的偏移、高度 */
+    data class Item(val index: Int, val offsetPx: Int, val sizePx: Int)
+
+    data class Position(
+        /** 0 = 顶部，1 = 底部 */
+        val progress: Float,
+        /** 是否应该显示滚动条 */
+        val visible: Boolean
     )
 
-    val Hidden = Metrics(visible = false, fraction = 0f, thumbFraction = 1f)
+    /** 中位数；偶数个时取中间两个的均值，空集返回 0 */
+    fun median(values: List<Int>): Float {
+        if (values.isEmpty()) return 0f
+        val sorted = values.sorted()
+        val mid = sorted.size / 2
+        return if (sorted.size % 2 == 1) sorted[mid].toFloat()
+        else (sorted[mid - 1] + sorted[mid]) / 2f
+    }
+
+    /** 相邻可见项之间的步长（含行距），只保留正数 */
+    fun stepsOf(items: List<Item>): List<Int> =
+        items.sortedBy { it.index }
+            .zipWithNext { a, b -> b.offsetPx - a.offsetPx }
+            .filter { it > 0 }
 
     /**
-     * @param totalItems LazyColumn 的总显示项数（含筛选行、分区标题等非笔记项）
-     * @param firstVisibleIndex 第一个可见项的显示下标
-     * @param firstVisibleOffsetPx 第一个可见项已滚出视口上沿的像素
-     * @param viewportPx 列表实际视口高度
-     * @param averageItemPx 可见项平均高度（估算依据）
-     * @param minThumbPx 手柄最小高度
-     * @param trackPx 轨道高度
+     * 估算器。只做整数像素运算，不依赖 Compose，能直接单测。
+     *
+     * [update] 每次布局回来都喂一遍；总项数或内容键变化会清掉已观察步长
+     * （对应源码「总条数或 spacing 改变时清观测」）。
      */
-    fun metrics(
-        totalItems: Int,
-        firstVisibleIndex: Int,
-        firstVisibleOffsetPx: Int,
-        viewportPx: Float,
-        averageItemPx: Float,
-        canScrollForward: Boolean,
-        canScrollBackward: Boolean,
-        minThumbPx: Float,
-        trackPx: Float
-    ): Metrics {
-        val canScroll = canScrollForward || canScrollBackward
-        if (!canScroll || totalItems <= 0 || viewportPx <= 0f || trackPx <= 0f) return Hidden
+    class Estimator {
+        private val observedSteps = HashMap<Int, Int>()
+        private var representativeStepPx = 0f
+        private var totalCount = -1
+        private var contentKey = Int.MIN_VALUE
 
-        val avg = averageItemPx.coerceAtLeast(1f)
-        val estimatedTotal = avg * totalItems
-        if (estimatedTotal <= viewportPx) return Hidden
+        fun update(items: List<Item>, totalItems: Int, contentKey: Int) {
+            if (totalItems != totalCount || contentKey != this.contentKey) {
+                observedSteps.clear()
+                representativeStepPx = 0f
+            }
+            totalCount = totalItems
+            this.contentKey = contentKey
 
-        val fraction = when {
-            !canScrollForward -> 1f
-            !canScrollBackward -> 0f
-            else -> {
-                val offset = firstVisibleIndex * avg + firstVisibleOffsetPx
-                val maxOffset = (estimatedTotal - viewportPx).coerceAtLeast(1f)
-                (offset / maxOffset).coerceIn(0f, 1f)
+            val sorted = items.sortedBy { it.index }
+            val steps = stepsOf(sorted)
+            if (steps.isNotEmpty()) {
+                representativeStepPx = median(steps)
+            } else if (sorted.isNotEmpty() && representativeStepPx <= 0f) {
+                // 只有一个可见项时拿它的高度兜底，至少有量级
+                representativeStepPx = sorted.first().sizePx.toFloat()
+            }
+
+            // 最后一项没有「到下一项」的步长，不记
+            sorted.forEachIndexed { i, item ->
+                val next = sorted.getOrNull(i + 1) ?: return@forEachIndexed
+                observedSteps[item.index] = next.offsetPx - item.offsetPx
             }
         }
-        val thumbFraction = (viewportPx / estimatedTotal)
-            .coerceIn((minThumbPx / trackPx).coerceAtMost(1f), 1f)
-        return Metrics(visible = true, fraction = fraction, thumbFraction = thumbFraction)
-    }
 
-    /** 拖动比例 -> 目标显示下标 + 项内偏移，交给 LazyListState.scrollToItem */
-    fun targetScroll(
-        fraction: Float,
-        totalItems: Int,
-        averageItemPx: Float,
-        viewportPx: Float
-    ): Pair<Int, Int> {
-        if (totalItems <= 0) return 0 to 0
-        val avg = averageItemPx.coerceAtLeast(1f)
-        val estimatedTotal = avg * totalItems
-        val maxOffset = (estimatedTotal - viewportPx).coerceAtLeast(0f)
-        val target = fraction.coerceIn(0f, 1f) * maxOffset
-        val index = (target / avg).toInt().coerceIn(0, totalItems - 1)
-        val offsetInItem = (target - index * avg).roundToInt().coerceAtLeast(0)
-        return index to offsetInItem
+        fun representativeStepPx(): Float = representativeStepPx
+
+        /** 下标 -> 该下标相对列表顶部的距离（估算） */
+        fun prefixDistancePx(index: Int): Float {
+            if (index <= 0) return 0f
+            val step = representativeStepPx
+            var sum = 0f
+            for (i in 0 until index) {
+                val observed = observedSteps[i]
+                sum += if (observed != null && observed > 0) observed.toFloat() else step
+            }
+            return sum
+        }
+
+        fun estimatedTotalPx(): Float {
+            if (totalCount <= 0) return 0f
+            if (totalCount == 1) return representativeStepPx
+            return prefixDistancePx(totalCount)
+        }
+
+        /** 顶部距离 -> (显示下标, 项内偏移)，末尾方向不外溢 */
+        fun targetFor(offsetPx: Float, totalItems: Int): Pair<Int, Int> {
+            if (totalItems <= 0) return 0 to 0
+            val target = offsetPx.coerceAtLeast(0f)
+            var accumulated = 0f
+            for (i in 0 until totalItems) {
+                val step = stepAt(i)
+                if (accumulated + step > target) {
+                    return i to (target - accumulated).roundToInt().coerceAtLeast(0)
+                }
+                accumulated += step
+            }
+            return (totalItems - 1) to 0
+        }
+
+        private fun stepAt(index: Int): Float {
+            val observed = observedSteps[index]
+            return if (observed != null && observed > 0) observed.toFloat() else representativeStepPx
+        }
+
+        /**
+         * 当前进度。首/尾用 canScrollForward / canScrollBackward 校正，
+         * 免得估算误差让手柄在端点前一点点就停住。
+         */
+        fun progressOf(
+            firstIndex: Int,
+            firstOffsetPx: Int,
+            viewportPx: Float,
+            canScrollForward: Boolean,
+            canScrollBackward: Boolean
+        ): Float {
+            val total = estimatedTotalPx()
+            if (total <= 0f || viewportPx <= 0f) return 0f
+            if (!canScrollForward) return 1f
+            if (!canScrollBackward) return 0f
+            val maxOffset = (total - viewportPx).coerceAtLeast(1f)
+            val offset = (prefixDistancePx(firstIndex) + firstOffsetPx).coerceAtLeast(0f)
+            return (offset / maxOffset).coerceIn(0f, 1f)
+        }
     }
 
     /**
-     * 拖动比例 -> (显示下标, 项内偏移)。端点吸附首/尾项。
+     * 固定长度手柄的几何：手柄高恒定，只有位置跟着进度走。
      *
-     * [targetScroll] 的下标来自「平均高 × 总项数」的估算，比例 1 时算出的下标会
-     * 小于真实末项（混合行高时差好几条）。所以首/尾两个端点不参与估算，
-     * 直接给首项/末项，交给 LazyListState 自己夹紧。
+     * travelPx = 轨道高 − 上下各一个 gap − 手柄高；progress 0 时手柄贴在上 gap，
+     * 1 时贴在下 gap，因此两端都不会被切掉。
      */
-    fun resolveTarget(
-        fraction: Float,
-        totalItems: Int,
-        averageItemPx: Float,
-        viewportPx: Float
-    ): Pair<Int, Int> {
-        if (totalItems <= 0) return 0 to 0
-        val f = fraction.coerceIn(0f, 1f)
-        if (f <= 0.001f) return 0 to 0
-        if (f >= 0.999f) return (totalItems - 1) to 0
-        return targetScroll(f, totalItems, averageItemPx, viewportPx)
+    fun thumbTopPx(progress: Float, trackPx: Float, thumbPx: Float, gapPx: Float): Float {
+        val travel = (trackPx - 2f * gapPx - thumbPx).coerceAtLeast(1f)
+        return gapPx + progress.coerceIn(0f, 1f) * travel
     }
+
+    fun travelPx(trackPx: Float, thumbPx: Float, gapPx: Float): Float =
+        (trackPx - 2f * gapPx - thumbPx).coerceAtLeast(1f)
+
+    /** 手柄顶端 -> 进度（拖动用，和 [thumbTopPx] 互逆） */
+    fun progressOfThumbTop(thumbTopPx: Float, trackPx: Float, thumbPx: Float, gapPx: Float): Float {
+        val travel = travelPx(trackPx, thumbPx, gapPx)
+        return ((thumbTopPx - gapPx) / travel).coerceIn(0f, 1f)
+    }
+
+    /** 该不该显示：内容不足一屏、没有项、轨道太矮都不显示，不造假行程 */
+    fun isVisible(
+        totalItems: Int,
+        estimatedTotalPx: Float,
+        viewportPx: Float,
+        trackPx: Float,
+        canScrollForward: Boolean,
+        canScrollBackward: Boolean
+    ): Boolean =
+        (canScrollForward || canScrollBackward) &&
+            totalItems > 0 &&
+            viewportPx > 0f &&
+            trackPx > 0f &&
+            estimatedTotalPx > viewportPx
+
+    /**
+     * 是否该给 70ms 平滑：只在「源未滚动、每次手柄位移≥16dp、总跳变≥10dp」时成立。
+     * 不是所有滚动都加平滑，直接贴手更接近源行为。
+     */
+    fun shouldSmooth(
+        sourceWasScrolled: Boolean,
+        perStepPx: Float,
+        totalJumpPx: Float,
+        stepThresholdPx: Float,
+        jumpThresholdPx: Float
+    ): Boolean =
+        !sourceWasScrolled && abs(perStepPx) >= stepThresholdPx && abs(totalJumpPx) >= jumpThresholdPx
+
+    /** 气泡入场起点缩放（源：.82 → 1，180ms，同时从下方 8dp 滑入） */
+    const val BUBBLE_MIN_SCALE = 0.82f
+
+    /** 气泡入场的缩放曲线：进度 0 → .82，进度 1 → 1 */
+    fun bubbleScale(alpha: Float): Float =
+        BUBBLE_MIN_SCALE + (1f - BUBBLE_MIN_SCALE) * alpha.coerceIn(0f, 1f)
+
+    /** 气泡入场的位移曲线：进度 0 → 屏幕下方 slidePx，进度 1 → 0 */
+    fun bubbleSlidePx(alpha: Float, slidePx: Float): Float =
+        (1f - alpha.coerceIn(0f, 1f)) * slidePx
 
     /**
      * 显示下标 -> 最近的笔记项。
@@ -156,21 +255,18 @@ object ScrollbarMath {
     }
 
     /**
-     * 标题排序时的定位标签：数字开头记 #，拉丁字母大写，汉字保留原字
-     * （不做拼音，也不假装成拼音首字母）。
+     * 标题排序时的定位标签：trim 后扫第一个字母或数字，数字记 #，拉丁字母大写，
+     * 汉字保留原字（不做拼音，也不假装成拼音首字母）。
      */
     fun titleGlyph(title: String): String {
         val text = title.trim()
         if (text.isEmpty()) return "#"
-        val first = text.first()
+        val first = text.firstOrNull { it.isLetterOrDigit() } ?: return "#"
         return when {
             first.isDigit() -> "#"
             first in 'a'..'z' -> first.uppercaseChar().toString()
             first in 'A'..'Z' -> first.toString()
-            first.isLetter() -> first.toString()
-            else -> text.firstOrNull { it.isLetterOrDigit() }?.let { c ->
-                if (c.isDigit()) "#" else c.uppercaseChar().toString()
-            } ?: "#"
+            else -> first.toString()
         }
     }
 
@@ -188,13 +284,11 @@ private class ScrollJobSlot {
 }
 
 /**
- * 右侧可拖动快速定位条。
+ * 右侧固定长度手柄的快速定位条（对齐 Rhythm ExpressiveScrollBar 的已读参数）。
  *
- * 只画不拦：整层是一个画布，真正接收手势的只有手柄那一段 40dp 宽的局部区域，
- * 其余位置照常交给 LazyColumn——不会出现「整屏盖一层手势」的情况。
- *
- * [displayNotes] 是 LazyColumn 显示项到笔记的映射（筛选行/分区标题为 null），
- * 气泡取标题或日期都按这个映射解析，不用 index 直接当下标。
+ * - 手柄高恒定 48dp，不按内容比例伸缩；常态 8dp、交互 28dp、右留白 4dp、轨道上下各 8dp gap；
+ * - 整层只画，只有手柄那一段 40dp 宽的局部区域接收手势，其余位置照常交给 LazyColumn；
+ * - 按住只展开，拖动才显示气泡；气泡有标签才显示，入场 180ms（alpha + scale .82→1 + 滑入 8dp）。
  */
 @Composable
 fun NotesListScrollbar(
@@ -202,84 +296,92 @@ fun NotesListScrollbar(
     displayNotes: List<Note?>,
     sortMode: SortMode,
     strings: AppStrings,
-    dataKey: Int,
+    contentKey: Int,
     modifier: Modifier = Modifier
 ) {
     val info = listState.layoutInfo
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val estimator = remember { ScrollbarEstimate.Estimator() }
 
     var dragging by remember { mutableStateOf(false) }
-    // 拖动期间用手势算出的比例（比等列表回写布局更快，手柄跟手不跳）
-    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    // 按住只展开；真正产生位移后才算拖动（气泡只在拖动时出现）
+    var dragMoved by remember { mutableStateOf(false) }
+    // 拖动期间手动跟手的进度；松手后回到估算值
+    var dragProgress by remember { mutableStateOf<Float?>(null) }
     var dragIndex by remember { mutableStateOf(-1) }
-    // 在跑的滚动作业放在普通持有者里，不参与快照，避免每个移动事件都多一次失效
     val scrollJobSlot = remember { ScrollJobSlot() }
 
     // 数据/筛选/排序/置顶变化：终止旧拖动、取消在跑的滚动请求，
     // 避免继续用旧下标跳到别的笔记上。
-    LaunchedEffect(dataKey) {
+    LaunchedEffect(contentKey) {
         scrollJobSlot.job?.cancel()
         scrollJobSlot.job = null
         dragging = false
-        dragFraction = null
+        dragMoved = false
+        dragProgress = null
         dragIndex = -1
     }
 
     val viewportPx = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
     val visibleItems = info.visibleItemsInfo
-    val averageItemPx = if (visibleItems.isEmpty()) 1f
-    else visibleItems.sumOf { it.size }.toFloat() / visibleItems.size
+    estimator.update(
+        items = visibleItems.map { ScrollbarEstimate.Item(it.index, it.offset, it.size) },
+        totalItems = displayNotes.size,
+        contentKey = contentKey
+    )
     val firstIndex = visibleItems.firstOrNull()?.index ?: 0
-    // LazyListItemInfo.offset 是「项相对视口上沿」的位置，滚出视口时是负数，
-    // 取反才是已滚过的像素
+    // LazyListItemInfo.offset 是「项相对视口上沿」的位置，滚出视口时为负，取反才是已滚过像素
     val firstOffsetPx = -(visibleItems.firstOrNull()?.offset ?: 0)
+    val estimatedTotalPx = estimator.estimatedTotalPx()
+    val computedProgress = estimator.progressOf(
+        firstIndex = firstIndex,
+        firstOffsetPx = firstOffsetPx,
+        viewportPx = viewportPx,
+        canScrollForward = listState.canScrollForward,
+        canScrollBackward = listState.canScrollBackward
+    )
 
     BoxWithConstraints(modifier = modifier) {
         val trackPx = constraints.maxHeight.toFloat()
         if (trackPx <= 0f) return@BoxWithConstraints
 
-        val minThumbPx = with(density) { ListVisualTokens.scrollbarMinThumb.toPx() }
-        val metrics = ScrollbarMath.metrics(
+        val thumbPx = with(density) { ListVisualTokens.scrollbarThumbHeight.toPx() }
+        val gapPx = with(density) { ListVisualTokens.scrollbarTrackGap.toPx() }
+        val visible = ScrollbarEstimate.isVisible(
             totalItems = displayNotes.size,
-            firstVisibleIndex = firstIndex,
-            firstVisibleOffsetPx = firstOffsetPx,
+            estimatedTotalPx = estimatedTotalPx,
             viewportPx = viewportPx,
-            averageItemPx = averageItemPx,
+            trackPx = trackPx,
             canScrollForward = listState.canScrollForward,
-            canScrollBackward = listState.canScrollBackward,
-            minThumbPx = minThumbPx,
-            trackPx = trackPx
+            canScrollBackward = listState.canScrollBackward
         )
-        if (!metrics.visible) return@BoxWithConstraints
+        if (!visible) return@BoxWithConstraints
 
-        val computedFraction = metrics.fraction
-        val shownFraction = (dragFraction ?: computedFraction).coerceIn(0f, 1f)
-        val latestShownFraction = rememberUpdatedState(shownFraction)
-
-        val thumbPx = (metrics.thumbFraction * trackPx).coerceAtLeast(minThumbPx).coerceAtMost(trackPx)
-        val travelPx = (trackPx - thumbPx).coerceAtLeast(1f)
-        val thumbTopPx = shownFraction * travelPx
+        val shownProgress = (dragProgress ?: computedProgress).coerceIn(0f, 1f)
+        val travelPx = ScrollbarEstimate.travelPx(trackPx, thumbPx, gapPx)
+        val thumbTopPx = ScrollbarEstimate.thumbTopPx(shownProgress, trackPx, thumbPx, gapPx)
 
         val active = dragging
         val idleWidthPx = with(density) { ListVisualTokens.scrollbarIdleWidth.toPx() }
         val activeWidthPx = with(density) { ListVisualTokens.scrollbarActiveWidth.toPx() }
         val widthAnim by animateFloatAsState(
             targetValue = if (active) activeWidthPx else idleWidthPx,
-            animationSpec = tween(160),
+            animationSpec = tween(ListVisualTokens.scrollbarWidthMillis),
             label = "scrollbarWidth"
         )
-        val insetPx = with(density) { ListVisualTokens.scrollbarTrackInset.toPx() }
+        val insetPx = with(density) { ListVisualTokens.scrollbarRightInset.toPx() }
 
-        // 手势协程的 key 必须是稳定值。
-        // 一旦把随滚动变化的量（可见项平均高、视口高、手柄高）放进 key，
-        // 列表每滚一帧 key 就变，协程被取消，drag 状态卡在 active——这正是之前
-        // 「按下后只收到一个 move 事件就没了」的原因。
-        // 所以 key 只留显示项数，其余数值一律通过 rememberUpdatedState 取最新。
+        // 手势协程的 key 只保留显示项数：一旦把随滚动变化的量放进 key，
+        // 列表每滚一帧协程就被取消，drag 状态会卡住。
+        val latestThumbTop = rememberUpdatedState(thumbTopPx)
         val latestTravelPx = rememberUpdatedState(travelPx)
-        val latestAverageItemPx = rememberUpdatedState(averageItemPx)
-        val latestViewportPx = rememberUpdatedState(viewportPx)
-        val latestDisplayCount = rememberUpdatedState(displayNotes.size)
+        val latestGate = rememberUpdatedState(gapPx)
+        val latestThumbPx = rememberUpdatedState(thumbPx)
+        val latestTrackPx = rememberUpdatedState(trackPx)
+        val latestSteps = rememberUpdatedState(
+            displayNotes.size to estimatedTotalPx to viewportPx
+        )
 
         val thumbColor = MaterialTheme.colorScheme.primary
         val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
@@ -288,8 +390,8 @@ fun NotesListScrollbar(
             if (active) {
                 drawRoundRect(
                     color = trackColor,
-                    topLeft = Offset(size.width - insetPx - widthAnim, 0f),
-                    size = Size(widthAnim, size.height),
+                    topLeft = Offset(size.width - insetPx - widthAnim, gapPx),
+                    size = Size(widthAnim, (size.height - 2f * gapPx).coerceAtLeast(1f)),
                     cornerRadius = CornerRadius(widthAnim / 2f)
                 )
             }
@@ -301,75 +403,98 @@ fun NotesListScrollbar(
             )
         }
 
-        // 局部命中区：宽 40dp、高=手柄高度，只跟着手柄移动。
-        // 只有这一段接收手势，列表其它位置（含每行的更多按钮）不受影响。
+        // 手势层是**固定不动**的 40dp 宽整条（高度铺满），不是跟着手柄走的那个盒子：
+        // 跟着走的话 position 是相对节点的，节点一动坐标就自我抵消，会抖成 ANR。
+        // 命中测试自己做：按下的点不落在手柄带里就直接返回、不消费，
+        // 事件照旧交给下面的 LazyColumn，所以只有手柄那一段真正吃手势。
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .width(ListVisualTokens.scrollbarHitWidth)
-                .height(with(density) { thumbPx.toDp() })
-                .offset { IntOffset(0, thumbTopPx.roundToInt()) }
+                .fillMaxHeight()
                 .pointerInput(displayNotes.size) {
                     awaitEachGesture {
-                        // 按下即展开并显示气泡（不等 touch slop），松手/取消收起
                         val down = awaitFirstDown(requireUnconsumed = false)
+                        val grabbedTop = latestThumbTop.value
+                        val grabbedBottom = grabbedTop + latestThumbPx.value
+                        if (down.position.y < grabbedTop || down.position.y > grabbedBottom) {
+                            // 不在手柄上：不消费，让列表自己处理这次触摸
+                            return@awaitEachGesture
+                        }
                         down.consume()
                         dragging = true
-                        dragFraction = latestShownFraction.value
+                        dragMoved = false
+                        dragProgress = null
                         dragIndex = -1
-                        // 无论正常结束、取消还是协程被取消，都必须复位：
-                        // 否则 active 态会永久卡住，屏幕只剩一根加粗的死条。
+                        // 抓取偏移：在拇指任意位置按下都跟手，不把拇指"吸"到指针中心
+                        val grabOffset = down.position.y - grabbedTop
                         try {
                             while (true) {
                                 val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id }
-                                if (change == null) break
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                 if (!change.pressed) {
                                     change.consume()
                                     break
                                 }
-                                val dy = change.positionChange().y
-                                if (dy == 0f) continue
-                                change.consume()
-                                val travel = latestTravelPx.value
-                                val next = ((dragFraction ?: latestShownFraction.value) + dy / travel)
-                                    .coerceIn(0f, 1f)
-                                dragFraction = next
-
-                                val count = latestDisplayCount.value
-                                val (index, offsetInItem) = ScrollbarMath.resolveTarget(
-                                    fraction = next,
-                                    totalItems = count,
-                                    averageItemPx = latestAverageItemPx.value,
-                                    viewportPx = latestViewportPx.value
+                                // 层是固定的，所以这里可以直接用绝对坐标
+                                val thumbTop = (change.position.y - grabOffset)
+                                    .coerceIn(latestGate.value,
+                                        latestGate.value + latestTravelPx.value)
+                                val next = ScrollbarEstimate.progressOfThumbTop(
+                                    thumbTopPx = thumbTop,
+                                    trackPx = latestTrackPx.value,
+                                    thumbPx = latestThumbPx.value,
+                                    gapPx = latestGate.value
                                 )
-                                dragIndex = index
-                                // 旧请求先取消：拖动中只允许一个目标生效，
-                                // 不能出现两次 scrollToItem 抢着改视口
-                                scrollJobSlot.job?.cancel()
-                                val target = index.coerceIn(0, (count - 1).coerceAtLeast(0))
-                                scrollJobSlot.job = scope.launch {
-                                    // 只改视口：不写 NotesState、不动 notes.json、不改 updatedAt
-                                    listState.scrollToItem(target, offsetInItem)
+                                if (next != dragProgress) {
+                                    change.consume()
+                                    dragMoved = true
+                                    dragProgress = next
+
+                                    val count = displayNotes.size
+                                    val maxOffset = (estimatedTotalPx - viewportPx).coerceAtLeast(1f)
+                                    val (index, offsetInItem) = if (next >= 0.999f) {
+                                        (count - 1) to 0
+                                    } else {
+                                        estimator.targetFor(next * maxOffset, count)
+                                    }
+                                    dragIndex = index
+                                    scrollJobSlot.job?.cancel()
+                                    val target = index.coerceIn(0, (count - 1).coerceAtLeast(0))
+                                    scrollJobSlot.job = scope.launch {
+                                        // 只改视口：不写 NotesState、不动 notes.json、不改 updatedAt
+                                        listState.scrollToItem(target, offsetInItem)
+                                    }
                                 }
                             }
                         } finally {
                             dragging = false
-                            dragFraction = null
+                            dragMoved = false
+                            dragProgress = null
                             dragIndex = -1
                         }
                     }
                 }
         )
 
-        // 拖动中的定位气泡：纯视觉/语义反馈，没有点击语义，不拦行点击
-        val bubbleIndex = ScrollbarMath.nearestNoteIndex(
+        // 拖动中的定位气泡：有标签才显示；180ms 入场（alpha + .82→1 + 8dp 滑入）
+        val bubbleIndex = ScrollbarEstimate.nearestNoteIndex(
             displayCount = displayNotes.size,
-            index = if (dragIndex >= 0) dragIndex else (info.visibleItemsInfo.firstOrNull()?.index ?: 0),
+            index = if (dragIndex >= 0) dragIndex else firstIndex,
             isNote = { displayNotes.getOrNull(it) != null }
         )
         val targetNote = displayNotes.getOrNull(bubbleIndex)
-        if (active && targetNote != null) {
+        val label = targetNote?.let {
+            ScrollbarEstimate.bubbleLabel(it, sortMode, strings.english)
+        }.orEmpty()
+        val bubbleTarget = if (active && dragMoved && label.isNotEmpty()) 1f else 0f
+        val bubbleAnim by animateFloatAsState(
+            targetValue = bubbleTarget,
+            animationSpec = tween(ListVisualTokens.scrollbarBubbleMillis),
+            label = "scrollbarBubble"
+        )
+        if (bubbleAnim > 0.01f && label.isNotEmpty()) {
+            val slidePx = with(density) { ListVisualTokens.scrollbarBubbleSlide.toPx() }
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.inverseSurface,
@@ -379,9 +504,16 @@ fun NotesListScrollbar(
                         x = -(ListVisualTokens.scrollbarHitWidth + 8.dp),
                         y = with(density) { (thumbTopPx + thumbPx / 2f).toDp() - 18.dp }
                     )
+                    .graphicsLayer {
+                        alpha = bubbleAnim
+                        val scale = ScrollbarEstimate.bubbleScale(bubbleAnim)
+                        scaleX = scale
+                        scaleY = scale
+                        translationY = ScrollbarEstimate.bubbleSlidePx(bubbleAnim, slidePx)
+                    }
             ) {
                 Text(
-                    text = ScrollbarMath.bubbleLabel(targetNote, sortMode, strings.english),
+                    text = label,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.inverseOnSurface,

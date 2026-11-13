@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.myapplicationfirstapp.ui.ListVisualTokensTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-13T15:20:11.966Z" hostname="朱元璋的电" time="0.027">
+  <properties/>
+  <testcase name="滚动条几何与源一致" classname="com.example.myapplicationfirstapp.ui.ListVisualTokensTest" time="0.002"/>
+  <testcase name="菜单形状按位置收口" classname="com.example.myapplicationfirstapp.ui.ListVisualTokensTest" time="0.024"/>
+  <testcase name="分组菜单 16 比 4 且容器留 8" classname="com.example.myapplicationfirstapp.ui.ListVisualTokensTest" time="0.001"/>
+  <testcase name="滚动条动效时长与源一致" classname="com.example.myapplicationfirstapp.ui.ListVisualTokensTest" time="0.0"/>
+  <testcase name="更多按钮是 32×44 不是 48×48" classname="com.example.myapplicationfirstapp.ui.ListVisualTokensTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

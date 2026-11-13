@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-11-13T15:20:12.054Z" hostname="朱元璋的电" time="0.033">
+  <properties/>
+  <testcase name="已观察步长会修正前缀距离" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.006"/>
+  <testcase name="代表步长取可见相邻步长中位数" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="气泡入场位移从 slide 到 0 且随进度单调" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="进度在端点被校正为中段单调" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.005"/>
+  <testcase name="目标下标不越界且空表返回零" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.002"/>
+  <testcase name="内容不足一屏时不显示" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="气泡文案按排序取首字或日期" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.011"/>
+  <testcase name="相邻步长只保留正数并按下标排序" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="中位数不被单条超高行带偏" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="气泡入场进度越界不放大也不倒滑" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="气泡文案随语言切换" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="全部是非笔记项时返回负一而不是猜一条" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.002"/>
+  <testcase name="目标下标与前缀距离互为逆运算" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="标题标签扫第一个字母数字且不转拼音" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="手柄顶端与进度互逆" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="70ms平滑只在判据满足时启用" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="下标落到非笔记项时吸附到最近的笔记" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="气泡入场缩放从 082 到 1" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="手柄长度恒定不随内容变" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="轨道太矮时行程至少一像素不除零" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="总条数或内容键变化时清空已观察步长" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

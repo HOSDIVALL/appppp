@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -588,7 +589,7 @@ fun NotesListScreen(
                 displayNotes = displayNotes,
                 sortMode = state.sortMode,
                 strings = s,
-                dataKey = listDataKey,
+                contentKey = listDataKey,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .fillMaxSize()
@@ -860,15 +861,21 @@ private fun NoteRow(
                     )
                 }
 
-                // 尾部「更多操作」入口：48×48 触控区，图标 20dp，沿用既有色角色。
+                // 尾部「更多操作」入口：按源（RH-09）为 32×44dp，图标 20dp。
                 // 点它只把本行的 menuOpen 置真，不调用 onClick、不触发删除或置顶；
                 // 菜单仍是一套——长按与点这里打开的是同一个 menuOpen。
-                // 尾额外让出 4dp：卡片内 16dp 已让按钮右缘距屏幕 40dp，正好等于滑块
-                // 局部命中区宽度，贴边没有间隔；再让 4dp 才有可测量的空档。
+                // 上一版按任务书写成 48×48，被判定与源不符，这里改回 32×44。
                 Box(modifier = Modifier.padding(end = ListVisualTokens.moreTrailingClearance)) {
-                    IconButton(
-                        onClick = { menuOpen = true },
-                        modifier = Modifier.size(ListVisualTokens.moreButtonSize)
+                    Box(
+                        modifier = Modifier
+                            .size(
+                                width = ListVisualTokens.moreButtonWidth,
+                                height = ListVisualTokens.moreButtonHeight
+                            )
+                            // 源 .more{border-radius:50px} → 32×44 上是胶囊，不是 12dp 圆角方块
+                            .clip(RoundedCornerShape(percent = 50))
+                            .clickable { menuOpen = true },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
@@ -878,10 +885,12 @@ private fun NoteRow(
                         )
                     }
 
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(if (note.pinned) strings.unpin else strings.pin) },
-                            leadingIcon = { Icon(Icons.Filled.Star, null) },
+                    // 分区菜单：16/4 圆角 + 行间 3dp，不做成一整块大胶囊
+                    GroupedMenu(expanded = menuOpen, onDismiss = { menuOpen = false }) {
+                        GroupedMenuItem(
+                            slot = ListGrouping.Slot.SINGLE,
+                            label = if (note.pinned) strings.unpin else strings.pin,
+                            icon = Icons.Filled.Star,
                             onClick = {
                                 menuOpen = false
                                 onTogglePin()
@@ -908,25 +917,117 @@ private fun SortMenu(current: SortMode, strings: AppStrings, onSelect: (SortMode
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            SortMode.entries.forEach { mode ->
-                DropdownMenuItem(
-                    text = { Text(sortLabel(mode, strings)) },
-                    onClick = {
-                        expanded = false
-                        onSelect(mode)
-                    },
-                    trailingIcon = {
+        GroupedMenu(expanded = expanded, onDismiss = { expanded = false }) {
+            SortMode.entries.forEachIndexed { index, mode ->
+                GroupedMenuItem(
+                    slot = ListGrouping.slotOf(index, SortMode.entries.size),
+                    label = sortLabel(mode, strings),
+                    trailing = {
                         if (mode == current) {
                             Icon(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(mode)
                     }
                 )
+            }
+        }
+    }
+}
+
+// ============ 16/4 分组菜单（源：RhythmGroupedMenu） ============
+
+/**
+ * 菜单容器：外层 16dp，行与行之间 3dp；单选行四角全 16，多行时首/中/尾按 16/4 收口。
+ *
+ * 与列表行的 24/6 分开：源里这是两套形状，不能统一成大胶囊。
+ */
+@Composable
+private fun GroupedMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    // 源（RhythmGroupedMenu / .menu）：容器是纸面 paper，padding 8、1px 描边、软阴影；
+    // 条目才是浅一档的 surface 托盘。所以容器不能用 surfaceContainer——它和条目同色，
+    // 3dp 缝隙就读不出来，整块会糊成一个大胶囊。
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(ListVisualTokens.menuOuterCorner),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        shadowElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 180.dp)
+                .padding(
+                    horizontal = ListVisualTokens.menuContainerPadding,
+                    vertical = ListVisualTokens.menuContainerPadding
+                ),
+            verticalArrangement = Arrangement.spacedBy(ListVisualTokens.menuRowGap)
+        ) { content() }
+    }
+}
+
+@Composable
+private fun GroupedMenuItem(
+    slot: ListGrouping.Slot,
+    label: String,
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    Surface(
+        onClick = onClick,
+        shape = ListGrouping.menuShapeOf(slot),
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = ListVisualTokens.menuContentHorizontal,
+                    vertical = ListVisualTokens.menuContentVertical
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon != null) {
+                // 源 .menubadge：28dp 圆形底 + primaryContainer 填充 + 16dp 图标。
+                // 只留一个裸图标时，条目看起来像缩进错位的纯文字行。
+                Box(
+                    modifier = Modifier
+                        .size(ListVisualTokens.menuIconPlate)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null, // 标题已提供可读内容
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(ListVisualTokens.menuIconSize)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            if (trailing != null) {
+                Spacer(modifier = Modifier.width(10.dp))
+                trailing()
             }
         }
     }

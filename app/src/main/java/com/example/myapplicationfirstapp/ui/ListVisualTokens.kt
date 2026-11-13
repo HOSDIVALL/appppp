@@ -37,15 +37,20 @@ object ListVisualTokens {
     /** 卡片内部水平缩进（前导图形与文字） */
     val cardInset = 16.dp
 
-    /** 更多按钮固定触控尺寸，不因滑块出现而缩小 */
-    val moreButtonSize = 48.dp
+    /**
+     * 更多按钮的可见尺寸：按源（RH-09）是 32×44dp，不是 48×48。
+     *
+     * 上一版按任务书写成 48×48，被判定为与源不符（2026-11-13 用户确认以源为准），
+     * 这里改回 32×44；命中区同时改为 32×44，不再额外撑到 48。
+     */
+    val moreButtonWidth = 32.dp
+    val moreButtonHeight = 44.dp
 
     /**
      * 更多按钮右缘相对卡片内缩的额外让位。
      *
-     * 卡片右缘在页面 24dp 基线上，按钮原本再内缩 16dp（合计距屏幕右缘 40dp），
-     * 正好与右侧 40dp 的滑块局部命中区「贴边」——不相交但也没有间隔。
-     * 按任务书「有冲突优先调整本页内部尾边距」，这里再让 4dp，换来 4dp 可测量的空档。
+     * 按钮缩小到 32 宽后，右侧空档由「尾边距 + 卡片余量」共同构成，
+     * 仍然要保证按钮触控区和右侧滑块的局部命中区有可测量的间隔。
      */
     val moreTrailingClearance = 4.dp
 
@@ -55,22 +60,63 @@ object ListVisualTokens {
     /** 按压缩放时长；系统「移除动画」时由 Compose 自行把时长压到 0 */
     const val pressAnimationMillis = 120
 
-    // ---------- 右侧快速定位滚动条（阶段B） ----------
+    // ---------- 右侧快速定位滚动条（对齐 ExpressiveScrollBar 已读参数） ----------
 
-    /** 常态视觉宽度 */
-    val scrollbarIdleWidth = 12.dp
+    /** 手柄高度固定 48dp：不按内容比例伸缩，这是与系统滚动条最大的区别 */
+    val scrollbarThumbHeight = 48.dp
 
-    /** 按住/拖动时展开的视觉宽度 */
+    /** 常态视觉宽度（源：细宽 8dp） */
+    val scrollbarIdleWidth = 8.dp
+
+    /** 按住/拖动时展开的视觉宽度（源：24 + 4 = 28dp） */
     val scrollbarActiveWidth = 28.dp
-
-    /** 手柄最小高度 */
-    val scrollbarMinThumb = 48.dp
 
     /** 局部命中区宽度（只覆盖手柄那一段，不铺满整高） */
     val scrollbarHitWidth = 40.dp
 
-    /** 视觉轨道离屏幕右缘的间距 */
-    val scrollbarTrackInset = 2.dp
+    /** 手柄右缘离容器右缘的留白（源：4dp） */
+    val scrollbarRightInset = 4.dp
+
+    /** 轨道上下两端各留的 gap（源：8dp），手柄到端点不贴边 */
+    val scrollbarTrackGap = 8.dp
+
+    /** 宽度展开/收起的时长（源：200ms） */
+    const val scrollbarWidthMillis = 200
+
+    /** 定位气泡入场时长（源：alpha/scale/slide 各 180ms） */
+    const val scrollbarBubbleMillis = 180
+
+    /** 气泡入场时的滑入距离（源：8dp） */
+    val scrollbarBubbleSlide = 8.dp
+
+    /** 松手后回到估算位置的平滑时长（源：70ms，且只在判据满足时用） */
+    const val scrollbarSettleMillis = 70
+
+    /** 70ms 平滑的判据：单次手柄位移 ≥16dp、总跳变 ≥10dp（源） */
+    val scrollbarSmoothStep = 16.dp
+    val scrollbarSmoothJump = 10.dp
+
+    // ---------- 分组菜单（源：列表 24/6，菜单 16/4） ----------
+
+    /** 菜单组外侧角 */
+    val menuOuterCorner = 16.dp
+
+    /** 菜单组内相邻行接缝 */
+    val menuInnerCorner = 4.dp
+
+    /** 菜单行之间 3dp */
+    val menuRowGap = 3.dp
+
+    /** 菜单容器内边距 8dp（源 .menu{padding:8px}）：条目要缩进，外角 16 才露得出来 */
+    val menuContainerPadding = 8.dp
+
+    /** 菜单行内边距：水平 14 / 垂直 10 */
+    val menuContentHorizontal = 14.dp
+    val menuContentVertical = 10.dp
+
+    /** 图标底 28dp、图标 16dp */
+    val menuIconPlate = 28.dp
+    val menuIconSize = 16.dp
 
     /** 列表底部为悬浮导航让出的高度，滚动条行程必须扣掉它 */
     val listBottomReserve = 96.dp
@@ -115,4 +161,14 @@ object ListGrouping {
         val c = cornerValuesDp(slot, outer.value, inner.value)
         return RoundedCornerShape(c[0].dp, c[1].dp, c[2].dp, c[3].dp)
     }
+
+    /**
+     * 菜单形状：源里菜单是 16/4，和列表行的 24/6 是两套，
+     * 单选行四角全 16，多行按首/中/尾收口。
+     */
+    fun menuShapeOf(
+        slot: Slot,
+        outer: Dp = ListVisualTokens.menuOuterCorner,
+        inner: Dp = ListVisualTokens.menuInnerCorner
+    ): Shape = shapeOf(slot, outer, inner)
 }

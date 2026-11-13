@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-13T15:20:12.035Z" hostname="朱元璋的电" time="0.013">
+  <properties/>
+  <testcase name="中间条四角都是内角" classname="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" time="0.004"/>
+  <testcase name="空组与越界下标不会崩且落在尾位置" classname="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" time="0.0"/>
+  <testcase name="形状同时带四个不同角且外角大于内角" classname="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" time="0.003"/>
+  <testcase name="两条一组时首尾各留外角" classname="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" time="0.0"/>
+  <testcase name="长组只在首尾用外角" classname="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" time="0.004"/>
+  <testcase name="四角顺序与圆角枚举一致" classname="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" time="0.0"/>
+  <testcase name="单条笔记四角都是外角" classname="com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
