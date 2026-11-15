@@ -1,0 +1,133 @@
+name: Batch 2 source readback
+"on":
+  push:
+    branches: [ux/rhythm-recent-notes-1]
+    paths: [.github/workflows/batch2-source-readback.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: batch2-source-readback
+  cancel-in-progress: false
+jobs:
+  export:
+    if: github.repository == 'HOSDIVALL/appppp' && github.ref == 'refs/heads/ux/rhythm-recent-notes-1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and export allowlisted source only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          ROOT = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          OUT = ROOT / "docs/design/research/batch2-source-readback"
+          OUT.mkdir(parents=True, exist_ok=True)
+          BASE = "fd9438894d3b121ed8ed233e887ac19ce113f20b"
+          EVIDENCE = "a81885479378d615d7293467481f7b98c8ca1d4a"
+          RHYTHM = "6f26f963b82ed592ec28f05824bb7f12b65b82ea"
+          PREFIX = "app/src/"
+          WIDTH = 6000
+          sources = []
+          def git(*args, cwd=ROOT):
+              return subprocess.check_output(["git", *args], cwd=cwd)
+          def blob(raw):
+              return hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+          def export(name, raw, origin):
+              text = raw.decode("utf-8")
+              folder = OUT / name
+              folder.mkdir(parents=True, exist_ok=True)
+              parts = []
+              for number, offset in enumerate(range(0, len(text), WIDTH), 1):
+                  chunk = text[offset:offset + WIDTH].encode("utf-8")
+                  filename = f"part-{number:04d}.txt"
+                  (folder / filename).write_bytes(chunk)
+                  parts.append({"file": filename, "bytes": len(chunk), "sha256": hashlib.sha256(chunk).hexdigest()})
+              hits = []
+              for symbol in ["HorizontalUncontainedCarousel", "HorizontalMultiBrowseCarousel", "CollapsibleHeaderScreen", "fun NotesListScreen", "fun NoteRowWithSwipe"]:
+                  start = 0
+                  while True:
+                      index = text.find(symbol, start)
+                      if index < 0:
+                          break
+                      part = index // WIDTH + 1
+                      hits.append({"symbol": symbol, "line": text.count("\n", 0, index) + 1, "part": part})
+                      start = index + len(symbol)
+              manifest = {"origin": origin, "bytes": len(raw), "git_blob": blob(raw), "sha256": hashlib.sha256(raw).hexdigest(), "parts": parts, "symbol_hits": hits}
+              (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+              sources.append({"name": name, "manifest": name + "/manifest.json", "bytes": len(raw), "parts": len(parts)})
+          patch = git("show", EVIDENCE + ":recent-notes-1/batch1/batch1.diff")
+          if blob(patch) != "b43e62b22e6c940932f3de01416e8341a10f350a":
+              raise SystemExit("Evidence patch blob mismatch")
+          work = pathlib.Path(os.environ["RUNNER_TEMP"]) / "batch1-source-review"
+          git("worktree", "add", "--detach", str(work), BASE)
+          subprocess.run(["git", "apply", "--check", "-"], cwd=work, input=patch, check=True)
+          subprocess.run(["git", "apply", "-"], cwd=work, input=patch, check=True)
+          export("batch1-patch", patch, {"commit": EVIDENCE, "path": "recent-notes-1/batch1/batch1.diff"})
+          paths = [
+              "app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScrollbar.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/ui/i18n/AppStrings.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/ui/ListVisualTokens.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/ui/AppSpacing.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/ui/AttachmentImageLoader.kt",
+              "app/src/main/java/com/example/myapplicationfirstapp/data/Note.kt",
+              "app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt",
+              "app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt",
+              "app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt",
+              "app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt",
+          ]
+          for relative in paths:
+              raw = (work / relative).read_bytes()
+              if relative.endswith("/NotesListScreen.kt") and blob(raw) != "57dd36c67811c2f800c710dbf93c62b6630aece6":
+                  raise SystemExit("Home source changed unexpectedly")
+              export("batch1/" + pathlib.Path(relative).name, raw, {"base": BASE, "patch_commit": EVIDENCE, "path": relative})
+          reference_status = "available"
+          reference = pathlib.Path(os.environ["RUNNER_TEMP"]) / "rhythm-source-review"
+          try:
+              subprocess.run(["git", "init", "--quiet", str(reference)], check=True, capture_output=True)
+              subprocess.run(["git", "-C", str(reference), "fetch", "--quiet", "--depth=1", "https://github.com/cromaguy/Rhythm.git", RHYTHM], check=True, capture_output=True, timeout=120)
+          except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+              reference_status = "unavailable; no reference source claims permitted"
+          if reference_status == "available":
+              entries = git("ls-tree", "-r", "--name-only", RHYTHM, cwd=reference).decode().splitlines()
+              home = "app/src/main/java/chromahub/rhythm/app/features/local/presentation/screens/HomeScreen.kt"
+              export("rhythm/HomeScreen.kt", git("show", RHYTHM + ":" + home, cwd=reference), {"repository": "cromaguy/Rhythm", "commit": RHYTHM, "path": home})
+              for relative in entries:
+                  common = "/shared/presentation/components/common/" in relative and relative.endswith(".kt")
+                  license_file = "/" not in relative and (relative.upper().startswith("LICENSE") or relative.upper().startswith("COPYING"))
+                  if common or license_file:
+                      raw = git("show", RHYTHM + ":" + relative, cwd=reference)
+                      if license_file or b"fun CollapsibleHeaderScreen(" in raw:
+                          export("rhythm/" + pathlib.Path(relative).name, raw, {"repository": "cromaguy/Rhythm", "commit": RHYTHM, "path": relative})
+          index = {"base": BASE, "evidence": EVIDENCE, "reference": RHYTHM, "reference_status": reference_status, "workflow_commit": os.environ["GITHUB_SHA"], "run_url": "https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/actions/runs/" + os.environ["GITHUB_RUN_ID"], "scope": "Source review only. First-batch patch applied in an ephemeral worktree, never to repository app/. No build, installation or runtime data.", "sources": sources}
+          (OUT / "INDEX.json").write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          checksums = []
+          for path in sorted(OUT.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS":
+                  checksums.append(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.relative_to(OUT).as_posix())
+          (OUT / "SHA256SUMS").write_text("\n".join(checksums) + "\n", encoding="utf-8")
+          PY
+      - name: Commit source review chunks to this feature branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=docs/design/research/batch2-source-readback
+          test -f "$target/INDEX.json"
+          (cd "$target" && sha256sum -c SHA256SUMS)
+          git fetch origin ux/rhythm-recent-notes-1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$target"
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: export pinned batch2 source review chunks [skip ci]"
+            git push origin HEAD:ux/rhythm-recent-notes-1
+          fi
