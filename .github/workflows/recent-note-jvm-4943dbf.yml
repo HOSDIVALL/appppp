@@ -1,0 +1,129 @@
+name: Recent note JVM tests (4943dbf)
+"on":
+  push:
+    branches: [ux/rhythm-recent-notes-1]
+    paths: [.github/workflows/recent-note-jvm-4943dbf.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: recent-note-jvm-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    if: github.repository == 'HOSDIVALL/appppp' && github.ref == 'refs/heads/ux/rhythm-recent-notes-1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare isolated JVM project from the requested commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/recent-note-jvm"
+          mkdir -p "$work/src/main/kotlin" "$work/src/test/kotlin"
+          source=4943dbf973ea43eb136b69f222433c5f1eddc165
+          git show "$source:app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt" > "$work/src/main/kotlin/RecentNoteUsage.kt"
+          git show "$source:app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt" > "$work/src/test/kotlin/RecentNoteUsageTest.kt"
+          printf 'rootProject.name = "recent-note-jvm"\n' > "$work/settings.gradle.kts"
+          cat > "$work/build.gradle.kts" <<'KOTLIN'
+          plugins { kotlin("jvm") version "2.2.10" }
+          repositories { mavenCentral() }
+          dependencies { testImplementation("junit:junit:4.13.2") }
+          kotlin { jvmToolchain(21) }
+          tasks.test {
+              useJUnit()
+              reports.junitXml.required.set(true)
+              testLogging { events("passed", "skipped", "failed") }
+          }
+          KOTLIN
+      - name: Run the actual JVM tests
+        id: jvm
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$GITHUB_WORKSPACE/gradlew" --project-dir "$RUNNER_TEMP/recent-note-jvm" test --rerun-tasks --no-daemon --stacktrace 2>&1 | tee "$RUNNER_TEMP/recent-note-jvm.log"
+      - name: Parse JUnit XML and record exact counts
+        id: report
+        if: always()
+        shell: bash
+        env:
+          JVM_STEP_OUTCOME: ${{ steps.jvm.outcome }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil, subprocess, xml.etree.ElementTree as ET
+          source = "4943dbf973ea43eb136b69f222433c5f1eddc165"
+          root = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          out = root / "docs/ux-rhythm-recent-notes-1/jvm"
+          out.mkdir(parents=True, exist_ok=True)
+          result_dir = pathlib.Path(os.environ["RUNNER_TEMP"]) / "recent-note-jvm/build/test-results/test"
+          cases, parse_errors, xml_files = [], [], []
+          for stale in out.glob("TEST-*.xml"):
+              stale.unlink()
+          for file in sorted(result_dir.glob("TEST-*.xml")):
+              xml_files.append(file.name)
+              shutil.copy2(file, out / file.name)
+              try:
+                  for case in ET.parse(file).getroot().iter("testcase"):
+                      status = "failed" if case.find("failure") is not None else "error" if case.find("error") is not None else "skipped" if case.find("skipped") is not None else "passed"
+                      cases.append({"class": case.get("classname"), "name": case.get("name"), "status": status})
+              except ET.ParseError as error:
+                  parse_errors.append(str(error))
+          expected = {"orderSurvivesClockRollback", "excludesInactiveAndUnknownNotes", "deduplicatesBeforeLimiting", "equalOrdersHaveDeterministicIdOrder", "zeroLimitAndEmptyInputStayEmpty", "negativeLimitIsRejected", "doesNotMutateInput"}
+          counts = {status: sum(case["status"] == status for case in cases) for status in ("passed", "failed", "error", "skipped")}
+          correct_cases = len(cases) == 7 and {case["name"] for case in cases} == expected and all(case["class"] == "com.example.myapplicationfirstapp.data.RecentNoteUsageTest" for case in cases)
+          outcome = os.environ.get("JVM_STEP_OUTCOME", "unknown")
+          passed = outcome == "success" and correct_cases and counts["passed"] == 7 and not parse_errors
+          paths = ["app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt", "app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt"]
+          hashes = {path: hashlib.sha256(subprocess.check_output(["git", "show", source + ":" + path], cwd=root)).hexdigest() for path in paths}
+          report = {"source_commit": source, "workflow_commit": os.environ["GITHUB_SHA"], "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"], "run_url": "https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/actions/runs/" + os.environ["GITHUB_RUN_ID"], "scope": "Isolated pure JVM selector tests only; NOT an Android app build or RecentNotesStore integration test", "kotlin": "2.2.10", "junit": "4.13.2", "wrapper": "Unmodified repository Gradle Wrapper", "step_outcome": outcome, "status": "passed" if passed else "not_passed" if cases else "blocked_or_not_run", "tests": len(cases), "counts": counts, "expected_cases_match": correct_cases, "parse_errors": parse_errors, "source_sha256": hashes, "xml_files": xml_files, "cases": cases}
+          (out / "latest.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Recent-note JVM test result\n\n```json\n" + json.dumps(report, indent=2) + "\n```\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("ready=true\n")
+          PY
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recent-note-jvm-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            docs/ux-rhythm-recent-notes-1/jvm/
+            ${{ runner.temp }}/recent-note-jvm.log
+      - name: Write evidence back to this feature branch only
+        if: always() && steps.report.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          report=docs/ux-rhythm-recent-notes-1/jvm
+          test -f "$report/latest.json"
+          git fetch origin ux/rhythm-recent-notes-1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$report"
+          if ! git diff --cached --quiet; then
+            git commit -m "test: record recent-note JVM results [skip ci]"
+            git push origin HEAD:ux/rhythm-recent-notes-1
+          fi
+      - name: Fail unless all seven requested tests really passed
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          file = pathlib.Path("docs/ux-rhythm-recent-notes-1/jvm/latest.json")
+          result = json.loads(file.read_text()) if file.exists() else {}
+          current = result.get("workflow_commit") == os.environ["GITHUB_SHA"] and result.get("run_id") == os.environ["GITHUB_RUN_ID"] and result.get("run_attempt") == os.environ["GITHUB_RUN_ATTEMPT"]
+          sys.exit(0 if current and result.get("status") == "passed" else 1)
+          PY
