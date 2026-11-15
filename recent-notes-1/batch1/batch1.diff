@@ -1,0 +1,988 @@
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
+index 890b627..d6219b2 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
+@@ -2,6 +2,7 @@ package com.example.myapplicationfirstapp.data
+ 
+ import android.content.Context
+ import android.content.ContextWrapper
++import android.database.sqlite.SQLiteDatabase
+ import androidx.test.platform.app.InstrumentationRegistry
+ import java.io.File
+ import java.security.MessageDigest
+@@ -23,6 +24,7 @@ import java.util.UUID
+ internal class IsolatedAppContext(base: Context, internal val rootDir: File) : ContextWrapper(base) {
+     private val isolatedFiles = File(rootDir, "files")
+     private val isolatedCache = File(rootDir, "cache")
++    private val isolatedDatabases = File(rootDir, "databases")
+ 
+     override fun getApplicationContext(): Context = this
+ 
+@@ -36,13 +38,33 @@ internal class IsolatedAppContext(base: Context, internal val rootDir: File) : C
+         return isolatedCache
+     }
+ 
++    /** 让 SQLiteOpenHelper 也落在沙箱里，否则 `recent_notes.db` 会写进真实 databases 目录 */
++    override fun getDatabasePath(name: String): File {
++        isolatedDatabases.mkdirs()
++        return File(isolatedDatabases, name)
++    }
++
++    override fun openOrCreateDatabase(
++        name: String,
++        mode: Int,
++        factory: SQLiteDatabase.CursorFactory?
++    ): SQLiteDatabase = SQLiteDatabase.openOrCreateDatabase(getDatabasePath(name), factory)
++
+     /**
+      * 只删本测试自己的 UUID 沙箱，公共父目录 `save-order-2/` 保留。
+      *
++     * 有重试：NotesState.persist() 的写盘协程可能晚于测试方法返回，
++     * 刚建目录刚删完又被它重建。重试仍然失败就返回 false，由调用方断言，
++     * 不会静默忽略。
++     *
+      * 返回是否真的删干净了 —— 调用方必须检查，不允许静默忽略清理失败。
+      */
+     fun dispose(): Boolean {
+-        rootDir.deleteRecursively()
++        repeat(20) {
++            rootDir.deleteRecursively()
++            if (!rootDir.exists()) return true
++            Thread.sleep(50)
++        }
+         return !rootDir.exists()
+     }
+ }
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt b/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+index 4c6fc4f..c33eddc 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+@@ -77,6 +77,7 @@ import androidx.core.content.ContextCompat
+ import com.example.myapplicationfirstapp.data.AppSettings
+ import com.example.myapplicationfirstapp.data.Note
+ import com.example.myapplicationfirstapp.data.NotesRepository
++import com.example.myapplicationfirstapp.data.RecentNotesStore
+ import com.example.myapplicationfirstapp.data.ReminderScheduler
+ import com.example.myapplicationfirstapp.data.ThemeMode
+ import com.example.myapplicationfirstapp.data.formatReminderTime
+@@ -133,7 +134,11 @@ class MainActivity : ComponentActivity() {
+         setContent {
+             NotesApp(
+                 openNoteId = pendingNoteId,
+-                onOpenNoteHandled = { pendingNoteId = null }
++                onOpenNoteHandled = {
++                    pendingNoteId = null
++                    // 消费掉 intent 里的 id：旋转重建后不要把同一条再当成一次新的打开
++                    intent?.removeExtra(ReminderNotifications.EXTRA_OPEN_NOTE)
++                }
+             )
+         }
+     }
+@@ -171,7 +176,8 @@ fun NotesApp(
+             repository = NotesRepository(context),
+             settings = settings,
+             scope = scope,
+-            scheduler = ReminderScheduler(context)
++            scheduler = ReminderScheduler(context),
++            recentStore = RecentNotesStore.getInstance(context)
+         )
+     }
+ 
+@@ -419,12 +425,13 @@ fun NotesApp(
+     }
+ 
+     // 点通知进来：等笔记加载完，直接跳到那一条
++    // 走 state.openNote() 统一入口：笔记不存在或已在回收站就不跳，也不会记一次无效打开
+     LaunchedEffect(openNoteId, state.loaded) {
+         val target = openNoteId
+         if (target != null && state.loaded) {
+-            if (state.findNote(target) != null) {
++            state.openNote(target)?.let { opened ->
+                 showTrash = false
+-                editingId = target
++                editingId = opened.id
+             }
+             onOpenNoteHandled()
+         }
+@@ -619,7 +626,10 @@ fun NotesApp(
+                         when (tab) {
+                             HomeTab.NOTES -> NotesListScreen(
+                                 state = state,
+-                                onOpen = { id -> editingId = id },
++                                onOpen = { id ->
++                                    // 列表点击也走同一个入口：校验 + 记录 + 允许打开
++                                    state.openNote(id)?.let { editingId = it.id }
++                                },
+                                 onDelete = { note ->
+                                     trashNote(state, note, snackbarHostState, scope, strings)
+                                 },
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt
+index b943927..cf0abd0 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt
+@@ -22,3 +22,19 @@ fun recentNoteIds(
+         .take(limit)
+         .toList()
+ }
++
++/**
++ * Project usage metadata onto the notes that may actually be shown.
++ *
++ * Trashed notes stay in the metadata database (a restore should not lose history), but they
++ * never reach the UI. Unknown ids are dropped for the same reason. Order comes only from
++ * [RecentNoteUsage.openOrder] — updatedAt is an editing timestamp, not a usage history.
++ */
++fun recentNotesForDisplay(
++    usages: List<RecentNoteUsage>,
++    notes: List<Note>,
++    limit: Int = 6
++): List<Note> {
++    val activeById = notes.filter { it.deletedAt == null }.associateBy { it.id }
++    return recentNoteIds(usages, activeById.keys, limit).mapNotNull { activeById[it] }
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt
+index 3423e76..583b15d 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt
+@@ -9,19 +9,38 @@ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.withContext
+ 
++/**
++ * The seam the UI layer depends on, so usage bookkeeping can be tested with a fake
++ * implementation and never needs a real SQLite handle inside `NotesState`.
++ */
++interface RecentNotesGateway {
++    suspend fun load(): List<RecentNoteUsage>
++
++    /** Call only after resolving an existing, active note at the open boundary. */
++    suspend fun recordOpened(
++        noteId: String,
++        openedAt: Long = System.currentTimeMillis()
++    ): List<RecentNoteUsage>
++
++    /** Permanent deletion only; soft delete must keep the row so a restore keeps history. */
++    suspend fun forget(noteId: String): List<RecentNoteUsage>
++
++    suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage>
++}
++
+ /** Separate metadata database. Does not read, migrate, or rewrite notes.json. */
+-class RecentNotesStore private constructor(context: Context) {
++class RecentNotesStore private constructor(context: Context) : RecentNotesGateway {
+     private val helper = Helper(context.applicationContext)
+     private val mutex = Mutex()
+ 
+-    suspend fun load(): List<RecentNoteUsage> = mutex.withLock {
++    override suspend fun load(): List<RecentNoteUsage> = mutex.withLock {
+         withContext(Dispatchers.IO) { read(helper.readableDatabase) }
+     }
+ 
+     /** Call only after resolving an existing, active note at the open boundary. */
+-    suspend fun recordOpened(
++    override suspend fun recordOpened(
+         noteId: String,
+-        openedAt: Long = System.currentTimeMillis()
++        openedAt: Long
+     ): List<RecentNoteUsage> {
+         require(noteId.isNotBlank()) { "noteId must not be blank" }
+         require(openedAt >= 0L) { "openedAt must not be negative" }
+@@ -49,7 +68,7 @@ class RecentNotesStore private constructor(context: Context) {
+     }
+ 
+     /** Integration must call this on permanent deletion, not on temporary list filtering. */
+-    suspend fun forget(noteId: String): List<RecentNoteUsage> = mutex.withLock {
++    override suspend fun forget(noteId: String): List<RecentNoteUsage> = mutex.withLock {
+         withContext(Dispatchers.IO) {
+             val db = helper.writableDatabase
+             db.delete("recent_note_usage", "note_id = ?", arrayOf(noteId))
+@@ -57,6 +76,23 @@ class RecentNotesStore private constructor(context: Context) {
+         }
+     }
+ 
++    /**
++     * Batch form of [forget] for "empty trash" and expired-trash sweeps.
++     * One transaction-free delete keeps the mutex hold short instead of one round trip per id.
++     */
++    override suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage> =
++        mutex.withLock {
++            withContext(Dispatchers.IO) {
++                val db = helper.writableDatabase
++                val ids = noteIds.filter { it.isNotBlank() }.distinct()
++                if (ids.isNotEmpty()) {
++                    val placeholders = ids.joinToString(",") { "?" }
++                    db.delete("recent_note_usage", "note_id IN ($placeholders)", ids.toTypedArray())
++                }
++                read(db)
++            }
++        }
++
+     private fun read(db: SQLiteDatabase): List<RecentNoteUsage> = buildList {
+         db.query(
+             "recent_note_usage",
+@@ -91,5 +127,13 @@ class RecentNotesStore private constructor(context: Context) {
+         fun getInstance(context: Context): RecentNotesStore = instance ?: synchronized(this) {
+             instance ?: RecentNotesStore(context.applicationContext).also { instance = it }
+         }
++
++        /**
++         * A separate handle on the same database file, bypassing the singleton cache.
++         * Instrumented tests use it to prove rows survive a "restart"; production code must
++         * keep using [getInstance].
++         */
++        fun openOnSameDatabase(context: Context): RecentNotesStore =
++            RecentNotesStore(context.applicationContext)
+     }
+ }
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
+index e61287b..82417a7 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
+@@ -22,6 +22,12 @@ import com.example.myapplicationfirstapp.data.Note
+ 
+ import com.example.myapplicationfirstapp.data.NotesRepository
+ 
++import com.example.myapplicationfirstapp.data.RecentNoteUsage
++
++import com.example.myapplicationfirstapp.data.RecentNotesGateway
++
++import com.example.myapplicationfirstapp.data.recentNotesForDisplay
++
+ import com.example.myapplicationfirstapp.data.ReminderScheduler
+ 
+ import com.example.myapplicationfirstapp.data.SortMode
+@@ -40,12 +46,16 @@ import com.example.myapplicationfirstapp.data.todosToContent
+ 
+ import kotlinx.coroutines.CoroutineScope
+ 
++import kotlinx.coroutines.CancellationException
++
+ import kotlinx.coroutines.launch
+ 
+ import android.net.Uri
+ 
+ import java.io.File
+ 
++import java.util.concurrent.atomic.AtomicInteger
++
+ 
+ 
+ /**
+@@ -82,7 +92,9 @@ class NotesState(
+ 
+     private val scope: CoroutineScope,
+ 
+-    private val scheduler: ReminderScheduler
++    private val scheduler: ReminderScheduler,
++
++    private val recentStore: RecentNotesGateway
+ 
+ ) {
+ 
+@@ -264,12 +276,18 @@ class NotesState(
+ 
+             repository.deleteAttachments(purged.flatMap(::allImageNames))
+ 
++            // 过期回收站里的笔记已经不存在了，对应的最近使用记录也一并清掉
++            forgetRecent(purged.map { it.id })
++
+             persist()
+ 
+         }
+ 
+         loaded = true
+ 
++        // 元数据独立加载：晚到或失败都不影响正文列表，错误只落 recentError
++        scope.launch { refreshRecent() }
++
+ 
+ 
+         // 启动时把还没到点的提醒重新排一遍：
+@@ -802,6 +820,8 @@ class NotesState(
+ 
+         repository.deleteAttachments(allImageNames(removed))
+ 
++        forgetRecent(listOf(removed.id))
++
+         persist()
+ 
+         return removed
+@@ -824,6 +844,8 @@ class NotesState(
+ 
+         repository.deleteAttachments(trashed.flatMap(::allImageNames))
+ 
++        forgetRecent(trashed.map { it.id })
++
+         persist()
+ 
+         return trashed.size
+@@ -1208,6 +1230,9 @@ class NotesState(
+ 
+         persist()
+ 
++        // 只清理指向旧数据里已消失笔记的记录；备份里仍在的 id 保留原有顺序
++        pruneRecentTo(imported.map { it.id }.toSet())
++
+         return imported.size
+ 
+     }
+@@ -1248,6 +1273,122 @@ class NotesState(
+     var persistenceError by mutableStateOf<String?>(null)
+         private set
+ 
++    // ============ 最近使用（元数据，独立于正文） ============
++
++    /** 由独立 recent_notes.db 读回的原始记录，顺序以 openOrder 为准 */
++    var recentUsages by mutableStateOf<List<RecentNoteUsage>>(emptyList())
++        private set
++
++    /** 最近使用自己的错误通道：元数据坏了不能连带正文的 persistenceError */
++    var recentError by mutableStateOf<String?>(null)
++        private set
++
++    /**
++     * 首页轮播真正展示的列表：只在「存在且不在回收站」的笔记里挑，
++     * 顺序来自打开顺序，不用 updatedAt 伪造。软删除的笔记只是暂时排除，记录本身保留。
++     */
++    val recentNotes: List<Note>
++        get() = recentNotesForDisplay(recentUsages, _notes, RECENT_LIMIT)
++
++    /**
++     * 每次读写元数据都领一个令牌，只有最新一次的结果能写回状态。
++     * 加载、打开、删除交错时，慢回来的旧快照不会覆盖新状态。
++     */
++    private val recentToken = AtomicInteger(0)
++
++    /**
++     * 统一的「打开笔记」入口：笔记必须存在且不在回收站，确认后才记录一次使用。
++     *
++     * 只有用户真的发起打开（列表点击、轮播点击、点通知）时才走这里；
++     * 旋转、进程恢复只是把 editingId 还原，不经过本方法，所以不会重复计次。
++     */
++    fun openNote(id: String): Note? {
++        val note = _notes.firstOrNull { it.id == id } ?: return null
++        if (note.deletedAt != null) return null
++        recordRecentOpen(note.id)
++        return note
++    }
++
++    /** 启动时读一次元数据；失败只落 recentError，不阻塞正文加载 */
++    suspend fun refreshRecent() {
++        val token = recentToken.incrementAndGet()
++        try {
++            val snapshot = recentStore.load()
++            if (token == recentToken.get()) {
++                recentUsages = snapshot
++                recentError = null
++            }
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (failure: Exception) {
++            if (token == recentToken.get()) recentError = recentFailure(failure)
++        }
++    }
++
++    private fun recordRecentOpen(id: String) {
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val snapshot = recentStore.recordOpened(id)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                // 记录失败不影响这次打开：笔记照常打开，正文与保存顺序都不动
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    /** 永久删除 / 清空回收站 / 过期回收站清理后，把这些 id 的元数据一并清掉 */
++    private fun forgetRecent(ids: Collection<String>) {
++        val clean = ids.filter { it.isNotBlank() }.distinct()
++        if (clean.isEmpty()) return
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val snapshot = recentStore.forgetAll(clean)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    /**
++     * 备份覆盖导入后：只清理指向已不存在笔记的记录，保留下来的 id 维持原顺序。
++     * 不扩展备份格式，也不因为一次导入就清空全部历史。
++     */
++    private fun pruneRecentTo(activeIds: Set<String>) {
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val current = recentStore.load()
++                val stale = current.map { it.noteId }.filterNot { it in activeIds }
++                val snapshot = if (stale.isEmpty()) current else recentStore.forgetAll(stale)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    private fun recentFailure(failure: Exception): String =
++        failure.message ?: "最近使用记录读写失败"
++
+     private val writeCoordinator = com.example.myapplicationfirstapp.data.NotesWriteCoordinator()
+     private var newestSaveTicket: com.example.myapplicationfirstapp.data.NotesWriteCoordinator.Ticket? = null
+ 
+@@ -1276,9 +1417,10 @@ class NotesState(
+     private companion object {
+ 
+         /** 回收站保留 30 天 */
+-
+         const val TRASH_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1000
+ 
++        /** 本项目首页轮播的展示上限；不是 Rhythm 的硬性规定 */
++        const val RECENT_LIMIT = 6
+     }
+ 
+ }
+diff --git a/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt b/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
+index a7b4277..5afd3ef 100644
+--- a/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
++++ b/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
+@@ -43,4 +43,37 @@ class RecentNoteUsageTest {
+         recentNoteIds(rows, setOf("a", "b"))
+         assertEquals(before, rows)
+     }
++
++    // ---- 展示映射：最近使用 → 可展示的笔记 ----
++
++    @Test fun displayKeepsOpenOrderNotUpdatedAtOrder() {
++        val old = Note(id = "old", title = "老笔记", updatedAt = 9_000L)
++        val fresh = Note(id = "fresh", title = "刚编辑过", updatedAt = 1_000L)
++        val rows = listOf(RecentNoteUsage("fresh", 10L, 1L), RecentNoteUsage("old", 20L, 2L))
++        // openOrder 2 的 old 排在前：哪怕 fresh 的 updatedAt 更新，也不能拿它冒充历史
++        assertEquals(listOf("old", "fresh"), recentNotesForDisplay(rows, listOf(old, fresh)).map { it.id })
++    }
++
++    @Test fun displayExcludesTrashedAndUnknownNotes() {
++        val active = Note(id = "a", title = "A")
++        val trashed = Note(id = "b", title = "B", deletedAt = 1_000L)
++        val rows = listOf(
++            RecentNoteUsage("b", 3L, 3L),
++            RecentNoteUsage("missing", 2L, 2L),
++            RecentNoteUsage("a", 1L, 1L)
++        )
++        assertEquals(listOf("a"), recentNotesForDisplay(rows, listOf(active, trashed)).map { it.id })
++    }
++
++    @Test fun displayAppliesLimitAfterFiltering() {
++        val notes = (1..8).map { Note(id = "n$it", title = "笔记$it") }
++        val rows = (1..8).map { RecentNoteUsage("n$it", it.toLong(), it.toLong()) }
++        val shown = recentNotesForDisplay(rows, notes)
++        assertEquals(6, shown.size)
++        assertEquals(listOf("n8", "n7", "n6", "n5", "n4", "n3"), shown.map { it.id })
++    }
++
++    @Test fun displayOfEmptyUsageIsEmpty() {
++        assertEquals(emptyList<Note>(), recentNotesForDisplay(emptyList(), listOf(Note(id = "a"))))
++    }
+ }
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt
+new file mode 100644
+index 0000000..2dc3f96
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt
+@@ -0,0 +1,189 @@
++package com.example.myapplicationfirstapp.data
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * 真实 SQLite：最近使用的独立元数据库 recent_notes.db。
++ *
++ * 边界说明：
++ * - 用**真实 SQLiteOpenHelper + 真实数据库文件**，库文件落在沙箱 `databases/` 下；
++ * - 「重启」用 [RecentNotesStore.openOnSameDatabase] 新开一个实例，证明行落在磁盘上，
++ *   不等于进程被杀后的恢复实验；
++ * - 不读不写 notes.json，真实 notes.json 与真实 recent_notes.db 的指纹前后必须一致。
++ */
++@RunWith(AndroidJUnit4::class)
++class RecentNotesStoreTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realNotesBefore: String = "<unset>"
++    private var realDbExistedBefore: Boolean = false
++
++    @Before
++    fun setUp() {
++        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
++        realNotesBefore = realNotesFingerprint()
++        realDbExistedBefore = File(realContext.getDatabasePath("recent_notes.db").path).exists()
++        sandbox = isolatedStorage("recent-store")
++    }
++
++    @After
++    fun tearDown() {
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realNotesBefore).toMutableList()
++        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
++        val realDb = File(realContext.getDatabasePath("recent_notes.db").path)
++        if (realDb.exists() != realDbExistedBefore) {
++            violations += "数据库隔离失效：真实 recent_notes.db 存在性前后不一致（before=$realDbExistedBefore after=${realDb.exists()}）"
++        }
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    private fun store(): RecentNotesStore = RecentNotesStore.openOnSameDatabase(sandbox)
++
++    @Test
++    fun recordsAndOrdersByOpenOrder() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("c", 300L)
++
++        val rows = store.load()
++        assertEquals(listOf("c", "b", "a"), rows.map { it.noteId })
++        assertEquals(300L, rows.first().lastOpenedAt)
++        assertTrue("openOrder 必须递增", rows[0].openOrder > rows[1].openOrder)
++    }
++
++    @Test
++    fun reopeningMovesToTopWithoutDuplicates() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("a", 300L)
++
++        val rows = store.load()
++        assertEquals(listOf("a", "b"), rows.map { it.noteId })
++        assertEquals("同一条笔记只能有一行", 2, rows.size)
++        // 同名不同 ID 必须各记一行，不能串
++        store.recordOpened("a2", 400L)
++        assertEquals(listOf("a2", "a", "b"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun orderSurvivesClockRollback() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 900L)
++        store.recordOpened("b", 100L) // 时钟被回拨
++
++        assertEquals(listOf("b", "a"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun rowsSurviveNewStoreInstance() = runBlocking {
++        store().recordOpened("a", 100L)
++
++        val reopened = RecentNotesStore.openOnSameDatabase(sandbox)
++        assertEquals(listOf("a"), reopened.load().map { it.noteId })
++        assertTrue(
++            "数据库文件必须真的落在沙箱里",
++            sandbox.getDatabasePath("recent_notes.db").isFile
++        )
++    }
++
++    @Test
++    fun forgetRemovesOnlyThatRow() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++
++        assertEquals(listOf("a"), store.forget("b").map { it.noteId })
++        assertEquals(listOf("a"), store.load().map { it.noteId })
++        // 重复忘记同一个 id 是幂等的
++        assertEquals(listOf("a"), store.forget("b").map { it.noteId })
++    }
++
++    @Test
++    fun forgetAllRemovesBatch() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("c", 300L)
++
++        val left = store.forgetAll(listOf("a", "c", "never-recorded"))
++        assertEquals(listOf("b"), left.map { it.noteId })
++        assertEquals(listOf("b"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun forgetAllWithBlankIdsIsNoOp() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++
++        assertEquals(listOf("a"), store.forgetAll(listOf("", " ")).map { it.noteId })
++    }
++
++    @Test
++    fun blankNoteIdIsRejected() {
++        val failure = runCatching { runBlocking { store().recordOpened(" ") } }.exceptionOrNull()
++        assertTrue("空 id 必须被拒绝", failure is IllegalArgumentException)
++    }
++
++    @Test
++    fun negativeTimestampIsRejected() {
++        val failure = runCatching { runBlocking { store().recordOpened("a", -1L) } }.exceptionOrNull()
++        assertTrue("负时间戳必须被拒绝", failure is IllegalArgumentException)
++    }
++
++    /**
++     * 库文件被写坏时，Android 的 DefaultDatabaseErrorHandler 会删掉坏库重建，
++     * 所以真实表现是「历史清空、不崩溃」，而不是往上抛异常。
++     * 这条用例把这个行为钉住：坏库之后 App 仍可正常记录。
++     */
++    @Test
++    fun corruptDatabaseIsRecreatedInsteadOfCrashing() = runBlocking {
++        val dbFile = sandbox.getDatabasePath("recent_notes.db")
++        dbFile.parentFile?.mkdirs()
++        dbFile.writeBytes(ByteArray(4096) { 0x41 })
++
++        val store = store()
++        val recovered = runCatching { store.load() }
++        assertTrue("坏库不应把打开流程炸掉：${recovered.exceptionOrNull()}", recovered.isSuccess)
++        assertEquals("坏库重建后历史为空", emptyList<String>(), recovered.getOrThrow().map { it.noteId })
++
++        // 重建后的库必须还能用
++        assertEquals(listOf("a"), store.recordOpened("a", 100L).map { it.noteId })
++    }
++
++    /**
++     * 打不开数据库（目录不可写）时必须把错误抛给调用方，
++     * 不能静默返回空列表 —— 否则 NotesState 无从把错误落到 recentError。
++     */
++    @Test
++    fun unopenableDatabaseSurfacesError() = runBlocking {
++        val dbFile = sandbox.getDatabasePath("recent_notes.db")
++        val dir = checkNotNull(dbFile.parentFile)
++        check(dir.isDirectory)
++        check(dir.setWritable(false, false)) { "无法把沙箱数据库目录设为只读" }
++        try {
++            val failure = runCatching { store().load() }.exceptionOrNull()
++            assertNotNull("打不开的库必须抛错", failure)
++            assertTrue(
++                "应为 SQLite 异常，实际：${failure?.javaClass?.name}",
++                failure is android.database.SQLException
++            )
++        } finally {
++            dir.setWritable(true, true)
++        }
++        assertFalse("不得写进真实 notes.json", File(sandbox.rootDir, "files/notes.json").exists())
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt
+new file mode 100644
+index 0000000..9c46382
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt
+@@ -0,0 +1,282 @@
++package com.example.myapplicationfirstapp.ui
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import com.example.myapplicationfirstapp.data.AppSettings
++import com.example.myapplicationfirstapp.data.IsolatedAppContext
++import com.example.myapplicationfirstapp.data.NotesRepository
++import com.example.myapplicationfirstapp.data.RecentNoteUsage
++import com.example.myapplicationfirstapp.data.RecentNotesGateway
++import com.example.myapplicationfirstapp.data.ReminderScheduler
++import com.example.myapplicationfirstapp.data.finishIsolatedTest
++import com.example.myapplicationfirstapp.data.isolatedStorage
++import com.example.myapplicationfirstapp.data.realNotesFingerprint
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.cancel
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/**
++ * 第一批接线：NotesState 的最近使用行为。
++ *
++ * 用真实的 NotesRepository / AppSettings / ReminderScheduler，但全部指向沙箱 paths；
++ * 元数据存储换成内存里的 [FakeGateway]，这样可以精确控制「何时返回、返回什么」，
++ * 用来验证旧快照不会覆盖新状态。真实 SQLite 的行为由 RecentNotesStoreTest 覆盖。
++ *
++ * 协程作用域用 [Dispatchers.Unconfined]：`scope.launch` 会同步执行到第一个挂起点，
++ * 因此断言不需要 sleep，也不会出现「测试跑完 state 还没更新」的假绿。
++ */
++@RunWith(AndroidJUnit4::class)
++class NotesStateRecentNotesTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realNotesBefore: String = "<unset>"
++
++    /** 每个测试一个可取消的作用域：收尾时先停掉后台写盘，再删沙箱 */
++    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
++
++    @Before
++    fun setUp() {
++        realNotesBefore = realNotesFingerprint()
++        sandbox = isolatedStorage("recent-state")
++    }
++
++    @After
++    fun tearDown() {
++        scope.cancel()
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realNotesBefore)
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    private fun newState(gateway: RecentNotesGateway): NotesState = NotesState(
++        repository = NotesRepository(sandbox),
++        settings = AppSettings(sandbox),
++        scope = scope,
++        scheduler = ReminderScheduler(sandbox),
++        recentStore = gateway
++    )
++
++    // ---------- 打开 ----------
++
++    @Test
++    fun openingExistingNoteRecordsExactlyOnce() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        val opened = state.openNote(note.id)
++
++        assertEquals(note.id, opened?.id)
++        assertEquals(listOf(note.id), gateway.recorded)
++        assertEquals(listOf(note.id), state.recentNotes.map { it.id })
++        assertNull("元数据正常时不应有错误", state.recentError)
++    }
++
++    @Test
++    fun openingDoesNotTouchContentOrUpdatedAt() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.updateNote(note.id, "标题", "正文")
++        val before = state.findNote(note.id)!!
++
++        state.openNote(note.id)
++
++        val after = state.findNote(note.id)!!
++        assertEquals(before.updatedAt, after.updatedAt)
++        assertEquals(before.title, after.title)
++        assertEquals(before.content, after.content)
++    }
++
++    @Test
++    fun unknownNoteIsNotOpenedAndNotRecorded() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++
++        assertNull(state.openNote("does-not-exist"))
++        assertTrue(gateway.recorded.isEmpty())
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    @Test
++    fun trashedNoteIsNotOpenedAndNotRecorded() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.moveToTrash(note.id)
++
++        assertNull("回收站里的笔记不能打开", state.openNote(note.id))
++        assertTrue(gateway.recorded.isEmpty())
++    }
++
++    @Test
++    fun softDeleteHidesFromDisplayButKeepsHistory() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val keep = state.createNote()
++        val drop = state.createNote()
++        state.openNote(keep.id)
++        state.openNote(drop.id)
++        assertEquals(listOf(drop.id, keep.id), state.recentNotes.map { it.id })
++
++        state.moveToTrash(drop.id)
++
++        assertEquals("软删除只影响展示", listOf(keep.id), state.recentNotes.map { it.id })
++        assertTrue("软删除不得删除元数据行", gateway.forgotten.isEmpty())
++    }
++
++    @Test
++    fun reopeningOrdersMostRecentFirst() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val a = state.createNote()
++        val b = state.createNote()
++
++        state.openNote(a.id)
++        state.openNote(b.id)
++        assertEquals(listOf(b.id, a.id), state.recentNotes.map { it.id })
++
++        state.openNote(a.id)
++        assertEquals(listOf(a.id, b.id), state.recentNotes.map { it.id })
++        assertEquals(listOf(a.id, b.id, a.id), gateway.recorded)
++    }
++
++    // ---------- 清理 ----------
++
++    @Test
++    fun permanentDeleteForgetsMetadata() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.openNote(note.id)
++
++        state.deleteForever(note.id)
++
++        assertEquals(listOf(note.id), gateway.forgotten)
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    @Test
++    fun emptyTrashForgetsEveryTrashedId() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val a = state.createNote()
++        val b = state.createNote()
++        state.openNote(a.id)
++        state.openNote(b.id)
++        state.moveToTrash(a.id)
++        state.moveToTrash(b.id)
++
++        state.emptyTrash()
++
++        assertEquals(setOf(a.id, b.id), gateway.forgotten.toSet())
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    // ---------- 失败与交错 ----------
++
++    @Test
++    fun recordFailureDoesNotBlockOpening() = runBlocking {
++        val gateway = FakeGateway().apply { failRecord = true }
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        val opened = state.openNote(note.id)
++
++        assertNotNull("元数据写失败也要照常打开", opened)
++        assertEquals(note.id, opened?.id)
++        assertNotNull("错误必须落在 recentError", state.recentError)
++        assertNull("不得污染正文的 persistenceError", state.persistenceError)
++    }
++
++    @Test
++    fun loadFailureDoesNotBlockNotes() = runBlocking {
++        val gateway = FakeGateway().apply { failLoad = true }
++        val state = newState(gateway)
++        state.load()
++
++        assertTrue("正文照常判定为已加载", state.loaded)
++        assertNotNull("错误必须落在 recentError", state.recentError)
++        assertNull(state.persistenceError)
++    }
++
++    @Test
++    fun staleSnapshotDoesNotOverwriteNewerState() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        // 1) 打开：这次 recordOpened 会挂在闸门后，直到测试放行
++        gateway.gate = CompletableDeferred()
++        state.openNote(note.id)
++        assertEquals("挂起期间状态还没更新", emptyList<String>(), state.recentNotes.map { it.id })
++
++        // 2) 紧接着永久删除：更新的操作先完成，状态以它为准
++        state.deleteForever(note.id)
++        assertTrue(state.recentNotes.isEmpty())
++
++        // 3) 放行那个更早的、已经过时的快照
++        gateway.gate?.complete(Unit)
++        gateway.gate = null
++
++        assertTrue("旧快照不得把已删除的笔记写回状态", state.recentNotes.isEmpty())
++        assertTrue(state.recentUsages.isEmpty())
++    }
++
++    private class FakeGateway : RecentNotesGateway {
++        val recorded = mutableListOf<String>()
++        val forgotten = mutableListOf<String>()
++        var failRecord = false
++        var failLoad = false
++        var gate: CompletableDeferred<Unit>? = null
++
++        private var order = 0L
++        private var rows = mutableListOf<RecentNoteUsage>()
++
++        override suspend fun load(): List<RecentNoteUsage> {
++            if (failLoad) error("recent database unavailable")
++            return rows.toList()
++        }
++
++        override suspend fun recordOpened(noteId: String, openedAt: Long): List<RecentNoteUsage> {
++            if (failRecord) error("recent database is read-only")
++            recorded += noteId
++            rows.removeAll { it.noteId == noteId }
++            order += 1
++            rows.add(0, RecentNoteUsage(noteId, openedAt, order))
++            // 返回「调用当时」的快照：如果这里挂起，回来时它已经是旧数据
++            val snapshot = rows.toList()
++            gate?.await()
++            return snapshot
++        }
++
++        override suspend fun forget(noteId: String): List<RecentNoteUsage> =
++            forgetAll(listOf(noteId))
++
++        override suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage> {
++            forgotten += noteIds
++            rows.removeAll { it.noteId in noteIds }
++            return rows.toList()
++        }
++    }
++}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-11-15T12:32:57.368Z" hostname="朱元璋的电" time="0.045">
+  <properties/>
+  <testcase name="displayKeepsOpenOrderNotUpdatedAtOrder" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.031"/>
+  <testcase name="equalOrdersHaveDeterministicIdOrder" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.005"/>
+  <testcase name="deduplicatesBeforeLimiting" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.0"/>
+  <testcase name="orderSurvivesClockRollback" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.0"/>
+  <testcase name="displayOfEmptyUsageIsEmpty" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.001"/>
+  <testcase name="zeroLimitAndEmptyInputStayEmpty" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.001"/>
+  <testcase name="negativeLimitIsRejected" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.001"/>
+  <testcase name="displayExcludesTrashedAndUnknownNotes" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.0"/>
+  <testcase name="displayAppliesLimitAfterFiltering" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.003"/>
+  <testcase name="excludesInactiveAndUnknownNotes" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.001"/>
+  <testcase name="doesNotMutateInput" classname="com.example.myapplicationfirstapp.data.RecentNoteUsageTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

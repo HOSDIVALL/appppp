@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="22" failures="0" errors="0" skipped="0" time="0.000" timestamp="2026-11-15T12:38:22" hostname="localhost">
+  <testsuite name="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" tests="11" failures="0" errors="0" skipped="0" time="0.825" timestamp="2026-11-15T12:38:22" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="reopeningOrdersMostRecentFirst" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.534" />
+    <testcase name="loadFailureDoesNotBlockNotes" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.014" />
+    <testcase name="softDeleteHidesFromDisplayButKeepsHistory" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.041" />
+    <testcase name="emptyTrashForgetsEveryTrashedId" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.126" />
+    <testcase name="openingDoesNotTouchContentOrUpdatedAt" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.019" />
+    <testcase name="unknownNoteIsNotOpenedAndNotRecorded" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.010" />
+    <testcase name="trashedNoteIsNotOpenedAndNotRecorded" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.015" />
+    <testcase name="staleSnapshotDoesNotOverwriteNewerState" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.020" />
+    <testcase name="permanentDeleteForgetsMetadata" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.018" />
+    <testcase name="recordFailureDoesNotBlockOpening" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.017" />
+    <testcase name="openingExistingNoteRecordsExactlyOnce" classname="com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest" time="0.011" />
+  </testsuite>
+  <testsuite name="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" tests="11" failures="0" errors="0" skipped="0" time="0.814" timestamp="2026-11-15T12:38:22" hostname="localhost">
+    <properties>
+      <property name="device" value="emulator-5554" />
+    </properties>
+    <testcase name="unopenableDatabaseSurfacesError" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.035" />
+    <testcase name="corruptDatabaseIsRecreatedInsteadOfCrashing" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.097" />
+    <testcase name="rowsSurviveNewStoreInstance" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.087" />
+    <testcase name="recordsAndOrdersByOpenOrder" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.102" />
+    <testcase name="forgetAllRemovesBatch" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.175" />
+    <testcase name="reopeningMovesToTopWithoutDuplicates" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.093" />
+    <testcase name="orderSurvivesClockRollback" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.069" />
+    <testcase name="negativeTimestampIsRejected" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.014" />
+    <testcase name="forgetRemovesOnlyThatRow" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.083" />
+    <testcase name="blankNoteIdIsRejected" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.007" />
+    <testcase name="forgetAllWithBlankIdsIsNoOp" classname="com.example.myapplicationfirstapp.data.RecentNotesStoreTest" time="0.052" />
+  </testsuite>
+</testsuites>
