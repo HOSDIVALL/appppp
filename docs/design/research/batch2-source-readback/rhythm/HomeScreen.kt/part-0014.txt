@@ -1,0 +1,105 @@
+ongs = allSongs,
+                                onArtistClick = onArtistClick,
+                                onViewAllArtists = onViewAllArtists,
+                                widthSizeClass = widthSizeClass,
+                                heightSizeClass = heightSizeClass
+                            )
+                        } else {
+                            Column {
+                                ModernSectionTitle(
+                                    title = context.getString(R.string.home_artists),
+                                    subtitle = context.getString(R.string.home_explore_musicians),
+                                    viewAllAction = onViewAllArtists
+                                )
+                                Spacer(modifier = Modifier.height(20.dp))
+                                ModernEmptyState(
+                                    icon = RhythmIcons.ArtistFilled,
+                                    title = context.getString(R.string.home_no_artists),
+                                    subtitle = context.getString(R.string.home_no_artists_desc),
+                                    iconSize = 32.dp
+                                )
+                            }
+                        }
+                    }
+                }
+                "NEW_RELEASES" -> {
+                    if (showNewReleases) {
+                        Column {
+                            ModernSectionTitle(
+                                title = context.getString(R.string.home_new_releases),
+                                subtitle = context.getString(R.string.home_fresh_music),
+                                onPlayAll = {
+                                    coroutineScope.launch {
+                                        val allNewReleaseSongs = newReleases.flatMap { album ->
+                                            musicViewModel.getMusicRepository().getSongsForAlbumLocal(album.id)
+                                        }
+                                        if (allNewReleaseSongs.isNotEmpty()) {
+                                            musicViewModel.playSongs(allNewReleaseSongs)
+                                        }
+                                    }
+                                },
+                                onShufflePlay = {
+                                    coroutineScope.launch {
+                                        val allNewReleaseSongs = newReleases.flatMap { album ->
+                                            musicViewModel.getMusicRepository().getSongsForAlbumLocal(album.id)
+                                        }
+                                        if (allNewReleaseSongs.isNotEmpty()) {
+                                            musicViewModel.playShuffled(allNewReleaseSongs)
+                                        }
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            if (newReleases.isNotEmpty()) {
+                                val newReleasesListState = rememberLazyListState()
+                                LazyRow(
+                                    state = newReleasesListState,
+                                    modifier = Modifier.horizontalEdgeBlend(
+                                        lazyListState = newReleasesListState,
+                                        fadeWidth = 16.dp
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    items(
+                                        items = newReleases.take(newReleasesCount),
+                                        key = { "newrelease_${it.id}" },
+                                        contentType = { "album" }
+                                    ) { album ->
+                                        ModernAlbumCard(
+                                            album = album,
+                                            onClick = { onAlbumClick(album) },
+                                            widthSizeClass = widthSizeClass,
+                                            heightSizeClass = heightSizeClass
+                                        )
+                                    }
+                                }
+                            } else {
+                                ModernEmptyState(
+                                    icon = MaterialSymbolIcon("new_releases", filled = true),
+                                    title = context.getString(R.string.home_no_new_releases),
+                                    subtitle = context.getString(R.string.home_no_new_releases_desc),
+                                    iconSize = 32.dp
+                                )
+                            }
+                        }
+                    }
+                }
+                "RECENTLY_ADDED" -> {
+                    if (showRecentlyAdded) {
+                        Column {
+                            ModernSectionTitle(
+                                title = context.getString(R.string.home_recently_added),
+                                subtitle = context.getString(R.string.home_latest_additions),
+                                onPlayAll = {
+                                    if (recentlyAddedSongs.isNotEmpty()) {
+                                        musicViewModel.playSongs(recentlyAddedSongs)
+                                    }
+                                },
+                                onShufflePlay = {
+                                    if (recentlyAddedSongs.isNotEmpty()) {
+                                        musicViewModel.playShuffled(recentlyAddedSongs)
+                                    }
+                                }
+                            )
+     

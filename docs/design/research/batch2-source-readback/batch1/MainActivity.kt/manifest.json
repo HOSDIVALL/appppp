@@ -1,0 +1,53 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt"
+  },
+  "bytes": 47311,
+  "git_blob": "c33eddc022f526a7f4f58afc7455ca703a8643b4",
+  "sha256": "795e7e1d956b2341050070e35f949f707bd110839adcc3b6012f0f85e0c36e63",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6026,
+      "sha256": "2ea2446f13dc1f16ac3af3d1e33654fda1bb7cacb9bb5531ef236d5f5a9f2f7d"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 7230,
+      "sha256": "35533574edac31a12d4e5ec36a0bb4f7cee5b35a41e36a8722e227c091a53241"
+    },
+    {
+      "file": "part-0003.txt",
+      "bytes": 7064,
+      "sha256": "77bcea981b7525b2e7219d7aa6439164b3afbb25815ecaa8055da0b415c52db3"
+    },
+    {
+      "file": "part-0004.txt",
+      "bytes": 6332,
+      "sha256": "d8c5b4a9897948130c8f14182a1b78f0095dcf22cf682b0b81badb0fab5aa55b"
+    },
+    {
+      "file": "part-0005.txt",
+      "bytes": 6550,
+      "sha256": "ea105192bf89dc715ffe0888ed088d325b2d04f3fd398123676c2528d94c2b4d"
+    },
+    {
+      "file": "part-0006.txt",
+      "bytes": 6150,
+      "sha256": "0463fd21edb058da5e9a4d60a296ad614e10cf32a47860131b5e8588685854d9"
+    },
+    {
+      "file": "part-0007.txt",
+      "bytes": 6566,
+      "sha256": "7cec2e96cffbcddb94175ec7a3de4ea1ecbc37f9f8c5fbdda298bd2dbdee72d8"
+    },
+    {
+      "file": "part-0008.txt",
+      "bytes": 1393,
+      "sha256": "ba42905213892db6c668906d114d61cae1fa1574f813b8f481aee8c9ef3da956"
+    }
+  ],
+  "symbol_hits": []
+}

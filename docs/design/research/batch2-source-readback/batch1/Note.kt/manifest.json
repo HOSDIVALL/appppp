@@ -1,0 +1,23 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/data/Note.kt"
+  },
+  "bytes": 8462,
+  "git_blob": "7f16d02432d851f1ade6cbb57a41b22a9da8cb3e",
+  "sha256": "96ea4ba7eb90be59a708397a6ec4821698d890b4a5a0483c7e33e4d786e50dbc",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6918,
+      "sha256": "77e4fce30640055f45d5abc15c89372a38f366879eb3ef9834e2a92668d063b7"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 1544,
+      "sha256": "ff622160b0f61ba7a161d86393b73eedb796e4471582dccd91f177090fa3986b"
+    }
+  ],
+  "symbol_hits": []
+}

@@ -1,0 +1,18 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt"
+  },
+  "bytes": 5264,
+  "git_blob": "d6219b2edd6859855e18a5dd24f809d99959aa02",
+  "sha256": "fd70f4deb6fcc8c85aed6342308c91c5faa12daf68bd99c880533e72df458bfb",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 5264,
+      "sha256": "fd70f4deb6fcc8c85aed6342308c91c5faa12daf68bd99c880533e72df458bfb"
+    }
+  ],
+  "symbol_hits": []
+}

@@ -1,0 +1,18 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt"
+  },
+  "bytes": 5621,
+  "git_blob": "583b15d7ce2ba9f426fda2f3bad8c5b1498c8a59",
+  "sha256": "bc8302d5082a6b3361b5b2db2ed44f67f9ac97a21e642c5a37acc97220c4727f",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 5621,
+      "sha256": "bc8302d5082a6b3361b5b2db2ed44f67f9ac97a21e642c5a37acc97220c4727f"
+    }
+  ],
+  "symbol_hits": []
+}

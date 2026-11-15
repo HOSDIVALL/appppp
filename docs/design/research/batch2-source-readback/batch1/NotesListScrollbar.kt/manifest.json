@@ -1,0 +1,33 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScrollbar.kt"
+  },
+  "bytes": 20380,
+  "git_blob": "ccbfcc35a14163ef42188def72d3e60958b481e9",
+  "sha256": "00625df9622c7e9f68f71d7e650f0e1db61cc2a1bd17c8ed67e6c34cf655a081",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6207,
+      "sha256": "2b53e1ed46fd2d0d4c5f77cd899ca234a5b9f27d70241230c218454ec39c0acc"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 6000,
+      "sha256": "323f65db5add3b7db8a2498b31759dad239ef5b9830487715353010ab9b5b71b"
+    },
+    {
+      "file": "part-0003.txt",
+      "bytes": 6237,
+      "sha256": "caf6859d92888fea0a1062a56f8acd1da85b51ba28fc11fede61330e70903a95"
+    },
+    {
+      "file": "part-0004.txt",
+      "bytes": 1936,
+      "sha256": "04a7fc96f0488b5d04bfab80ca7fbd94a354685f7a2b49bb0c3e43f7cec54122"
+    }
+  ],
+  "symbol_hits": []
+}

@@ -1,0 +1,94 @@
+tainerColor,
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+        topBar = {
+            val collapsedFraction = scrollBehavior.state.collapsedFraction
+            val fontSize = (24 + (32 - 24) * (1 - collapsedFraction)).sp // Interpolate between 24sp and 32sp
+
+            Column(
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    if (scrollBehavior.state.heightOffset == 0f || expandedHeaderHeight == 0) {
+                        expandedHeaderHeight = coordinates.size.height - scrollBehavior.state.heightOffset.toInt()
+                    }
+                }
+            ) {
+                Spacer(modifier = Modifier.height(10.dp)) // Add more padding before the header starts
+                LargeTopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(start = 14.dp)
+                        ) {
+                            // Determine visibility based on scroll state
+                            // collapsedFraction: 0 = fully expanded, 1 = fully collapsed
+                            val isExpanded = collapsedFraction < 0.5f
+                            val isCollapsed = collapsedFraction >= 0.5f
+                            
+                            // Header display mode: 0=Icon Only, 1=Name Only, 2=Both
+                            // Visibility mode: 0=Always, 1=Expanded Only, 2=Collapsed Only
+                            
+                            val shouldShowIcon = when {
+                                // "Both" mode - always show both icon and title regardless of visibility setting
+                                headerDisplayMode == 2 -> true
+                                // "Icon Only" mode - show icon in selected visibility state, show name in opposite state
+                                headerDisplayMode == 0 -> when (iconVisibilityMode) {
+                                    0 -> true // Always show icon
+                                    1 -> isExpanded // Show icon when expanded, name when collapsed
+                                    2 -> isCollapsed // Show icon when collapsed, name when expanded
+                                    else -> true
+                                }
+                                // "Name Only" mode - show name in selected visibility state, show icon in opposite state
+                                headerDisplayMode == 1 -> when (iconVisibilityMode) {
+                                    0 -> false // Always show name only
+                                    1 -> isCollapsed // Show name when expanded, icon when collapsed
+                                    2 -> isExpanded // Show name when collapsed, icon when expanded
+                                    else -> false
+                                }
+                                else -> false
+                            }
+                            
+                            val shouldShowTitle = when {
+                                // "Both" mode - always show both icon and title regardless of visibility setting
+                                headerDisplayMode == 2 -> true
+                                // "Name Only" mode - show name in selected visibility state, show icon in opposite state
+                                headerDisplayMode == 1 -> when (iconVisibilityMode) {
+                                    0 -> true // Always show name
+                                    1 -> isExpanded // Show name when expanded, icon when collapsed
+                                    2 -> isCollapsed // Show name when collapsed, icon when expanded
+                                    else -> true
+                                }
+                                // "Icon Only" mode - show icon in selected visibility state, show name in opposite state
+                                headerDisplayMode == 0 -> when (iconVisibilityMode) {
+                                    0 -> false // Always show icon only
+                                    1 -> isCollapsed // Show icon when expanded, name when collapsed
+                                    2 -> isExpanded // Show icon when collapsed, name when expanded
+                                    else -> false
+                                }
+                                else -> false
+                            }
+                            
+                            if (shouldShowIcon) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = chromahub.rhythm.app.R.drawable.rhythm_splash_logo),
+                                    contentDescription = stringResource(R.string.collapsibleheader_app_icon),
+                                    modifier = Modifier.size((48 + (36 - 28) * (1 - collapsedFraction)).dp)
+                                )
+                            }
+                            if (shouldShowTitle) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.headlineLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = fontSize
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(
+                                onClick = onBackClick,
+                                modifier = Modifier.padding(start

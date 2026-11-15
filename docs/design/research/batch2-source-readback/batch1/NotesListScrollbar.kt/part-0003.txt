@@ -1,0 +1,132 @@
+              updateProgressFromTouch(offset.y, grabOffset)
+                            }
+                        },
+                        onDragEnd = {
+                            isDragging = false
+                            dragProgress = -1f
+                            pendingScrollIndex = -1
+                        },
+                        onDragCancel = {
+                            isDragging = false
+                            dragProgress = -1f
+                            pendingScrollIndex = -1
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            updateProgressFromTouch(change.position.y, grabOffset)
+                        }
+                    )
+                }
+        ) {
+            val rightAnchorX = with(density) { (expandedIndicatorWidth).toPx() }
+            val trackX = rightAnchorX - with(density) { thickness.toPx() / 2f }
+
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val trackStrokeWidth = thickness.toPx()
+                val indicatorWidthPx = animatedWidth.toPx()
+                val gapPx = trackGap.toPx()
+                // Rhythm 核心手柄几何：左侧是大半圆，右侧是小圆角！
+                val indicatorLeftCornerRadius = indicatorWidthPx / 2f
+                val maxAllowedRightCornerRadius = minOf(indicatorWidthPx / 2f, handleHeightPx / 2f)
+                val resolvedRightCornerRadius = indicatorRightCornerRadiusPx.coerceIn(0f, maxAllowedRightCornerRadius)
+                val currentIndicatorX = rightAnchorX - indicatorWidthPx
+
+                // 1. 上方淡色轨道（与手柄隔开 8dp gap，绝对不接触）
+                if (handleY > gapPx) {
+                    drawLine(
+                        color = trackBgColor,
+                        start = Offset(trackX, 0f),
+                        end = Offset(trackX, handleY - gapPx),
+                        strokeWidth = trackStrokeWidth,
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                // 2. 下方淡色轨道（与手柄隔开 8dp gap，绝对不接触）
+                if (handleY + handleHeightPx + gapPx < size.height) {
+                    drawLine(
+                        color = trackBgColor,
+                        start = Offset(trackX, handleY + handleHeightPx + gapPx),
+                        end = Offset(trackX, size.height),
+                        strokeWidth = trackStrokeWidth,
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                // 3. 非对称胶囊手柄（左大圆角向外伸出，右小圆角靠外边）
+                indicatorPath.rewind()
+                indicatorPath.addRoundRect(
+                    RoundRect(
+                        rect = Rect(
+                            offset = Offset(currentIndicatorX, handleY),
+                            size = Size(indicatorWidthPx, handleHeightPx)
+                        ),
+                        topLeft = CornerRadius(indicatorLeftCornerRadius),
+                        bottomLeft = CornerRadius(indicatorLeftCornerRadius),
+                        topRight = CornerRadius(resolvedRightCornerRadius),
+                        bottomRight = CornerRadius(resolvedRightCornerRadius)
+                    )
+                )
+                drawPath(indicatorPath, color = primaryColor)
+            }
+
+            // 4. 手柄内部上下箭头图标（展开交互时渐入淡显）
+            if (iconAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .offset(
+                            x = with(density) { (rightAnchorX - animatedWidth.toPx()).toDp() },
+                            y = with(density) { handleY.toDp() }
+                        )
+                        .size(width = animatedWidth, height = minHeight)
+                        .graphicsLayer { alpha = iconAlpha },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.UnfoldMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+
+        // 5. 对齐 v4 原型规范的 40×40dp 圆形定位气泡
+        val activeTargetIndex = if (pendingScrollIndex >= 0) pendingScrollIndex else listState.firstVisibleItemIndex
+        val targetNote = displayNotes.getOrNull(activeTargetIndex.coerceIn(0, (displayNotes.size - 1).coerceAtLeast(0)))
+        val glyph = targetNote?.let {
+            val text = it.displayTitle.trim()
+            val first = text.firstOrNull { c -> c.isLetterOrDigit() } ?: '#'
+            when {
+                first.isDigit() -> "#"
+                first in 'a'..'z' -> first.uppercaseChar().toString()
+                first in 'A'..'Z' -> first.toString()
+                else -> first.toString()
+            }
+        }.orEmpty()
+
+        val showBubble = isDragging && glyph.isNotEmpty()
+        val bubbleAnim by animateFloatAsState(
+            targetValue = if (showBubble) 1f else 0f,
+            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+            label = "bubbleAnim"
+        )
+
+        if (bubbleAnim > 0.01f) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shadowElevation = 4.dp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(
+                        x = -(expandedIndicatorWidth + paddingEnd + 10.dp),
+                        y = with(density) { (handleY + (handleHeightPx - 40.dp.toPx()) / 2f).toDp() }
+                    )
+                    .size(40.dp)
+                    .graphicsLayer {
+                        alpha = bubbleAnim
+                        scaleX = 0.82f + 0.18f * bubbleAnim
+                        scaleY = 0.82f + 0.18f * bubbleAnim
+                        translationX = (1f - bubbleAnim) * with(density) { 8.dp.toPx() 

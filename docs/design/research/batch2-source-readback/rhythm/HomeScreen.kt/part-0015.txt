@@ -1,0 +1,106 @@
+                       Spacer(modifier = Modifier.height(20.dp))
+                            if (recentlyAddedAlbums.isNotEmpty()) {
+                                val recentlyAddedListState = rememberLazyListState()
+                                LazyRow(
+                                    state = recentlyAddedListState,
+                                    modifier = Modifier.horizontalEdgeBlend(
+                                        lazyListState = recentlyAddedListState,
+                                        fadeWidth = 16.dp
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    items(
+                                        items = recentlyAddedAlbums.take(recentlyAddedCount),
+                                        key = { "recentalbum_${it.id}" },
+                                        contentType = { "album" }
+                                    ) { album ->
+                                        ModernAlbumCard(
+                                            album = album,
+                                            onClick = { onAlbumClick(album) },
+                                            widthSizeClass = widthSizeClass,
+                                            heightSizeClass = heightSizeClass
+                                        )
+                                    }
+                                }
+                            } else {
+                                ModernEmptyState(
+                                    icon = MaterialSymbolIcon("library_add", filled = true),
+                                    title = context.getString(R.string.home_no_recently_added),
+                                    subtitle = context.getString(R.string.home_no_recently_added_desc),
+                                    iconSize = 32.dp
+                                )
+                            }
+                        }
+                    }
+                }
+                "RECOMMENDED" -> {
+                    if (showRecommended) {
+                        val favoriteSongsState = musicViewModel.favoriteSongs.collectAsState()
+                        val recommendedSongs by rememberOffMain(emptyList<Song>(), recentlyPlayed, songs, recommendedCount, favoriteSongsState.value) {
+                            val favoriteIds = favoriteSongsState.value
+                            val favoriteSongsList = songs.filter { it.id in favoriteIds }
+
+                            var result = if (recentlyPlayed.isNotEmpty()) {
+                                val playedArtists = recentlyPlayed.map { it.artist }.distinct()
+                                val playedAlbums = recentlyPlayed.map { it.album }.distinct()
+
+                                songs.filter { song ->
+                                    (song.artist in playedArtists || song.album in playedAlbums) &&
+                                            !recentlyPlayed.contains(song)
+                                }.shuffled()
+                            } else {
+                                emptyList()
+                            }
+
+                            if (result.isEmpty() && recentlyPlayed.isNotEmpty()) {
+                                val playedArtists = recentlyPlayed.map { it.artist }.distinct()
+                                val playedAlbums = recentlyPlayed.map { it.album }.distinct()
+                                result = songs.filter { song ->
+                                    song.artist in playedArtists || song.album in playedAlbums
+                                }.shuffled()
+                            }
+
+                            if (result.isEmpty()) {
+                                result = favoriteSongsList.shuffled()
+                            }
+
+                            if (result.isEmpty()) {
+                                result = songs.shuffled()
+                            }
+
+                            result.take(recommendedCount)
+                        }
+
+                        ModernRecommendedSection(
+                            recommendedSongs = recommendedSongs,
+                            artists = availableArtists,
+                            onSongClick = onSongClick,
+                            onPlayClick = { songsToPlay ->
+                                musicViewModel.playSongs(songsToPlay)
+                            }
+                        )
+                    }
+                }
+                "RHYTHM_GUARD" -> {
+                    if (showRhythmGuardWidget && rhythmGuardMode != AppSettings.RHYTHM_GUARD_MODE_OFF) {
+                        val rhythmGuardTimeoutRemainingMs = (rhythmGuardTimeoutUntilMs - System.currentTimeMillis()).coerceAtLeast(0L)
+                        val isRhythmGuardTimeoutActive = rhythmGuardTimeoutRemainingMs > 0L
+
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            ModernSectionTitle(
+                                title = stringResource(id = R.string.settings_rhythm_guard),
+                                subtitle = stringResource(id = R.string.settings_rhythm_guard_list_desc)
+                            )
+                            RhythmGuardCard(
+                                rhythmGuardMode = rhythmGuardMode,
+                                rhythmGuardRecommendedMinutes = rhythmGuardRecommendedMinutes,
+                                todayListeningMinutes = todayListeningMinutes,
+                                isGuardTimeoutActive = isRhythmGuardTimeoutActive,
+                                guardTimeoutRemainingMs = rhythmGuardTimeoutRemainingMs,
+                                onCardClick = onNavigateToRhythmGuard
+                            )
+                        }
+                    }
+                }
+                "STATS"

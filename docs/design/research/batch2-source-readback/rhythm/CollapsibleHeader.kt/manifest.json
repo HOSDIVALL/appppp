@@ -1,0 +1,69 @@
+{
+  "origin": {
+    "repository": "cromaguy/Rhythm",
+    "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+    "path": "app/src/main/java/chromahub/rhythm/app/shared/presentation/components/common/CollapsibleHeader.kt"
+  },
+  "bytes": 37316,
+  "git_blob": "734d6cb73c80fd73cade3b741b91cd7da8808d04",
+  "sha256": "b9bd1b0db8c3694302cb98e88956ead7a4759014f29baa5260b558114a3df2a4",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6000,
+      "sha256": "b1e97200d37f697b4e421d61d01d21abffbb9940e1638ffe9258237d96a02bab"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 6000,
+      "sha256": "d317420e04ddec39a636d0970304be1b2945b2f80568f21fee62b05fb1b6d5d1"
+    },
+    {
+      "file": "part-0003.txt",
+      "bytes": 6002,
+      "sha256": "65c4e38316eaa0d0fda130149293fdbf5d85ec773818756200131239cc7689a7"
+    },
+    {
+      "file": "part-0004.txt",
+      "bytes": 6000,
+      "sha256": "f491f0ba8e001412aefd55fb7645d47007ff7d2a2f3baa3c49dffdb4f2ca9c93"
+    },
+    {
+      "file": "part-0005.txt",
+      "bytes": 6002,
+      "sha256": "73ba7e37f0b4f3183a6b9e594561c28850a41cf292a8a47aa6edabd704e05bc6"
+    },
+    {
+      "file": "part-0006.txt",
+      "bytes": 6000,
+      "sha256": "15963afa4cf6c054a81ebfe3a3953a8b1425d317f3581f7abc641fc1dd915e91"
+    },
+    {
+      "file": "part-0007.txt",
+      "bytes": 1312,
+      "sha256": "67e12342666b28502805ee7f0b8f657a73b618b10f7a88c54c03f592b0ca4af1"
+    }
+  ],
+  "symbol_hits": [
+    {
+      "symbol": "CollapsibleHeaderScreen",
+      "line": 76,
+      "part": 1
+    },
+    {
+      "symbol": "CollapsibleHeaderScreen",
+      "line": 327,
+      "part": 3
+    },
+    {
+      "symbol": "CollapsibleHeaderScreen",
+      "line": 807,
+      "part": 7
+    },
+    {
+      "symbol": "CollapsibleHeaderScreen",
+      "line": 813,
+      "part": 7
+    }
+  ]
+}

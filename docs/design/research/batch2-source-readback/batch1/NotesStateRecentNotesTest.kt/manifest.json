@@ -1,0 +1,23 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt"
+  },
+  "bytes": 9995,
+  "git_blob": "9c46382f76ef736478b186bb6e7333e1880ee8b4",
+  "sha256": "4d5b7c9f21e8b1c94ea8e227d34cd116a36f85ed3dc00ccca11fdc1c3ccdd43c",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6432,
+      "sha256": "bc2db65ba5ff0648151fae05ce6d8e703eea843638c7f712e78caeac7c7e1554"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 3563,
+      "sha256": "36b4e40354927ff8c971f2b0ad103271c038a5f84db8b13f95d02d2ae2fc0280"
+    }
+  ],
+  "symbol_hits": []
+}

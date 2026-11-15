@@ -1,0 +1,150 @@
+__") {
+                        ListSectionHeader(
+                            text = s.recentSection,
+                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
+                        )
+                    }
+                    itemsIndexed(regular, key = { _, note -> note.id }) { index, note ->
+                        NoteRowWithSwipe(
+                            note = note,
+                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+                            strings = s,
+                            onClick = { openNote(note.id) },
+                            onDelete = { onDelete(note) },
+                            onTogglePin = { state.togglePin(note.id) },
+                            topGap = ListVisualTokens.intraGroupGap,
+                            shape = ListGrouping.shapeOf(
+                                ListGrouping.slotOf(indexInGroup = index, groupSize = regular.size)
+                            )
+                        )
+                    }
+                } else {
+                    // 搜索/筛选视图是一整组：组内顺序仍是 visibleNotes 的原顺序
+                    itemsIndexed(notes, key = { _, note -> note.id }) { index, note ->
+                        NoteRowWithSwipe(
+                            note = note,
+                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+                            strings = s,
+                            onClick = { openNote(note.id) },
+                            onDelete = { onDelete(note) },
+                            onTogglePin = { state.togglePin(note.id) },
+                            topGap = if (index == 0) ListVisualTokens.listTopGap
+                            else ListVisualTokens.intraGroupGap,
+                            shape = ListGrouping.shapeOf(
+                                ListGrouping.slotOf(indexInGroup = index, groupSize = notes.size)
+                            )
+                        )
+                    }
+                }
+            }
+
+            // 底部渐变：内容滚到悬浮导航栏时化开
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(112.dp)
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (-96).dp)
+                    .alpha(bottomFade)
+                    .background(Brush.verticalGradient(listOf(bg.copy(alpha = 0f), bg)))
+            )
+
+            // 右侧快速定位：替换掉原来的 nonInteractiveScrollbar。
+            // 整层只画，接收手势的只有手柄那一段 40dp；高度扣掉 96dp 导航保留区，
+            // 所以不会盖住顶栏/搜索框，也不会伸进悬浮导航。
+            NotesListScrollbar(
+                listState = listState,
+                displayNotes = displayNotes,
+                sortMode = state.sortMode,
+                strings = s,
+                contentKey = listDataKey,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .fillMaxSize()
+                    .padding(bottom = ListVisualTokens.listBottomReserve)
+            )
+
+        }
+    }
+}
+
+// ============ 列表行 ============
+
+@Composable
+private fun ListSectionHeader(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        // 已在 LazyColumn 的 24dp contentPadding 里，不再叠加起始内边距，
+        // 文字字形侧距本身让视觉左缘落在 24dp 上。
+        // 上沿留白由调用点的 interGroupGap 给，这里只留 2dp 作为标题与首条卡的呼吸。
+        modifier = modifier.padding(bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun NoteRowWithSwipe(
+    note: Note,
+    thumbnail: java.io.File?,
+    strings: AppStrings,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onTogglePin: () -> Unit,
+    topGap: androidx.compose.ui.unit.Dp = ListVisualTokens.intraGroupGap,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(ListVisualTokens.groupOuterCorner)
+) {
+    // 用 remember(note.id)：撤销恢复后卡片状态也跟着重建
+    val dismissState = remember(note.id) {
+        SwipeToDismissBoxState(
+            initialValue = SwipeToDismissBoxValue.Settled,
+            positionalThreshold = { distance -> distance * 0.35f }
+        )
+    }
+
+    // 按压缩放与点击用的是同一个 InteractionSource：长按、单击仍然走原有那条路，
+    // 缩放只是绘制变换（drawWithContent），不参与测量，所以命中框、行高、
+    // 滑动判定都不会跟着动；松手/取消/开始滚动时 pressed 自然回落。
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) ListVisualTokens.pressScale else 1f,
+        animationSpec = tween(ListVisualTokens.pressAnimationMillis),
+        label = "noteRowPressScale"
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        // 背景与卡片必须共用同一个 shape：只改卡片会让滑动时露出的红底还是直角。
+        // 缩放放在这一层，背景跟着一起缩，按下时不会在边缘漏出一圈红色。
+        modifier = Modifier
+            .padding(top = topGap)
+            .drawWithContent {
+                if (pressScale == 1f) {
+                    drawContent()
+                } else {
+                    scale(scaleX = pressScale, scaleY = pressScale) {
+                        this@drawWithContent.drawContent()
+                    }
+                }
+            },
+        onDismiss = { onDelete() },
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.errorContainer),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Row(
+                    modifier = Modifier.padding(end = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier =

@@ -1,0 +1,170 @@
+   val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                recording.file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "audio/mp4"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "分享录音"))
+        }.onFailure {
+            scope.launch { snackbarHostState.showSnackbar("分享失败：${it.message}") }
+        }
+    }
+
+    // 切到录音页时刷新文件列表；切走就停掉播放，正在录的也一并收尾
+    LaunchedEffect(homeTab, state.loaded) {
+        if (homeTab == HomeTab.RECORD) {
+            if (state.loaded) recorder.load()
+        } else {
+            recorder.pausePlayback()
+            if (recorder.isRecording) recorder.stop()
+        }
+    }
+
+    // 退出时释放麦克风和扬声器
+    DisposableEffect(Unit) {
+        onDispose { recorder.release() }
+    }
+
+    // 录音中按返回：先收尾保存，别让用户觉得「按一下键就丢了」
+    BackHandler(enabled = recorder.isRecording) {
+        recorder.stop(discard = false)
+    }
+
+    // 在录音页按系统返回：退回笔记页，而不是直接退出 App
+    BackHandler(
+        enabled = homeTab == HomeTab.RECORD &&
+            !recorder.isRecording &&
+            openedRecordingId == null &&
+            editingId == null &&
+            !showTrash
+    ) {
+        homeTab = HomeTab.NOTES
+    }
+
+    // 录音详情页：退回录音列表。
+    // 之前这里没有任何拦截——上面那条要求 openedRecordingId == null，
+    // 人在详情页时不成立；录音中那条也不成立。两条都不管，
+    // 系统就按默认行为直接把 Activity 结束掉，看起来就是「按返回 App 退了」。
+    // Compose 的 BackHandler 后注册的先响应，所以这条写在最后，优先级最高。
+    BackHandler(enabled = openedRecordingId != null && !recorder.isRecording) {
+        recorder.releasePlayer()
+        openedRecordingId = null
+    }
+
+    // 导出：系统文件选择器给一个可写位置，不需要存储权限
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        scope.launch {
+            val count = state.exportBackup(uri)
+            snackbarHostState.showSnackbar(
+                if (count >= 0) "已导出 $count 条笔记和图片" else "导出失败，换个位置再试"
+            )
+        }
+    }
+
+    // 导入：先挑文件，确认后再覆盖
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) pendingImportUri = uri
+    }
+
+    // 字体导入：挑 .ttf / .otf → 拷进内部存储 → 校验可用 → 立即切换
+    val fontImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val font = runCatching {
+                withContext(Dispatchers.IO) { importFont(context, uri) }
+            }
+            showFontSettings = false
+            font
+                .onSuccess { (file, name) ->
+                    fontState.importSucceeded(file, name)
+                    snackbarHostState.showSnackbar("已导入字体「$name」")
+                }
+                .onFailure {
+                    snackbarHostState.showSnackbar("这个文件不是有效的 .ttf / .otf 字体")
+                }
+        }
+    }
+
+    // 把当前字体选项换算成 Typography；选项或文件路径变化时整个 App 字体一起换
+    val appFontFamily = remember(fontState.option, fontState.customFontPath) {
+        fontState.resolveFamily()
+    }
+    val customPreviewFamily = remember(fontState.customFontPath) {
+        customFontFamily(fontState.customFontPath?.let(::File))
+    }
+
+    // Android 13+ 发通知要用户点同意；设提醒时顺手申请，被拒也不影响闹钟本身
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { }
+
+    fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    /** 系统是否允许我们排「精确到分钟」的闹钟（Android 12+ 需要用户单独授权） */
+    fun canScheduleExactReminders(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        val manager = context.getSystemService(AlarmManager::class.java) ?: return false
+        return runCatching { manager.canScheduleExactAlarms() }.getOrDefault(false)
+    }
+
+    // 点通知进来：等笔记加载完，直接跳到那一条
+    // 走 state.openNote() 统一入口：笔记不存在或已在回收站就不跳，也不会记一次无效打开
+    LaunchedEffect(openNoteId, state.loaded) {
+        val target = openNoteId
+        if (target != null && state.loaded) {
+            state.openNote(target)?.let { opened ->
+                showTrash = false
+                editingId = opened.id
+            }
+            onOpenNoteHandled()
+        }
+    }
+
+    // 当前在哪个页面；底部导航只挂在主页（笔记 / 录音）上
+    val page = when {
+        showSettings -> AppPage.Settings
+        showTrash -> AppPage.Trash
+        editingId != null -> AppPage.Editor
+        openedRecordingId != null -> AppPage.Recording
+        else -> AppPage.List
+    }
+
+    // 录音时整页切到录制界面，导航栏一起让位——和参考稿一样，录制时不该有别的东西
+    val showNavBar = page == AppPage.List && state.loaded && !recorder.isRecording
+
+    // 导航栏浮在底部，Snackbar 得跟着抬高，否则会被它盖住
+    val snackbarBottom by animateDpAsState(
+        targetValue = if (showNavBar) 92.dp else 0.dp,
+        animationSpec = spring(dampingRatio = 1f, stiffness = 320f),
+        label = "snackbarBottom"
+    )
+
+    PixelTheme(
+        darkTheme = darkTheme,
+        preset = themePreset,
+        typography = remember(appFontFamily) { appTypography(appFontFamily) }
+    ) {
+    CompositionLocalProvider(LocalStrings provides strings) {
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Scaffold(
+            containerColor = Ma

@@ -1,0 +1,123 @@
+30f,
+        animationSpec = tween(durationMillis = 450),
+        label = "contentOffset"
+    )
+
+    val lazyListState = rememberLazyListState()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Fixed background art - doesn't scroll with content
+        val collapsedFraction = scrollBehavior.state.collapsedFraction
+        if (collapsedFraction < 0.5f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp)
+            ) {
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .apply(
+                            chromahub.rhythm.app.util.ImageUtils.buildImageRequest(
+                                artworkUri,
+                                artistName,
+                                context.cacheDir,
+                                chromahub.rhythm.app.shared.presentation.components.common.M3PlaceholderType.ARTIST
+                            )
+                        )
+                        .build(),
+                    contentDescription = stringResource(R.string.artist_artwork_description, artistName),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    loading = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            M3CircularLoader(
+                                modifier = Modifier.size(28.dp),
+                                strokeWidth = 2.5f
+                            )
+                        }
+                    }
+                )
+
+                // Multi-layer gradient overlay for better readability
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        )
+                )
+
+                // Artist Info - Bottom aligned, only visible when expanded
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = artistName,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = chromahub.rhythm.app.shared.presentation.components.icons.RhythmIcons.Album,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "$artistAlbumsCount albums",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        androidx.compose.material3.Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = chromahub.rhythm.app.shared.presentation.components.icons.RhythmIcons.Music.Song,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+               

@@ -1,0 +1,183 @@
+dium.copy(
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            ModernEmptyState(
+                icon = MaterialSymbolIcon("tips_and_updates", filled = true),
+                title = context.getString(R.string.home_no_recommendations),
+                subtitle = context.getString(R.string.home_no_recommendations_desc),
+                iconSize = 32.dp
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecommendedArtistHeadline(
+    artistName: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val textMeasurer = rememberTextMeasurer()
+
+    BoxWithConstraints(modifier = modifier) {
+        val fullWidthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
+
+        val firstLineEnd = remember(artistName, style, fullWidthPx) {
+            if (artistName.isBlank() || fullWidthPx <= 0) {
+                0
+            } else {
+                val layout = textMeasurer.measure(
+                    text = AnnotatedString(artistName),
+                    style = style.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    softWrap = true,
+                    constraints = Constraints(maxWidth = fullWidthPx)
+                )
+                layout.getLineEnd(0, visibleEnd = true).coerceIn(0, artistName.length)
+            }
+        }
+
+        val headlineFirstLine = remember(artistName, firstLineEnd) {
+            artistName.take(firstLineEnd).trimEnd()
+        }
+        val headlineRemainder = remember(artistName, firstLineEnd) {
+            artistName.drop(firstLineEnd).trimStart()
+        }
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = if (headlineFirstLine.isNotBlank()) headlineFirstLine else artistName,
+                style = style,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                maxLines = 1
+            )
+
+            if (headlineRemainder.isNotBlank()) {
+                Text(
+                    text = headlineRemainder,
+                    style = style,
+                    fontWeight = FontWeight.Bold,
+                    color = color,
+                    modifier = Modifier.fillMaxWidth(0.48f),
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendedSongItem(
+    song: Song,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = {
+                HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                onClick()
+            })
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        M3ImageUtils.TrackImage(
+            imageUrl = song.artworkUri,
+            trackName = song.title,
+            modifier = Modifier.size(52.dp),
+            applyExpressiveShape = true
+        )
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = "${song.artist} • ${song.album}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        ExpressiveFilledIconButton(
+            onClick = {
+                HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                onClick()
+            },
+            modifier = Modifier.size(40.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.tertiary,
+                contentColor = MaterialTheme.colorScheme.onTertiary
+            )
+        ) {
+            Icon(
+                imageVector = RhythmIcons.Play,
+                contentDescription = stringResource(R.string.cd_play),
+                modifier = Modifier.size(25.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModernEmptyState(
+    icon: MaterialSymbolIcon,
+    title: String,
+    subtitle: String,
+    iconSize: Dp = 32.dp
+) {
+    val cookieShape = rememberExpressiveShape(ExpressiveMaterialShape.COOKIE_12)
+    ExpressiveCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        shape = ExpressiveShapes.SquircleLarge
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                shape = cookieShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(iconSize + 16.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription =

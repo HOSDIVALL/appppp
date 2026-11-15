@@ -1,0 +1,120 @@
+给 crossAxisTrackInset 处理，避免「左右不等宽」
+                    start = AppSpacing.page,
+                    end = AppSpacing.page,
+                    top = 2.dp,
+                    // 末尾留一段可滚动余量：最后一条笔记能滚到悬浮导航栏上方，
+                    // 滚动条也才有真实行程（否则内容刚好一屏，滑块无处可走）
+                    bottom = 120.dp
+                ),
+                // 行距不再交给全局 rowGap：分组后组内 4 / 组间 12 是两种间距，
+                // 统一 spacedBy 会把筛选行、分区标题也挤成同一个值。
+                verticalArrangement = Arrangement.Top
+            ) {
+                // 类型筛选
+                item(key = "__filters__") {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item(key = "__f_all__") {
+                            FilterChip(
+                                selected = state.filter == NoteFilter.ALL,
+                                onClick = { state.selectFilter(NoteFilter.ALL) },
+                                label = { Text(s.filterAll) },
+                                leadingIcon = if (state.filter == NoteFilter.ALL) {
+                                    { Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }
+                                } else null
+                            )
+                        }
+                        item(key = "__f_todo__") {
+                            FilterChip(
+                                selected = state.filter == NoteFilter.TODO,
+                                onClick = {
+                                    state.selectFilter(
+                                        if (state.filter == NoteFilter.TODO) NoteFilter.ALL
+                                        else NoteFilter.TODO
+                                    )
+                                },
+                                label = { Text(s.filterTodo) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Checklist, null, Modifier.size(16.dp))
+                                }
+                            )
+                        }
+                        item(key = "__f_pin__") {
+                            FilterChip(
+                                selected = state.filter == NoteFilter.PINNED,
+                                onClick = {
+                                    state.selectFilter(
+                                        if (state.filter == NoteFilter.PINNED) NoteFilter.ALL
+                                        else NoteFilter.PINNED
+                                    )
+                                },
+                                label = { Text(s.filterPinned) },
+                                leadingIcon = { Icon(Icons.Filled.Star, null, Modifier.size(16.dp)) }
+                            )
+                        }
+                        item(key = "__f_remind__") {
+                            FilterChip(
+                                selected = state.filter == NoteFilter.REMINDER,
+                                onClick = {
+                                    state.selectFilter(
+                                        if (state.filter == NoteFilter.REMINDER) NoteFilter.ALL
+                                        else NoteFilter.REMINDER
+                                    )
+                                },
+                                label = { Text(s.filterReminder) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Notifications, null, Modifier.size(16.dp))
+                                }
+                            )
+                        }
+                        items(state.allTags, key = { "__t_$it" }) { tag ->
+                            FilterChip(
+                                selected = state.selectedTag == tag,
+                                onClick = {
+                                    state.selectTag(if (state.selectedTag == tag) null else tag)
+                                },
+                                label = { Text("#$tag") }
+                            )
+                        }
+                    }
+                }
+
+                // 新建入口已统一到右下角官方 FAB Menu（见 NotesNavBar / MainActivity）
+
+                if (notes.isEmpty()) {
+                    item(key = "__empty__") {
+                        EmptyState(
+                            isSearching = isFiltering,
+                            strings = s,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = ListVisualTokens.listTopGap)
+                                .height(300.dp)
+                        )
+                    }
+                } else if (showSections) {
+                    // 两个分区各自是一条逻辑组：首条外角、末条外角各自算，
+                    // 分区标题不参与组内接缝，也不改 visibleNotes 的顺序。
+                    item(key = "__h_pin__") {
+                        ListSectionHeader(
+                            text = s.pinnedSection,
+                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
+                        )
+                    }
+                    itemsIndexed(pinned, key = { _, note -> note.id }) { index, note ->
+                        NoteRowWithSwipe(
+                            note = note,
+                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+                            strings = s,
+                            onClick = { openNote(note.id) },
+                            onDelete = { onDelete(note) },
+                            onTogglePin = { state.togglePin(note.id) },
+                            topGap = ListVisualTokens.intraGroupGap,
+                            shape = ListGrouping.shapeOf(
+                                ListGrouping.slotOf(indexInGroup = index, groupSize = pinned.size)
+                            )
+                        )
+                    }
+                    item(key = "__h_recent

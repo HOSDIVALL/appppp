@@ -1,0 +1,63 @@
+}
+                    }
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Text(
+                        text = glyph,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class ScrollStats(
+    val progress: Float,
+    val maxScrollIndex: Int,
+    val scrollableHeight: Float
+)
+
+private class AxisTracker {
+    private val strides = HashMap<Int, Float>()
+    private var totalItems = -1
+    private var spacing = -1
+
+    fun resetIfNeeded(total: Int, itemSpacing: Int) {
+        if (total != totalItems || itemSpacing != spacing) {
+            strides.clear()
+            totalItems = total
+            spacing = itemSpacing
+        }
+    }
+
+    fun observe(visibleItems: List<LazyListItemInfo>, itemSpacing: Int) {
+        visibleItems.zipWithNext().forEach { (curr, next) ->
+            if (next.index == curr.index + 1) {
+                strides[curr.index] = (next.offset - curr.offset).toFloat()
+            }
+        }
+    }
+
+    fun representativeStridePx(visibleItems: List<LazyListItemInfo>, itemSpacing: Int): Float {
+        val observed = strides.values.toList()
+        if (observed.isNotEmpty()) {
+            return observed.sorted()[observed.size / 2]
+        }
+        return visibleItems.firstOrNull()?.let { (it.size + itemSpacing).toFloat() } ?: 150f
+    }
+
+    fun distanceBefore(index: Int, stridePx: Float): Float {
+        var sum = 0f
+        for (i in 0 until index) {
+            sum += strides[i] ?: stridePx
+        }
+        return sum
+    }
+
+    fun itemSizePx(index: Int, stridePx: Float): Float = stridePx
+}

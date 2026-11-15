@@ -1,0 +1,36 @@
+
+    } ?: emptyList(),
+    images = json.optJSONArray("images")?.let { array ->
+        (0 until array.length())
+            .map { array.optString(it).trim() }
+            .filter { it.isNotEmpty() }
+    } ?: emptyList(),
+    // 老笔记没有 audio 字段，读成空列表即可
+    audio = json.optJSONArray("audio")?.let { array ->
+        (0 until array.length())
+            .map { array.optString(it).trim() }
+            .filter { it.isNotEmpty() }
+    } ?: emptyList(),
+    deletedAt = if (json.has("deletedAt")) json.optLong("deletedAt") else null,
+    remindAt = if (json.has("remindAt")) json.optLong("remindAt") else null,
+    checklist = json.optBoolean("checklist", false),
+    todos = json.optJSONArray("todos")?.let { array ->
+        (0 until array.length()).mapNotNull { index ->
+            val item = array.optJSONObject(index) ?: return@mapNotNull null
+            TodoItem(
+                id = item.optString("id").ifBlank { UUID.randomUUID().toString() },
+                text = item.optString("text"),
+                done = item.optBoolean("done", false)
+            )
+        }
+    } ?: emptyList()
+)
+
+fun notesToJson(notes: List<Note>): String =
+    JSONArray().apply { notes.forEach { put(it.toJson()) } }.toString()
+
+/** 解析失败时返回空列表，而不是让 App 崩溃 */
+fun notesFromJson(text: String): List<Note> = runCatching {
+    val array = JSONArray(text)
+    (0 until array.length()).map { noteFromJson(array.getJSONObject(it)) }
+}.getOrDefault(emptyList())

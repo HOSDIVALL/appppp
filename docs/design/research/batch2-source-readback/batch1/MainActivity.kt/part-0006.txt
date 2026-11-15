@@ -1,0 +1,143 @@
+null && !canScheduleExactReminders() &&
+                            !settings.exactAlarmHintShown
+                        ) {
+                            settings.exactAlarmHintShown = true
+                            showExactAlarmHint = true
+                        }
+
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                if (at == null) {
+                                    "已清除提醒"
+                                } else {
+                                    "提醒已设到 ${formatReminderTime(at)}"
+                                }
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    // 刚由「+」新建出来的这条才自动落焦点；从列表点开的已有笔记不抢
+                    autoFocusBody = editingNote.id == newNoteId
+                )
+            }
+        }
+
+        // ---------- 底部导航：笔记 / 录音 + 圆形加号 ----------
+        AnimatedVisibility(
+            visible = showNavBar,
+            enter = slideInVertically(
+                animationSpec = spring(dampingRatio = 1f, stiffness = 360f)
+            ) { it } + fadeIn(spring(stiffness = Spring.StiffnessMediumLow)),
+            exit = slideOutVertically(
+                animationSpec = spring(dampingRatio = 1f, stiffness = 480f)
+            ) { it } + fadeOut(tween(120)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(2f)
+        ) {
+            NotesNavBar(
+                selected = homeTab,
+                onSelect = { homeTab = it },
+                onAction = {
+                    if (homeTab == HomeTab.NOTES) createNoteNow() else startRecording()
+                },
+            )
+        }
+
+        // ---------- 全屏看图 ----------
+        val files = viewerFiles
+        if (files != null) {
+            val visibility = remember(files) {
+                MutableTransitionState(false).apply { targetState = true }
+            }
+            val viewerKeyboard = LocalSoftwareKeyboardController.current
+            val viewerFocus = LocalFocusManager.current
+            LaunchedEffect(files) {
+                // Viewing a photo is not a text-input operation.
+                viewerKeyboard?.hide()
+                viewerFocus.clearFocus(force = true)
+            }
+            LaunchedEffect(visibility.isIdle, visibility.currentState, visibility.targetState) {
+                // Keep the content mounted until the exit transition has finished.
+                if (visibility.isIdle && !visibility.currentState && !visibility.targetState) {
+                    viewerFiles = null
+                }
+            }
+            Box(modifier = Modifier.fillMaxSize().zIndex(5f)) {
+                AnimatedVisibility(
+                    visibleState = visibility,
+                    modifier = Modifier.fillMaxSize(),
+                    enter = fadeIn(animationSpec = tween(220)) + scaleIn(
+                        initialScale = 0.97f,
+                        animationSpec = tween(220, easing = FastOutSlowInEasing)
+                    ),
+                    exit = fadeOut(animationSpec = tween(160)) + scaleOut(
+                        targetScale = 0.98f,
+                        animationSpec = tween(160, easing = FastOutSlowInEasing)
+                    )
+                ) {
+                    ImagePager(
+                        files = files,
+                        initialIndex = viewerIndex,
+                        onDismiss = { visibility.targetState = false }
+                    )
+                }
+            }
+        }
+    }
+
+    // ---------- 录音操作抽屉 ----------
+    val sheetRecording = sheetRecordingId?.let { id ->
+        recorder.recordings.firstOrNull { it.id == id }
+    }
+    if (sheetRecording != null) {
+        RecordingActionSheet(
+            recording = sheetRecording,
+            palette = recorderPalette(darkTheme),
+            playing = recorder.isPlaying && recorder.loaded?.id == sheetRecording.id,
+            transcribing = recorder.transcribingId == sheetRecording.id,
+            modelReady = recorder.modelReady,
+            onDismiss = { sheetRecordingId = null },
+            onTogglePlay = { recorder.togglePlayInline(sheetRecording) },
+            onAddToNote = {
+                notePickerRecordingId = sheetRecording.id
+                sheetRecordingId = null
+            },
+            onOpenDetail = {
+                recorder.open(sheetRecording)
+                openedRecordingId = sheetRecording.id
+                sheetRecordingId = null
+            },
+            onTranscribe = { recorder.transcribe(sheetRecording) },
+            onRename = {
+                renameTargetId = sheetRecording.id
+                renameText = sheetRecording.title
+                sheetRecordingId = null
+            },
+            onToggleStar = { recorder.toggleStar(sheetRecording) },
+            onShare = { shareRecording(sheetRecording) },
+            onDelete = {
+                recorder.delete(sheetRecording)
+                sheetRecordingId = null
+            }
+        )
+    }
+
+    // ---------- 添加到笔记：先挑一条笔记 ----------
+    notePickerRecordingId?.let { id ->
+        val rec = recorder.recordings.firstOrNull { it.id == id }
+        if (rec != null) {
+            NotePickerSheet(
+                recording = rec,
+                notes = state.notes
+                    .filter { it.deletedAt == null }
+                    .sortedByDescending { it.updatedAt },
+                onDismiss = { notePickerRecordingId = null },
+                onPick = { note, inline ->
+                    if (inline) {
+                        state.addAudioToBody(note.id, rec.id)
+                    } else {
+                        state.addAudio(note.id, rec.id)
+                    }
+                    notePickerRecordingId = null
+                    sco

@@ -1,0 +1,381 @@
+e.tags + clean, updatedAt = System.currentTimeMillis())
+
+        persist()
+
+    }
+
+
+
+    fun removeTag(id: String, tag: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (tag !in note.tags) return
+
+
+
+        _notes[index] = note.copy(
+
+            tags = note.tags - tag,
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        persist()
+
+    }
+
+
+
+    // ============ 回收站 ============
+
+
+
+    /** 移到回收站（软删除），返回被移动的笔记供撤销使用 */
+
+    fun moveToTrash(id: String): Note? {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return null
+
+
+
+        // 进了回收站就别再响了，不然删掉的笔记还会弹提醒
+
+        scheduler.cancel(id)
+
+
+
+        val trashed = _notes[index].copy(deletedAt = System.currentTimeMillis())
+
+        _notes[index] = trashed
+
+        persist()
+
+        return trashed
+
+    }
+
+
+
+    fun restoreFromTrash(id: String): Note? {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return null
+
+
+
+        val restored = _notes[index].copy(deletedAt = null)
+
+        _notes[index] = restored
+
+        if ((restored.remindAt ?: 0) > System.currentTimeMillis()) scheduler.schedule(restored)
+
+        persist()
+
+        return restored
+
+    }
+
+
+
+    fun deleteForever(id: String): Note? {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return null
+
+
+
+        scheduler.cancel(id)
+
+        val removed = _notes.removeAt(index)
+
+        repository.deleteAttachments(allImageNames(removed))
+
+        forgetRecent(listOf(removed.id))
+
+        persist()
+
+        return removed
+
+    }
+
+
+
+    fun emptyTrash(): Int {
+
+        val trashed = _notes.filter { it.deletedAt != null }
+
+        if (trashed.isEmpty()) return 0
+
+
+
+        trashed.forEach { scheduler.cancel(it.id) }
+
+        _notes.removeAll { it.deletedAt != null }
+
+        repository.deleteAttachments(trashed.flatMap(::allImageNames))
+
+        forgetRecent(trashed.map { it.id })
+
+        persist()
+
+        return trashed.size
+
+    }
+
+
+
+    // ============ 提醒 ============
+
+
+
+    /**
+
+     * 设置或取消提醒。
+
+     * 先撤掉旧闹钟再排新的：同一篇笔记连改三次时间，也不能留下三个闹钟。
+
+     */
+
+    fun setReminder(id: String, at: Long?) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (note.remindAt == at) return
+
+
+
+        scheduler.cancel(id)
+
+
+
+        _notes[index] = note.copy(remindAt = at, updatedAt = System.currentTimeMillis())
+
+        val updated = _notes[index]
+
+        if (at != null && at > System.currentTimeMillis()) scheduler.schedule(updated)
+
+        persist()
+
+    }
+
+
+
+    // ============ 图片附件 ============
+
+
+
+    fun imageFile(name: String): File = repository.attachmentFile(name)
+
+
+
+    /**
+
+     * 从相册导入一张图，压缩后挂到笔记上。
+
+     * @return 生成的文件名，失败返回 null
+
+     */
+
+    suspend fun importImage(id: String, uri: Uri): String? {
+
+        val name = repository.importImage(uri) ?: return null
+
+        addImage(id, name)
+
+        return name
+
+    }
+
+
+
+    /**
+
+     * 相机拍完回来：先压缩（相机存的是原图），再挂到笔记上。
+
+     * @return 是否成功；失败说明相机没真正写入文件，调用方应把它清掉
+
+     */
+
+    suspend fun attachCameraImage(id: String, name: String): Boolean {
+
+        val file = repository.attachmentFile(name)
+
+        if (!file.exists() || file.length() == 0L) return false
+
+
+
+        repository.compressAttachment(name)
+
+        addImage(id, name)
+
+        return true
+
+    }
+
+
+
+    fun addImage(id: String, name: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (name in note.images) return
+
+
+
+        _notes[index] = note.copy(
+
+            images = note.images + name,
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        persist()
+
+    }
+
+
+
+    fun removeImage(id: String, name: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (name !in note.images) return
+
+
+
+        // 正文里如果还有这个标记，一起清掉，否则预览会留一个空白占位
+
+        val cleanedContent = InlineImage.PATTERN.replace(note.content) { match ->
+
+            if (match.groupValues[1] == name) "" else match.value
+
+        }
+
+
+
+        _notes[index] = note.copy(
+
+            content = cleanedContent,
+
+            images = note.images - name,
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        repository.deleteAttachment(name)
+
+        persist()
+
+    }
+
+
+
+    /** 拍照前先占一个文件名，相机 App 直接把照片写进这个文件 */
+
+    fun prepareCameraTarget(): Pair<String, Uri>? = repository.createCameraTarget()
+
+
+
+    /** 拍照取消或失败时，删掉那个空文件 */
+
+    fun discardImageFile(name: String) {
+
+        repository.deleteAttachment(name)
+
+    }
+
+
+
+    // ============ 录音附件 ============
+
+
+
+    /**
+
+     * 把一段录音挂到笔记上（只存 id 引用，不复制音频文件）。
+
+     * 同一段录音在一篇笔记里只挂一次。
+
+     */
+
+    fun addAudio(id: String, recordingId: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (recordingId in note.audio) return
+
+
+
+        _notes[index] = note.copy(
+
+            audio = note.audio + recordingId,
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        persist()
+
+    }
+
+
+
+    /** Update body and its audio index in one state mutation and persistence request. */
+    fun removeInlineAudioReference(
+        id: String,
+        recordingId: String,
+        title: String,
+        content: String
+    ) {
+        val index = _notes.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val note = _notes[index]
+        val stillReferenced = recordingId in InlineAudio.idsIn(content)
+        _notes[index] = note.copy(
+            title = title,
+            content = content,
+            audio = if (stillReferenced) note.audio else note.audio - recordingId,
+            updatedAt = System.currentTimeMillis()
+        )
+        persist()
+    }
+
+    fun removeAudio(id: String, reco

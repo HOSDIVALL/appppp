@@ -1,0 +1,18 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/ui/AppSpacing.kt"
+  },
+  "bytes": 1807,
+  "git_blob": "44db8fe5f5e43e5fe012504695a75e132fd938f6",
+  "sha256": "fe89d811babc3fa8e2702fc6b7fb3d08c8e65cfee883e76fd9c3e8e97e897798",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 1807,
+      "sha256": "fe89d811babc3fa8e2702fc6b7fb3d08c8e65cfee883e76fd9c3e8e97e897798"
+    }
+  ],
+  "symbol_hits": []
+}

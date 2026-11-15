@@ -1,0 +1,127 @@
+      modifier = Modifier.fillMaxWidth()
+    ) {
+        ModernSectionTitle(
+            title = context.getString(R.string.home_recommended_title),
+            subtitle = context.getString(R.string.home_recommended_subtitle)
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        if (recommendedSongs.isNotEmpty()) {
+            val firstSong = recommendedSongs.firstOrNull()
+            val rawArtist = firstSong?.artist ?: "Unknown Artist"
+
+            val splitNames = remember(rawArtist, effectiveDelimiters, artistSeparatorEnabled) {
+                ArtistSeparator.splitArtistNames(
+                    artistName = rawArtist,
+                    delimiters = effectiveDelimiters,
+                    enabled = artistSeparatorEnabled
+                )
+            }
+            val primaryArtistName = splitNames.firstOrNull() ?: rawArtist
+
+            val recommendedArtist = remember(splitNames, primaryArtistName, artists) {
+                artists.find { artist ->
+                    splitNames.any { splitName -> artist.name.equals(splitName, ignoreCase = true) }
+                } ?: artists.find { it.name.equals(primaryArtistName, ignoreCase = true) }
+            }
+
+            val artistName = recommendedArtist?.name ?: primaryArtistName
+            val artistArtworkUri = recommendedArtist?.artworkUri ?: firstSong?.artworkUri
+            val cardBgColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            val onCardBgColor = MaterialTheme.colorScheme.onSurface
+
+            val artistNameLength = artistName.length
+            val artistNameStyle = when {
+                artistNameLength > 20 -> MaterialTheme.typography.titleLarge
+                artistNameLength > 12 -> MaterialTheme.typography.headlineMedium
+                else -> MaterialTheme.typography.displaySmall
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp),
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = cardBgColor
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                ) {
+                    RecommendedArtistHeadline(
+                        artistName = artistName,
+                        style = artistNameStyle,
+                        color = onCardBgColor,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .fillMaxWidth()
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(top = 20.dp, bottom = 40.dp)
+                            .fillMaxHeight(0.72f)
+                            .aspectRatio(1f)
+                    ) {
+                        M3ImageUtils.ArtistImage(
+                            imageUrl = artistArtworkUri,
+                            artistName = artistName,
+                            modifier = Modifier.fillMaxSize(),
+                            applyExpressiveShape = true
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy((-12).dp)
+                        ) {
+                            val coverSongs = recommendedSongs.take(4)
+                            coverSongs.forEach { song ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .border(
+                                            width = 1.5.dp,
+                                            color = cardBgColor,
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clip(RoundedCornerShape(12.dp))
+                                ) {
+                                    M3ImageUtils.TrackImage(
+                                        imageUrl = song.artworkUri,
+                                        trackName = song.title,
+                                        modifier = Modifier.fillMaxSize(),
+                                        applyExpressiveShape = false
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                                onPlayClick(recommendedSongs)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.cd_play),
+                                style = MaterialTheme.typography.titleMe

@@ -1,0 +1,123 @@
+m.title,
+                        modifier = Modifier.fillMaxSize(),
+                        applyExpressiveShape = false
+                    )
+
+                    if (showGradient) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.background,
+                                            MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                                            Color.Transparent,
+                                            Color.Transparent,
+                                            MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                                            MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                                            MaterialTheme.colorScheme.background
+                                        ),
+                                        startY = 0f,
+                                        endY = Float.POSITIVE_INFINITY
+                                    )
+                                )
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .padding(24.dp)
+                    ) {
+                        if (showAlbumName) {
+                            Text(
+                                text = album.title,
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (showArtistName) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = album.artist,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (showPlayButton) {
+                                Button(
+                                    onClick = {
+                                        HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                                        if (onPlayAlbum != null) onPlayAlbum(album) else viewModel.playAlbum(album)
+                                    },
+                                    shape = RoundedCornerShape(percent = 50),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp),
+                                    modifier = Modifier.height(56.dp)
+                                ) {
+                                    Text(
+                                        text = context.getString(R.string.action_play),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (showYear && album.year > 0) {
+                                    Text(
+                                        text = album.year.toString(),
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                }
+                                album.songs.firstOrNull()?.let { firstSong ->
+                                    AudioQualityIcon(song = firstSong)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Additional Modern Components
+
+@Composable
+private fun ModernArtistsSection(
+    artists: List<Artist>,
+    songs: List<Song>,
+    onArtistClick: (Artist) -> Unit,
+    onViewAllArtists: () -> Unit,
+    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    heightSizeClass: WindowHeightSizeClass = WindowHeightSizeClass.Medium
+) {
+    val context =

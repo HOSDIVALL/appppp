@@ -1,0 +1,136 @@
+SizeClass.Medium -> 16.dp
+                WindowWidthSizeClass.Expanded -> 20.dp
+                else -> 12.dp
+            }
+        )) {
+            Box {
+                M3ImageUtils.AlbumArt(
+                    imageUrl = album.artworkUri,
+                    albumName = album.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f),
+                    shape = rememberExpressiveShapeFor(ExpressiveShapeTarget.ALBUM_ART)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(
+                            when (widthSizeClass) {
+                                WindowWidthSizeClass.Compact -> 12.dp
+                                WindowWidthSizeClass.Medium -> 16.dp
+                                WindowWidthSizeClass.Expanded -> 20.dp
+                                else -> 12.dp
+                            }
+                        )
+                ) {
+                    ExpressiveFilledIconButton(
+                        onClick = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                            handlePlayClick(album)
+                        },
+                        modifier = Modifier.size(
+                            when (widthSizeClass) {
+                                WindowWidthSizeClass.Compact -> 40.dp
+                                WindowWidthSizeClass.Medium -> 48.dp
+                                WindowWidthSizeClass.Expanded -> 52.dp
+                                else -> 40.dp
+                            }
+                        ),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = RhythmIcons.Play,
+                            contentDescription = context.getString(R.string.cd_play_album),
+                            modifier = Modifier.size(
+                                when (widthSizeClass) {
+                                    WindowWidthSizeClass.Compact -> 20.dp
+                                    WindowWidthSizeClass.Medium -> 24.dp
+                                    WindowWidthSizeClass.Expanded -> 26.dp
+                                    else -> 20.dp
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(
+                        when (widthSizeClass) {
+                            WindowWidthSizeClass.Compact -> 12.dp
+                            WindowWidthSizeClass.Medium -> 16.dp
+                            WindowWidthSizeClass.Expanded -> 20.dp
+                            else -> 12.dp
+                        }
+                    ),
+                verticalArrangement = Arrangement.spacedBy(
+                    when (widthSizeClass) {
+                        WindowWidthSizeClass.Compact -> 4.dp
+                        WindowWidthSizeClass.Medium -> 6.dp
+                        WindowWidthSizeClass.Expanded -> 8.dp
+                        else -> 4.dp
+                    }
+                )
+            ) {
+                Text(
+                    text = album.title,
+                    style = when (widthSizeClass) {
+                        WindowWidthSizeClass.Compact -> MaterialTheme.typography.titleSmall
+                        WindowWidthSizeClass.Medium -> MaterialTheme.typography.titleMedium
+                        WindowWidthSizeClass.Expanded -> MaterialTheme.typography.titleMedium
+                        else -> MaterialTheme.typography.titleSmall
+                    },
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = when (widthSizeClass) {
+                        WindowWidthSizeClass.Compact -> 18.sp
+                        WindowWidthSizeClass.Medium -> 22.sp
+                        WindowWidthSizeClass.Expanded -> 24.sp
+                        else -> 18.sp
+                    }
+                )
+
+                Text(
+                    text = album.artist,
+                    style = when (widthSizeClass) {
+                        WindowWidthSizeClass.Compact -> MaterialTheme.typography.bodySmall
+                        WindowWidthSizeClass.Medium -> MaterialTheme.typography.bodyMedium
+                        WindowWidthSizeClass.Expanded -> MaterialTheme.typography.bodyMedium
+                        else -> MaterialTheme.typography.bodySmall
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModernListeningStatsSection(
+    onClick: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val viewModel = viewModel<chromahub.rhythm.app.viewmodel.MusicViewModel>()
+    val songs by viewModel.songs.collectAsState()
+
+    var statsSummary by remember { mutableStateOf<chromahub.rhythm.app.shared.data.repository.PlaybackStatsRepository.PlaybackStatsSummary?>(null) }
+
+    LaunchedEffect(songs) {
+        statsSummary = viewModel.loadPlaybackStats(chromahub.rhythm.app.shared.data.repository.StatsTimeRange.ALL_TIME)
+    }
+
+    val listeningTimeHours = remember(statsSummary) {
+        val totalMillis = statsSummary?.totalDurationMs ?: 0L
+        val hour

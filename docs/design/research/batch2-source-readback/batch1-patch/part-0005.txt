@@ -1,0 +1,162 @@
+noteId })
++        // 重复忘记同一个 id 是幂等的
++        assertEquals(listOf("a"), store.forget("b").map { it.noteId })
++    }
++
++    @Test
++    fun forgetAllRemovesBatch() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("c", 300L)
++
++        val left = store.forgetAll(listOf("a", "c", "never-recorded"))
++        assertEquals(listOf("b"), left.map { it.noteId })
++        assertEquals(listOf("b"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun forgetAllWithBlankIdsIsNoOp() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++
++        assertEquals(listOf("a"), store.forgetAll(listOf("", " ")).map { it.noteId })
++    }
++
++    @Test
++    fun blankNoteIdIsRejected() {
++        val failure = runCatching { runBlocking { store().recordOpened(" ") } }.exceptionOrNull()
++        assertTrue("空 id 必须被拒绝", failure is IllegalArgumentException)
++    }
++
++    @Test
++    fun negativeTimestampIsRejected() {
++        val failure = runCatching { runBlocking { store().recordOpened("a", -1L) } }.exceptionOrNull()
++        assertTrue("负时间戳必须被拒绝", failure is IllegalArgumentException)
++    }
++
++    /**
++     * 库文件被写坏时，Android 的 DefaultDatabaseErrorHandler 会删掉坏库重建，
++     * 所以真实表现是「历史清空、不崩溃」，而不是往上抛异常。
++     * 这条用例把这个行为钉住：坏库之后 App 仍可正常记录。
++     */
++    @Test
++    fun corruptDatabaseIsRecreatedInsteadOfCrashing() = runBlocking {
++        val dbFile = sandbox.getDatabasePath("recent_notes.db")
++        dbFile.parentFile?.mkdirs()
++        dbFile.writeBytes(ByteArray(4096) { 0x41 })
++
++        val store = store()
++        val recovered = runCatching { store.load() }
++        assertTrue("坏库不应把打开流程炸掉：${recovered.exceptionOrNull()}", recovered.isSuccess)
++        assertEquals("坏库重建后历史为空", emptyList<String>(), recovered.getOrThrow().map { it.noteId })
++
++        // 重建后的库必须还能用
++        assertEquals(listOf("a"), store.recordOpened("a", 100L).map { it.noteId })
++    }
++
++    /**
++     * 打不开数据库（目录不可写）时必须把错误抛给调用方，
++     * 不能静默返回空列表 —— 否则 NotesState 无从把错误落到 recentError。
++     */
++    @Test
++    fun unopenableDatabaseSurfacesError() = runBlocking {
++        val dbFile = sandbox.getDatabasePath("recent_notes.db")
++        val dir = checkNotNull(dbFile.parentFile)
++        check(dir.isDirectory)
++        check(dir.setWritable(false, false)) { "无法把沙箱数据库目录设为只读" }
++        try {
++            val failure = runCatching { store().load() }.exceptionOrNull()
++            assertNotNull("打不开的库必须抛错", failure)
++            assertTrue(
++                "应为 SQLite 异常，实际：${failure?.javaClass?.name}",
++                failure is android.database.SQLException
++            )
++        } finally {
++            dir.setWritable(true, true)
++        }
++        assertFalse("不得写进真实 notes.json", File(sandbox.rootDir, "files/notes.json").exists())
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt
+new file mode 100644
+index 0000000..9c46382
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt
+@@ -0,0 +1,282 @@
++package com.example.myapplicationfirstapp.ui
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import com.example.myapplicationfirstapp.data.AppSettings
++import com.example.myapplicationfirstapp.data.IsolatedAppContext
++import com.example.myapplicationfirstapp.data.NotesRepository
++import com.example.myapplicationfirstapp.data.RecentNoteUsage
++import com.example.myapplicationfirstapp.data.RecentNotesGateway
++import com.example.myapplicationfirstapp.data.ReminderScheduler
++import com.example.myapplicationfirstapp.data.finishIsolatedTest
++import com.example.myapplicationfirstapp.data.isolatedStorage
++import com.example.myapplicationfirstapp.data.realNotesFingerprint
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.cancel
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/**
++ * 第一批接线：NotesState 的最近使用行为。
++ *
++ * 用真实的 NotesRepository / AppSettings / ReminderScheduler，但全部指向沙箱 paths；
++ * 元数据存储换成内存里的 [FakeGateway]，这样可以精确控制「何时返回、返回什么」，
++ * 用来验证旧快照不会覆盖新状态。真实 SQLite 的行为由 RecentNotesStoreTest 覆盖。
++ *
++ * 协程作用域用 [Dispatchers.Unconfined]：`scope.launch` 会同步执行到第一个挂起点，
++ * 因此断言不需要 sleep，也不会出现「测试跑完 state 还没更新」的假绿。
++ */
++@RunWith(AndroidJUnit4::class)
++class NotesStateRecentNotesTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realNotesBefore: String = "<unset>"
++
++    /** 每个测试一个可取消的作用域：收尾时先停掉后台写盘，再删沙箱 */
++    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
++
++    @Before
++    fun setUp() {
++        realNotesBefore = realNotesFingerprint()
++        sandbox = isolatedStorage("recent-state")
++    }
++
++    @After
++    fun tearDown() {
++        scope.cancel()
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realNotesBefore)
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    private fun newState(gateway: RecentNotesGateway): NotesState = NotesState(
++        repository = NotesRepository(sandbox),
++        settings = AppSettings(sandbox),
++        scope = scope,
++        scheduler = ReminderScheduler(sandbox),
++        recentStore = gateway
++    )
++
++    // ---------- 打开 ----------
++
++    @Test
++    fun openingExistingNoteRecordsExactlyOnce() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = s

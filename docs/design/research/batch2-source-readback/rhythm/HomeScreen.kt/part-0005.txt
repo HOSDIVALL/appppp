@@ -1,0 +1,143 @@
+ discNumber,
+                    onSuccess = { fileWriteSucceeded ->
+                        if (fileWriteSucceeded) {
+                            Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, Toast.LENGTH_SHORT).show()
+                        }
+                        pendingMetadataEditCompleteCallback?.invoke(true)
+                        pendingMetadataEditCompleteCallback = null
+                    },
+                    onError = { errorMessage ->
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        pendingMetadataEditCompleteCallback?.invoke(false)
+                        pendingMetadataEditCompleteCallback = null
+                    },
+                    onPermissionRequired = { pendingRequest ->
+                        try {
+                            val intentSenderRequest = androidx.activity.result.IntentSenderRequest.Builder(
+                                pendingRequest.intentSender
+                            ).build()
+                            writePermissionLauncher.launch(intentSenderRequest)
+                        } catch (e: Exception) {
+                            Toast.makeText(
+                                context,
+                                "Failed to request permission: ${e.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            musicViewModel.cancelPendingMetadataWrite()
+                            pendingMetadataEditCompleteCallback?.invoke(false)
+                            pendingMetadataEditCompleteCallback = null
+                        }
+                    }
+                )
+            }
+        )
+    }
+
+    if (showAddToPlaylistSheet && selectedSongForPlaylist != null) {
+        val playlists by musicViewModel.playlists.collectAsState()
+
+        AddToPlaylistBottomSheet(
+            song = selectedSongForPlaylist!!,
+            playlists = playlists,
+            onDismissRequest = { showAddToPlaylistSheet = false },
+            onAddToPlaylist = { playlist ->
+                onAddSongToPlaylist(selectedSongForPlaylist!!, playlist.id)
+                coroutineScope.launch {
+                    addToPlaylistSheetState.hide()
+                }.invokeOnCompletion {
+                    if (!addToPlaylistSheetState.isVisible) {
+                        showAddToPlaylistSheet = false
+                    }
+                }
+            },
+            onCreateNewPlaylist = {
+                coroutineScope.launch {
+                    addToPlaylistSheetState.hide()
+                }.invokeOnCompletion {
+                    if (!addToPlaylistSheetState.isVisible) {
+                        showAddToPlaylistSheet = false
+                        showCreatePlaylistDialog = true
+                    }
+                }
+            },
+            sheetState = addToPlaylistSheetState
+        )
+    }
+
+    if (showCreatePlaylistDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { 
+                showCreatePlaylistDialog = false
+                selectedSongForPlaylist = null
+            },
+            onConfirm = { name ->
+                musicViewModel.createPlaylist(name)
+                showCreatePlaylistDialog = false
+                selectedSongForPlaylist = null
+            },
+            song = selectedSongForPlaylist,
+            onConfirmWithSong = { name ->
+                selectedSongForPlaylist?.let { song ->
+                    musicViewModel.createPlaylist(name, listOf(song)) { message ->
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
+                } ?: run {
+                    musicViewModel.createPlaylist(name)
+                }
+                showCreatePlaylistDialog = false
+                selectedSongForPlaylist = null
+            }
+        )
+    }
+
+    if (showHomeSectionOrderSheet) {
+        if (isStreamingMode) {
+            chromahub.rhythm.app.features.streaming.presentation.components.settings.StreamingHomeSectionOrderBottomSheet(
+                onDismiss = { showHomeSectionOrderSheet = false },
+                appSettings = AppSettings.getInstance(context)
+            )
+        } else {
+            HomeSectionOrderBottomSheet(
+                onDismiss = { showHomeSectionOrderSheet = false },
+                appSettings = AppSettings.getInstance(context)
+            )
+        }
+    }
+
+    CollapsibleHeaderScreen(
+        title = if (isStreamingMode) context.getString(R.string.streaming_integration_title) else context.getString(R.string.home_title),
+        headerDisplayMode = headerDisplayMode,
+        alwaysCollapsed = false,
+        showAppIcon = showAppIcon,
+        iconVisibilityMode = iconVisibilityMode,
+        headerActions = buildList {
+            val showReorder = !isLandscapeTablet
+            val showSettings = !isTablet && floatingNavigationBar
+
+            if (showReorder) {
+                add(
+                    HeaderAction(
+                        icon = RhythmIcons.Edit,
+                        contentDescription = context.getString(R.string.cd_reorder_home_sections),
+                        onClick = {
+                            HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                            showHomeSectionOrderSheet = true
+                        }
+                    )
+                )
+            }
+            if (showSettings) {
+                add(
+                    HeaderAction(
+                        icon = RhythmIcons.Settings,
+                        contentDescription = context.getString(R.string.home_settings_cd),
+                        onClick = {
+                            HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                            onSettingsClick()
+                        }
+                    )
+                )
+            }
+        },
+    ) { modifier ->
+        if (isStreamingMode) 

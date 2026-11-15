@@ -1,0 +1,104 @@
+          StreamingServiceStateCard(
+                title = errorMessage,
+                subtitle = context.getString(R.string.streaming_home_widget_empty_hint),
+                actionText = context.getString(R.string.streaming_service_setup_reconnect),
+                onAction = {
+                    vm?.clearError()
+                    onConfigureService(serviceName)
+                }
+            )
+        }
+
+        val isTablet = widthSizeClass != WindowWidthSizeClass.Compact || windowScreenWidthDp() >= 600
+        val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
+        val sectionOrder by appSettings.streamingHomeSectionOrder.collectAsState()
+        val showRecentlyPlayed by appSettings.streamingHomeShowRecentlyPlayed.collectAsState()
+        val showArtists by appSettings.streamingHomeShowArtists.collectAsState()
+        val showNewReleases by appSettings.streamingHomeShowNewReleases.collectAsState()
+        val showRecommended by appSettings.streamingHomeShowRecommended.collectAsState()
+
+        @Composable
+        fun RenderStreamingSection(sectionId: String) {
+            when (sectionId) {
+                "RECENTLY_PLAYED" -> {
+                    if (effectiveRecentlyPlayed.isNotEmpty()) {
+                        ModernRecentlyPlayedSection(
+                            recentlyPlayed = effectiveRecentlyPlayed,
+                            onSongClick = onSongClick,
+                            musicViewModel = musicViewModel,
+                            coroutineScope = coroutineScope,
+                            widthSizeClass = widthSizeClass,
+                            heightSizeClass = heightSizeClass
+                        )
+                    }
+                }
+                "NEW_RELEASES" -> {
+                    if (effectiveAlbums.isNotEmpty()) {
+                        Column {
+                            ModernSectionTitle(
+                                title = if (isSyncing || isEffectivelyOffline) stringResource(R.string.streaming_downloaded_albums) else context.getString(R.string.home_new_releases),
+                                subtitle = if (isSyncing) {
+                                    stringResource(R.string.streaming_syncing_downloads_subtitle)
+                                } else {
+                                    context.getString(
+                                        R.string.streaming_home_widget_new_releases_subtitle,
+                                        serviceName.ifBlank { context.getString(R.string.streaming_not_selected) }
+                                    )
+                                },
+                                onPlayAll = {
+                                    playQueueFromMapped(effectiveAlbums.flatMap { it.songs }, 0, false)
+                                },
+                                onShufflePlay = {
+                                    onShuffleQueue(effectiveAlbums.flatMap { it.songs }.mapNotNull { streamingSongById[it.id] })
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            val streamingAlbumsListState = rememberLazyListState()
+                            LazyRow(
+                                state = streamingAlbumsListState,
+                                modifier = Modifier.horizontalEdgeBlend(
+                                    lazyListState = streamingAlbumsListState,
+                                    fadeWidth = 16.dp
+                                ),
+                                contentPadding = PaddingValues(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(
+                                    items = effectiveAlbums,
+                                    key = { "streaming_album_${it.id}" }
+                                ) { album ->
+                                    ModernAlbumCard(
+                                        album = album,
+                                        onClick = { clickedAlbum ->
+                                            streamingAlbumById[clickedAlbum.id]?.let { raw ->
+                                                onNavigateToAlbum(raw)
+                                            }
+                                        },
+                                        widthSizeClass = widthSizeClass,
+                                        heightSizeClass = heightSizeClass,
+                                        onPlayClick = { clickedAlbum ->
+                                            playQueueFromMapped(clickedAlbum.songs, 0, false)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                "ARTISTS" -> {
+                    if (effectiveArtists.isNotEmpty()) {
+                        Column {
+                            ModernSectionTitle(
+                                title = context.getString(R.string.home_top_artists),
+                                subtitle = if (isSyncing) stringResource(R.string.streaming_syncing_downloads_subtitle) else context.getString(R.string.home_top_artists_subtitle),
+                                viewAllAction = onViewAllArtists
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            val streamingArtistsListState = rememberLazyListState()
+                            LazyRow(
+                                state = streamingArtistsListState,
+                                modifier = Modifier.horizontalEdgeBlend(
+                                    lazyListState = streamingArtistsListState,
+                                    fadeWidth = 16.dp
+                                ),
+                                cont

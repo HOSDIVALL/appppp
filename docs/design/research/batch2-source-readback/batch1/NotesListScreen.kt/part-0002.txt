@@ -1,0 +1,156 @@
+= NoteFilter.ALL
+
+    var searchActive by remember { mutableStateOf(false) }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // 收起搜索 = 关面板 + 清焦点 + 收键盘；点外部、点搜索键、点标签都走这一条路
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    fun collapseSearch() {
+        searchActive = false
+        keyboard?.hide()
+        focusManager.clearFocus()
+    }
+
+    // 打开已有笔记的交接点：先把搜索输入结束掉（只收键盘与焦点），再交给上层切页面。
+    // 与 collapseSearch 的区别是这里不动 searchActive——搜索面板、query、匹配结果、
+    // 列表滚动位置都原样留在抽屉背后；打开的是阅读态，编辑页本身不申请焦点，
+    // 所以键盘也不会被带进去。
+    fun openNote(id: String) {
+        keyboard?.hide()
+        focusManager.clearFocus()
+        onOpen(id)
+    }
+
+    BackHandler(enabled = searchActive) {
+        collapseSearch()
+    }
+
+    val pinned = notes.filter { it.pinned }
+    val regular = notes.filterNot { it.pinned }
+    val showSections = !isFiltering && pinned.isNotEmpty() && regular.isNotEmpty()
+
+    // LazyColumn 显示项 -> 笔记的映射（筛选行/分区标题/空状态记为 null）。
+    // 快速定位气泡按这份映射解析目标笔记，不拿 index 直接当笔记下标；
+    // 顺序与下面 items/item 的添加顺序逐项对应。
+    val displayNotes: List<Note?> = buildList {
+        add(null) // __filters__
+        when {
+            notes.isEmpty() -> add(null) // __empty__
+            showSections -> {
+                add(null) // __h_pin__
+                pinned.forEach { add(it) }
+                add(null) // __h_recent__
+                regular.forEach { add(it) }
+            }
+            else -> notes.forEach { add(it) }
+        }
+    }
+    // 数据/排序/筛选/置顶任一变化的指纹：拖动中变了就终止旧映射
+    val listDataKey = notes.hashCode() * 31 +
+        state.query.hashCode() +
+        state.filter.ordinal * 7 +
+        (state.selectedTag?.hashCode() ?: 0) +
+        state.sortMode.ordinal * 13
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .then(
+                if (searchActive) {
+                    Modifier.clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { collapseSearch() }
+                } else Modifier
+            )
+    ) {
+
+        // ---------- 顶栏：标题 + 回收站 + 设置 ----------
+        LargeTopAppBar(
+            title = {
+                // 顶栏内置 16dp 起始内边距；再补 6dp = 22dp，文字字形自带约 2dp 侧距，
+                // 视觉左缘正好落在 24dp 页面上（与列表卡片左缘同一条线）
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.padding(start = AppSpacing.pageText - 16.dp)
+                ) {
+                    Text(
+                        text = s.appName,
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-1).sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "2.0",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            },
+            actions = {
+                // 顶栏只留一个入口：设置。回收站收进设置页，
+                // 回收站里的条数用徽标挂在齿轮上，提示「有东西待清理」。
+                val trashCount = state.trashedNotes.size
+                IconButton(
+                    onClick = onOpenSettings,
+                    // 图标按钮默认贴边 8dp（4dp 顶栏内边距 + 4dp 圆底内缩）；
+                    // 补 16dp 让 40dp 圆底的右缘落在 24dp 基线上，与列表卡片右缘对齐
+                    modifier = Modifier.padding(end = 16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (trashCount > 0) {
+                            BadgedBox(
+                                badge = {
+                                    Badge { Text(if (trashCount > 99) "99+" else "$trashCount") }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Settings,
+                                    contentDescription = s.settings,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = s.settings,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface
+            ),
+            expandedHeight = 116.dp,
+            scrollBehavior = scrollBehavior,
+            windowInsets = WindowInsets(0, 0, 0, 0)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = AppSpacing.pageText,
+                    end = AppSpacing.page - AppSpacing.iconButtonInset,
+                    bottom = 10.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isFiltering) s.matchingNotes(notes.size) else s.notesSubtitle(notes.size),
+                style = Mater

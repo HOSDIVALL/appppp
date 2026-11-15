@@ -1,0 +1,128 @@
+ialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            SortMenu(current = state.sortMode, strings = s, onSelect = state::changeSortMode)
+        }
+
+        // ---------- 搜索 ----------
+        // 不用 DockedSearchBar：它展开时把内容放进 focusable Popup（SearchBarKt 反编译确认，
+        // PopupProperties(focusable=true)），Android 的焦点 Popup 会吞掉面板以外的一切触摸，
+        // 点列表区域永远收不到 —— 这就是「点外部取消不了输入」的根因。
+        // 改用官方 SearchBarDefaults.InputField 组进自己的 Surface（M3 文档支持的自定义容器用法），
+        // 展开内容画在布局里而不是 Popup 里，外部点击交给列表区的 scrim。
+        val searchElevation by animateDpAsState(
+            targetValue = if (searchActive) 8.dp else 0.dp,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+            label = "searchElevation"
+        )
+        val searchTonalElevation by animateDpAsState(
+            targetValue = if (searchActive) 3.dp else 0.dp,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            label = "searchTonalElevation"
+        )
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = searchTonalElevation,
+            shadowElevation = 0.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppSpacing.page)
+                .zIndex(if (searchActive) 1f else 0f)
+                .shadow(searchElevation, RoundedCornerShape(28.dp), clip = false)
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+        ) {
+            Column {
+                SearchBarDefaults.InputField(
+                    query = state.query,
+                    onQueryChange = state::search,
+                    onSearch = { collapseSearch() },
+                    expanded = searchActive,
+                    onExpandedChange = { if (it) searchActive = true else collapseSearch() },
+                    placeholder = { Text(s.searchNotes) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (state.query.isNotEmpty()) {
+                            IconButton(onClick = { state.search("") }) {
+                                Icon(Icons.Filled.Close, contentDescription = s.searchClear)
+                            }
+                        }
+                    }
+                )
+                if (searchActive) {
+                    // 展开区：标签快筛，点一下收起并过滤
+                    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                        Text(
+                            text = s.filterTags,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            item(key = "__suggest_all__") {
+                                FilterChip(
+                                    selected = state.selectedTag == null,
+                                    onClick = {
+                                        state.selectTag(null)
+                                        collapseSearch()
+                                    },
+                                    label = { Text(s.filterAll) }
+                                )
+                            }
+                            items(state.allTags, key = { "suggest_$it" }) { tag ->
+                                FilterChip(
+                                    selected = state.selectedTag == tag,
+                                    onClick = {
+                                        state.selectTag(tag)
+                                        collapseSearch()
+                                    },
+                                    label = { Text("#$tag") }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------- 筛选 chip + 新建按钮 + 笔记列表，同一个 LazyColumn ----------
+        // 以前筛选行和 SplitButton 在列表外面，LazyColumn 自己只剩几张卡片，
+        // 内容高度和视口几乎相同；标题栏一收起视口变大，官方滚动条判定
+        // 「内容不满一屏」就直接不画了 —— 这就是「滚动条不动 + 滑一下就消失」。
+        // 现在整页是一块可滚动内容，滚动条的长度、位置、可视性都由真实内容算。
+        val listState = rememberLazyListState()
+        val bg = MaterialTheme.colorScheme.surface
+        val bottomFade by animateFloatAsState(
+            targetValue = if (listState.canScrollForward) 1f else 0f,
+            animationSpec = tween(180),
+            label = "notesBottomFade"
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    // 底部让出 96dp：列表止于悬浮导航栏上方，
+                    // 否则滚到底时最后一条会被导航栏压住。
+                    // 滚动条已换成自定义可拖动版本（见下方 NotesListScrollbar），
+                    // 这里不再挂 material3 的 nonInteractiveScrollbar——
+                    // 同一列表不允许同时出现两套指示器。
+                    .padding(bottom = ListVisualTokens.listBottomReserve)
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = PaddingValues(
+                    // 卡片左右缘压在 24dp 页面上；右侧不再额外留 28dp，
+                    // 滚动条交

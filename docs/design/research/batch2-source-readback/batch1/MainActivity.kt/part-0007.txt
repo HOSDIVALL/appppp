@@ -1,0 +1,183 @@
+pe.launch {
+                        snackbarHostState.showSnackbar(
+                            if (inline && !note.checklist) {
+                                "已插到「${note.displayTitle}」正文末尾"
+                            } else {
+                                "已添加到「${note.displayTitle}」"
+                            }
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    // ---------- 重命名 ----------
+    renameTargetId?.let { id ->
+        val target = recorder.recordings.firstOrNull { it.id == id }
+        if (target != null) {
+            AlertDialog(
+                onDismissRequest = { renameTargetId = null },
+                title = { Text("重命名") },
+                text = {
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = { renameText = it },
+                        singleLine = true,
+                        shape = CircleShape,
+                        placeholder = { Text("留空就用日期") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            recorder.rename(target, renameText)
+                            renameTargetId = null
+                        }
+                    ) { Text("保存") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { renameTargetId = null }) { Text("取消") }
+                }
+            )
+        }
+    }
+
+    // ---------- 导入确认 ----------
+    pendingImportUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            title = { Text("导入备份") },
+            text = {
+                Text("备份会覆盖当前的 ${state.notes.size} 条笔记和全部图片，确定导入吗？")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingImportUri = null
+                        scope.launch {
+                            val count = state.importBackup(uri)
+                            editingId = null
+                            newNoteId = null
+                            showTrash = false
+                            snackbarHostState.showSnackbar(
+                                if (count >= 0) "已导入 $count 条笔记"
+                                else "这个文件不是有效的备份"
+                            )
+                        }
+                    }
+                ) {
+                    Text("覆盖导入")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImportUri = null }) { Text("取消") }
+            }
+        )
+    }
+
+    // ---------- 精确闹钟提示 ----------
+    if (showExactAlarmHint) {
+        AlertDialog(
+            onDismissRequest = { showExactAlarmHint = false },
+            title = { Text("让提醒更准时") },
+            text = {
+                Text("系统为了省电，默认会把提醒往后挪几分钟到几十分钟。允许「闹钟和提醒」权限后，到点就会准时响。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExactAlarmHint = false
+                        openExactAlarmSettings(context)
+                    }
+                ) {
+                    Text("去开启")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExactAlarmHint = false }) { Text("先这样") }
+            }
+        )
+    }
+
+    // ---------- 字体设置 ----------
+    if (showFontSettings) {
+        FontSettingsDialog(
+            selected = fontState.option,
+            customName = fontState.customFontName,
+            customFamily = customPreviewFamily,
+            onSelect = { fontState.select(it) },
+            onImportFont = { fontImportLauncher.launch(arrayOf("*/*")) },
+            onClearCustom = {
+                fontState.clearCustom()
+                showFontSettings = false
+                scope.launch { snackbarHostState.showSnackbar("已清除自定义字体") }
+            },
+            onDismiss = { showFontSettings = false }
+        )
+    }
+    }
+    }
+}
+
+/**
+ * 跳到系统的「闹钟和提醒」授权页。
+ * 部分 ROM 没有这个页面，就退回应用详情页让用户自己找。
+ */
+private fun openExactAlarmSettings(context: Context) {
+    val packageUri = Uri.parse("package:${context.packageName}")
+    val direct = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri)
+    } else {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+    }
+
+    runCatching { context.startActivity(direct) }
+        .recoverCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+            )
+        }
+}
+
+/** 移到回收站 + 底部「撤销」 */
+private fun trashNote(
+    state: NotesState,
+    note: Note,
+    host: SnackbarHostState,
+    scope: CoroutineScope,
+    strings: com.example.myapplicationfirstapp.ui.i18n.AppStrings
+) {
+    val trashed = state.moveToTrash(note.id) ?: return
+    scope.launch {
+        showUndo(
+            host = host,
+            message = strings.movedToTrash(trashed.displayTitle),
+            undoLabel = strings.undo,
+            onUndo = { state.restoreFromTrash(trashed.id) }
+        )
+    }
+}
+
+private suspend fun showUndo(
+    host: SnackbarHostState,
+    message: String,
+    undoLabel: String = "撤销",
+    onUndo: () -> Unit
+) {
+    val result = host.showSnackbar(
+        message = message,
+        actionLabel = undoLabel,
+        withDismissAction = true,
+        duration = SnackbarDuration.Short
+    )
+    if (result == SnackbarResult.ActionPerformed) onUndo()
+}
+
+/**
+ * 把用户挑的字体文件拷进内部存储（覆盖上一份），
+ * 并用系统 Typeface 试解析——解不开就抛异常，让调用方提示格式无效。
+ * 返回 [文件, 展示名]（展示名去掉扩展名）。
+ */
+private fun importFont(context: Context, uri: Uri): Pair<File,

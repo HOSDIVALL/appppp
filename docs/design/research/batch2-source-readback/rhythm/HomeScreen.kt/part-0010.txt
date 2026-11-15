@@ -1,0 +1,112 @@
+entPadding = PaddingValues(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(
+                                    items = effectiveArtists,
+                                    key = { "streaming_artist_${it.id}" }
+                                ) { artist ->
+                                    ModernArtistCard(
+                                        artist = artist,
+                                        songs = artist.songs,
+                                        onClick = {
+                                            streamingArtistById[artist.id]?.let { raw ->
+                                                onNavigateToArtist(raw)
+                                            }
+                                        },
+                                        widthSizeClass = widthSizeClass,
+                                        heightSizeClass = heightSizeClass,
+                                        onPlayClick = { clickedArtist ->
+                                            playQueueFromMapped(clickedArtist.songs, 0, false)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                "RECOMMENDED", "DISCOVER" -> {
+                    if (!isSyncing && effectiveSongs.isNotEmpty()) {
+                        ModernRecommendedSection(
+                            recommendedSongs = effectiveSongs,
+                            artists = effectiveArtists,
+                            onSongClick = { song ->
+                                val index = effectiveSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+                                playQueueFromMapped(effectiveSongs, index, false)
+                            },
+                            onPlayClick = { songsToPlay ->
+                                playQueueFromMapped(songsToPlay, 0, false)
+                            }
+                        )
+                    }
+                }
+                "RHYTHM_GUARD" -> {
+                    if (hasStreamingContent && showRhythmGuardSection && rhythmGuardMode != AppSettings.RHYTHM_GUARD_MODE_OFF) {
+                        val rhythmGuardTimeoutRemainingMs = (rhythmGuardTimeoutUntilMs - System.currentTimeMillis()).coerceAtLeast(0L)
+                        val isRhythmGuardTimeoutActive = rhythmGuardTimeoutRemainingMs > 0L
+
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            ModernSectionTitle(
+                                title = stringResource(id = R.string.settings_rhythm_guard),
+                                subtitle = stringResource(id = R.string.settings_rhythm_guard_list_desc)
+                            )
+                            RhythmGuardCard(
+                                rhythmGuardMode = rhythmGuardMode,
+                                rhythmGuardRecommendedMinutes = rhythmGuardRecommendedMinutes,
+                                todayListeningMinutes = todayListeningMinutes,
+                                isGuardTimeoutActive = isRhythmGuardTimeoutActive,
+                                guardTimeoutRemainingMs = rhythmGuardTimeoutRemainingMs,
+                                onCardClick = onNavigateToRhythmGuard
+                            )
+                        }
+                    }
+                }
+                "STATS", "RHYTHM_STATS" -> {
+                    if (!isSyncing && hasStreamingContent && showRhythmStatsSection) {
+                        ModernListeningStatsSection(onClick = onNavigateToStats)
+                    }
+                }
+            }
+        }
+
+        fun isStreamingSectionVisible(sectionId: String): Boolean = when (sectionId) {
+            "RECENTLY_PLAYED" -> showRecentlyPlayed && effectiveRecentlyPlayed.isNotEmpty()
+            "NEW_RELEASES" -> showNewReleases && effectiveAlbums.isNotEmpty()
+            "ARTISTS" -> showArtists && effectiveArtists.isNotEmpty()
+            "RECOMMENDED", "DISCOVER" -> showRecommended && !isSyncing && effectiveSongs.isNotEmpty()
+            "RHYTHM_GUARD" -> hasStreamingContent && showRhythmGuardSection && rhythmGuardMode != AppSettings.RHYTHM_GUARD_MODE_OFF
+            "STATS", "RHYTHM_STATS" -> !isSyncing && hasStreamingContent && showRhythmStatsSection
+            else -> false
+        }
+
+        if (isLandscapeTablet) {
+            val visibleSections = sectionOrder.filter { it != "DISCOVER" && isStreamingSectionVisible(it) }
+            val leftSections = visibleSections.filterIndexed { index, _ -> index % 2 == 0 }
+            val rightSections = visibleSections.filterIndexed { index, _ -> index % 2 == 1 }
+
+            if (visibleSections.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(sectionSpacing)
+                    ) {
+                        for (sectionId in leftSections) {
+                            RenderStreamingSection(sectionId)
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(sectionSpacing)
+                    ) {
+                        for (sectionId in rightSections) {
+                            RenderStreamingSection(sectionId)
+                        }
+                    }
+                }
+            }
+        } else {
+            for (sectionId in sectionOrder) {
+                if (sectionId != "DISCOVER" && isStreamingSectionVisible(sectionId)) {
+                    RenderSt

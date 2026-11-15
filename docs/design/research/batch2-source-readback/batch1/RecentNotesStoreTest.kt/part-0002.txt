@@ -1,0 +1,17 @@
+getDatabasePath("recent_notes.db")
+        val dir = checkNotNull(dbFile.parentFile)
+        check(dir.isDirectory)
+        check(dir.setWritable(false, false)) { "无法把沙箱数据库目录设为只读" }
+        try {
+            val failure = runCatching { store().load() }.exceptionOrNull()
+            assertNotNull("打不开的库必须抛错", failure)
+            assertTrue(
+                "应为 SQLite 异常，实际：${failure?.javaClass?.name}",
+                failure is android.database.SQLException
+            )
+        } finally {
+            dir.setWritable(true, true)
+        }
+        assertFalse("不得写进真实 notes.json", File(sandbox.rootDir, "files/notes.json").exists())
+    }
+}

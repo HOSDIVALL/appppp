@@ -1,0 +1,140 @@
+ShowPlayButton by appSettings.homeDiscoverShowPlayButton.collectAsState()
+    val discoverShowGradient by appSettings.homeDiscoverShowGradient.collectAsState()
+
+    // Enhanced artist computation
+    val availableArtists = remember(topArtists) {
+        val collaborationSeparators = listOf(
+            ", ", ",", " & ", " and ", "&", " feat. ", " featuring ", " ft. ",
+            " with ", " x ", " X ", " + ", " vs ", " VS ", " / ", ";", " · "
+        )
+
+        val collaborationRegex = collaborationSeparators
+            .map { Regex.escape(it) }
+            .joinToString("|")
+            .toRegex(RegexOption.IGNORE_CASE)
+
+        topArtists.filter { artist ->
+            !artist.name.contains(collaborationRegex)
+        }
+    }
+
+    // Featured albums with stable ID preservation across library & background metadata updates
+    var currentFeaturedAlbums by remember { mutableStateOf<List<Album>>(emptyList()) }
+
+    // Synchronize currentFeaturedAlbums when library/albums change without reshuffling
+    LaunchedEffect(albums, discoverItemCount) {
+        if (albums.isEmpty()) {
+            currentFeaturedAlbums = emptyList()
+            return@LaunchedEffect
+        }
+        val targetCount = discoverItemCount.coerceAtLeast(1)
+        if (currentFeaturedAlbums.isEmpty()) {
+            currentFeaturedAlbums = albums.shuffled().take(targetCount)
+        } else {
+            val albumsById = albums.associateBy { it.id }
+            val updated = currentFeaturedAlbums.mapNotNull { albumsById[it.id] }
+            if (updated.size < targetCount && albums.size > updated.size) {
+                val existingIds = updated.map { it.id }.toSet()
+                val remaining = albums.filter { it.id !in existingIds }.shuffled()
+                currentFeaturedAlbums = (updated + remaining).take(targetCount)
+            } else if (updated.size > targetCount) {
+                currentFeaturedAlbums = updated.take(targetCount)
+            } else if (updated.isNotEmpty()) {
+                currentFeaturedAlbums = updated
+            } else {
+                currentFeaturedAlbums = albums.shuffled().take(targetCount)
+            }
+        }
+    }
+
+    // Auto-refresh featured content periodically every 45s (stable loop, decoupled from album list emissions)
+    val latestAlbums by rememberUpdatedState(albums)
+    val latestDiscoverItemCount by rememberUpdatedState(discoverItemCount)
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(45000)
+            val currentList = latestAlbums
+            val targetCount = latestDiscoverItemCount.coerceAtLeast(1)
+            if (currentList.isNotEmpty()) {
+                currentFeaturedAlbums = if (currentList.size > targetCount) {
+                    currentList.shuffled().take(targetCount)
+                } else {
+                    currentList.shuffled()
+                }
+            }
+        }
+    }
+
+    val lazyListState = rememberLazyListState()
+    val isTablet = widthSizeClass != WindowWidthSizeClass.Compact || windowScreenWidthDp() >= 600
+    val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
+
+    val horizontalPadding = when (widthSizeClass) {
+        WindowWidthSizeClass.Compact -> 20.dp
+        WindowWidthSizeClass.Medium -> 48.dp
+        WindowWidthSizeClass.Expanded -> 64.dp
+        else -> 20.dp
+    }
+    val sectionSpacing = when (widthSizeClass) {
+        WindowWidthSizeClass.Compact -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 32.dp
+            else -> 40.dp
+        }
+        WindowWidthSizeClass.Medium -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 48.dp
+            else -> 56.dp
+        }
+        WindowWidthSizeClass.Expanded -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 52.dp
+            else -> 64.dp
+        }
+        else -> 40.dp
+    }
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.background
+    ) {
+        val pullToRefreshState = rememberPullToRefreshState()
+        val isListAtTop by remember { derivedStateOf { lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0 } }
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            state = pullToRefreshState,
+            enabled = isListAtTop,
+            modifier = Modifier.fillMaxSize(),
+            indicator = {
+                PullToRefreshDefaults.LoadingIndicator(
+                    state = pullToRefreshState,
+                    isRefreshing = isRefreshing,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+        ) {
+        LazyColumn(
+            state = lazyListState,
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(sectionSpacing),
+            contentPadding = PaddingValues(bottom = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding())
+        ) {
+        @Composable
+        fun RenderLocalSection(sectionId: String) {
+            when (sectionId) {
+                "RECENTLY_PLAYED" -> {
+                    if (showRecentlyPlayed) {
+                        ModernRecentlyPlayedSection(
+                            recentlyPlayed = recentlyPlayed.take(recentlyPlayedCount),
+                            onSongClick = onSongClick,
+                            musicViewModel = musicViewModel,
+                            coroutineScope = coroutineScope,
+                            widthSizeClass = widthSizeClass,
+                            heightSizeClass = heightSizeClass
+                        )
+                    }
+                }
+                "ARTISTS" -> {
+                    if (showArtists) {
+                        if (availableArtists.isNotEmpty()) {
+                            ModernArtistsSection(
+                                artists = availableArtists.take(artistsCount),
+                                s

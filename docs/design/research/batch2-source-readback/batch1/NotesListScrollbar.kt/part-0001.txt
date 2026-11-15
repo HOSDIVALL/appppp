@@ -1,0 +1,137 @@
+package com.example.myapplicationfirstapp.ui
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListItemInfo
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.myapplicationfirstapp.data.Note
+import com.example.myapplicationfirstapp.data.SortMode
+import com.example.myapplicationfirstapp.ui.i18n.AppStrings
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlin.math.abs
+
+/**
+ * 100% 严格对齐 Rhythm 原版 ExpressiveScrollBar.kt 源码实现：
+ * - 轨道：在手柄上下各留 gap (8dp)，上方从 0 到 handleY-gap，下方从 handleY+height+gap 到总高，两端 StrokeCap.Round
+ * - 手柄形状：左侧伸出大半圆 (indicatorWidth / 2)，右侧保持小圆角 (6dp) 的非对称胶囊！
+ * - 手柄内部：展开时淡入 Material unfold_more (上下双箭头图标)
+ * - 气泡：手柄左侧 42dp 的 40×40dp 圆球，单字居中，绝不遮挡正文！
+ */
+@Composable
+fun NotesListScrollbar(
+    listState: LazyListState,
+    displayNotes: List<Note?>,
+    sortMode: SortMode,
+    strings: AppStrings,
+    contentKey: Int,
+    modifier: Modifier = Modifier,
+    minHeight: Dp = 48.dp,
+    thickness: Dp = 8.dp,
+    indicatorExpandedWidth: Dp = 24.dp,
+    indicatorExpandedWidthBoost: Dp = 4.dp,
+    indicatorRightCornerRadius: Dp = 6.dp,
+    paddingEnd: Dp = 4.dp,
+    trackGap: Dp = 8.dp
+) {
+    val canScrollForward by remember(listState) { derivedStateOf { listState.canScrollForward } }
+    val canScrollBackward by remember(listState) { derivedStateOf { listState.canScrollBackward } }
+    val canScroll = canScrollForward || canScrollBackward
+
+    val tracker = remember(listState) { AxisTracker() }
+    val expandedIndicatorWidth = indicatorExpandedWidth + indicatorExpandedWidthBoost
+
+    BoxWithConstraints(modifier = modifier) {
+        if (!canScroll) return@BoxWithConstraints
+
+        var isPressed by remember(listState) { mutableStateOf(false) }
+        var isDragging by remember(listState) { mutableStateOf(false) }
+        var dragProgress by remember(listState) { mutableFloatStateOf(-1f) }
+        var pendingScrollIndex by remember(listState) { mutableIntStateOf(-1) }
+        val displayedProgress = remember(listState) { Animatable(0f) }
+        var hasSyncedDisplayedProgress by remember(listState) { mutableStateOf(false) }
+
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val trackBgColor = MaterialTheme.colorScheme.secondaryContainer
+        val indicatorRightCornerRadiusPx = with(LocalDensity.current) { indicatorRightCornerRadius.toPx() }
+
+        val isInteracting = isPressed || isDragging
+
+        val animatedWidth by animateDpAsState(
+            targetValue = if (isInteracting) expandedIndicatorWidth else thickness,
+            animationSpec = tween(durationMillis = 200),
+            label = "WidthAnimation"
+        )
+
+        val iconAlpha by animateFloatAsState(
+            targetValue = if (isInteracting) 1f else 0f,
+            animationSpec = tween(durationMillis = 200),
+            label = "IconAlpha"
+        )
+
+        val density = LocalDensity.current
+        val constraintsMaxHeight = maxHeight
+        val coarseJumpThresholdPx = with(density) { 16.dp.toPx() }
+        val smoothJumpMinDistancePx = with(density) { 10.dp.toPx() }
+
+        fun getScrollStats(): ScrollStats {
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            val totalItemsCount = layoutInfo.totalItemsCount
+
+            if (visibleItems.isEmpty() || totalItemsCount == 0) {
+                return ScrollStats(0f, 1, 1f)
+            }
+
+            tracker.resetIfNeeded(totalItemsCount, layoutInfo.mainAxisItemSpacing)
+        

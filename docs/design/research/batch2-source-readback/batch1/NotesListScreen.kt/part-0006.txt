@@ -1,0 +1,157 @@
+ Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = strings.deleteToTrash,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+    ) {
+        NoteRow(
+            note = note,
+            thumbnail = thumbnail,
+            strings = strings,
+            onClick = onClick,
+            onTogglePin = onTogglePin,
+            interactionSource = interactionSource,
+            shape = shape
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun NoteRow(
+    note: Note,
+    thumbnail: java.io.File?,
+    strings: AppStrings,
+    onClick: () -> Unit,
+    onTogglePin: () -> Unit,
+    interactionSource: MutableInteractionSource,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(ListVisualTokens.groupInnerCorner)
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val cookie = MaterialShapes.Cookie12Sided.toShape()
+
+    val icon = when {
+        note.checklist -> Icons.Filled.Checklist
+        note.images.isNotEmpty() -> Icons.Filled.Image
+        note.remindAt != null -> Icons.Filled.Notifications
+        else -> Icons.Filled.Description
+    }
+
+    val coverColor = if (note.pinned) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val coverIconColor = if (note.pinned) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    val done = note.doneCount
+    val total = note.todos.size
+
+    Box {
+        Card(
+            shape = shape,
+            colors = CardDefaults.cardColors(
+                containerColor = if (note.pinned) {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                }
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                // 72dp 是下限而不是硬高度：两行摘要时行可以长高，不裁字
+                .heightIn(min = ListVisualTokens.rowMinHeight)
+                // 点击与长按仍是原来那一套；沿用同一个 interactionSource，
+                // 上面那层的按压反馈才不会变成第二套手势/第二套组件
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    onClick = onClick,
+                    onLongClick = { menuOpen = true }
+                )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = ListVisualTokens.cardInset,
+                        end = ListVisualTokens.cardInset,
+                        top = 8.dp,
+                        bottom = 8.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 保留十二瓣曲奇图形遮罩（48dp 图标/缩略图），嵌在行高里垂直居中
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(cookie)
+                        .background(coverColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (thumbnail != null) {
+                        AttachmentImage(
+                            file = thumbnail,
+                            modifier = Modifier.fillMaxSize(),
+                            targetPx = 240
+                        )
+                    } else {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = coverIconColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = note.displayTitle,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (note.pinned) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    // 摘要：正文/清单项的一句话预览。没有正文也没有媒体时不占行，
+                    // 免得每张卡都挂一句「暂无内容」把层级拉平。
+                    val hasPreview = note.content.isNotBlank() ||
+                        note.hasTodos ||
+                        note.images.isNotEmpty() ||
+                        note.audio.isNotEmpty()
+                    if (hasPreview) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = note.preview,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+          

@@ -1,0 +1,18 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt"
+  },
+  "bytes": 1444,
+  "git_blob": "cf0abd0b68192e12ad75ff8901375f659eaed134",
+  "sha256": "fb61789b2821eebb299e06e34138fa2a1be01dda99c8af9164ae91558af10c3b",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 1444,
+      "sha256": "fb61789b2821eebb299e06e34138fa2a1be01dda99c8af9164ae91558af10c3b"
+    }
+  ],
+  "symbol_hits": []
+}

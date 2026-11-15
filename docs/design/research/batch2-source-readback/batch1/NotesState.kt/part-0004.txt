@@ -1,0 +1,264 @@
+rdingId: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (recordingId !in note.audio) return
+
+
+
+        _notes[index] = note.copy(
+
+            audio = note.audio - recordingId,
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        persist()
+
+    }
+
+
+
+    /**
+
+     * 从录音页「添加到笔记」→「插到正文」。
+
+     *
+
+     * 既把录音记进 [Note.audio]（这样删笔记时能顺着清文件），
+
+     * 也在正文末尾补一个 `!audio(id)` 标记——编辑页会把它渲染成可播放的卡片。
+
+     */
+
+    fun addAudioToBody(id: String, recordingId: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        // 清单笔记没有正文（内容在 todos 里），插正文等于插进黑洞，直接当附件挂上
+
+        if (note.checklist) {
+
+            addAudio(id, recordingId)
+
+            return
+
+        }
+
+        if (InlineAudio.idsIn(note.content).contains(recordingId)) return
+
+
+
+        val marker = InlineAudio.inline(recordingId)
+
+        val body = note.content.trimEnd()
+
+
+
+        _notes[index] = note.copy(
+
+            content = if (body.isEmpty()) marker else "$body\n\n$marker",
+
+            audio = if (recordingId in note.audio) note.audio else note.audio + recordingId,
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        persist()
+
+    }
+
+
+
+    // ============ 备份 ============
+
+
+
+    /** 导出全部笔记（含回收站）和图片，成功返回条数，失败返回 -1 */
+
+    suspend fun exportBackup(uri: Uri): Int {
+
+        val snapshot = _notes.toList()
+
+        return if (repository.exportBackup(uri, snapshot)) snapshot.size else -1
+
+    }
+
+
+
+    /**
+
+     * 用备份覆盖当前数据。
+
+     *
+
+     * 选择「覆盖」而不是「合并」：合并时同 id 的笔记谁新谁旧、
+
+     * 图片文件名撞车都很难解释清楚，覆盖的行为最可预期。
+
+     * @return 导入的条数，失败返回 -1
+
+     */
+
+    suspend fun importBackup(uri: Uri): Int {
+
+        val imported = repository.importBackup(uri) ?: return -1
+
+
+
+        // 先把备份里没有的旧图片删掉，再整体替换笔记
+
+        repository.pruneAttachments(imported.flatMap(::allImageNames).toSet())
+
+
+
+        _notes.clear()
+
+        _notes.addAll(imported)
+
+        persist()
+
+        // 只清理指向旧数据里已消失笔记的记录；备份里仍在的 id 保留原有顺序
+        pruneRecentTo(imported.map { it.id }.toSet())
+
+        return imported.size
+
+    }
+
+
+
+    /** 一条笔记引用到的所有图片：附件列表 + 正文里的标记，去重 */
+
+    private fun allImageNames(note: Note): List<String> =
+
+        (note.images + note.inlineImages).distinct()
+
+
+
+    private fun sorted(list: List<Note>): List<Note> {
+
+        val pinnedFirst = compareByDescending<Note> { it.pinned }
+
+        return when (sortMode) {
+
+            SortMode.UPDATED -> list.sortedWith(pinnedFirst.thenByDescending { it.updatedAt })
+
+            SortMode.CREATED -> list.sortedWith(pinnedFirst.thenByDescending { it.createdAt })
+
+            SortMode.TITLE -> list.sortedWith(
+
+                pinnedFirst.thenBy(String.CASE_INSENSITIVE_ORDER) { it.displayTitle }
+
+            )
+
+        }
+
+    }
+
+
+
+    /** Observable diagnostic only; UI presentation/retry is a separate integration task. */
+    var persistenceError by mutableStateOf<String?>(null)
+        private set
+
+    // ============ 最近使用（元数据，独立于正文） ============
+
+    /** 由独立 recent_notes.db 读回的原始记录，顺序以 openOrder 为准 */
+    var recentUsages by mutableStateOf<List<RecentNoteUsage>>(emptyList())
+        private set
+
+    /** 最近使用自己的错误通道：元数据坏了不能连带正文的 persistenceError */
+    var recentError by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * 首页轮播真正展示的列表：只在「存在且不在回收站」的笔记里挑，
+     * 顺序来自打开顺序，不用 updatedAt 伪造。软删除的笔记只是暂时排除，记录本身保留。
+     */
+    val recentNotes: List<Note>
+        get() = recentNotesForDisplay(recentUsages, _notes, RECENT_LIMIT)
+
+    /**
+     * 每次读写元数据都领一个令牌，只有最新一次的结果能写回状态。
+     * 加载、打开、删除交错时，慢回来的旧快照不会覆盖新状态。
+     */
+    private val recentToken = AtomicInteger(0)
+
+    /**
+     * 统一的「打开笔记」入口：笔记必须存在且不在回收站，确认后才记录一次使用。
+     *
+     * 只有用户真的发起打开（列表点击、轮播点击、点通知）时才走这里；
+     * 旋转、进程恢复只是把 editingId 还原，不经过本方法，所以不会重复计次。
+     */
+    fun openNote(id: String): Note? {
+        val note = _notes.firstOrNull { it.id == id } ?: return null
+        if (note.deletedAt != null) return null
+        recordRecentOpen(note.id)
+        return note
+    }
+
+    /** 启动时读一次元数据；失败只落 recentError，不阻塞正文加载 */
+    suspend fun refreshRecent() {
+        val token = recentToken.incrementAndGet()
+        try {
+            val snapshot = recentStore.load()
+            if (token == recentToken.get()) {
+                recentUsages = snapshot
+                recentError = null
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            if (token == recentToken.get()) recentError = recentFailure(failure)
+        }
+    }
+
+    private fun recordRecentOpen(id: String) {
+        val token = recentToken.incrementAndGet()
+        scope.launch {
+            try {
+                val snapshot = recentStore.recordOpened(id)
+                if (token == recentToken.get()) {
+                    recentUsages = snapshot
+                    recentError = null
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                // 记录失败不影响这次打开：笔记照常打开，正文与保存顺序都不动
+                if (token == recentToken.get()) recentError = recentFailure(failure)
+            }
+        }
+    }
+
+    /** 永久删除 / 清空回收站 / 过期回收站清理后，把这些 id 的元数据一并清掉 */
+    private fun forgetRecent(ids: Collection<String>) {
+        val clean = ids.filter { it.isNotBlank() }.distinct()
+        if (clean.isEmpty()) return
+        val token = recentToken.incrementAndGet()
+        scope.launch {
+            try {
+                val snapshot = recentStore.forgetAll(clean)
+                if (token == recentToken.get()) {
+                    recentUsages = snapshot
+                    recentError = null
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (token == recentToken.get()) recentError = recentFailure(failure)
+          

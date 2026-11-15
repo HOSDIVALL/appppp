@@ -1,0 +1,22 @@
+List<RecentNoteUsage> {
++            if (failRecord) error("recent database is read-only")
++            recorded += noteId
++            rows.removeAll { it.noteId == noteId }
++            order += 1
++            rows.add(0, RecentNoteUsage(noteId, openedAt, order))
++            // 返回「调用当时」的快照：如果这里挂起，回来时它已经是旧数据
++            val snapshot = rows.toList()
++            gate?.await()
++            return snapshot
++        }
++
++        override suspend fun forget(noteId: String): List<RecentNoteUsage> =
++            forgetAll(listOf(noteId))
++
++        override suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage> {
++            forgotten += noteIds
++            rows.removeAll { it.noteId in noteIds }
++            return rows.toList()
++        }
++    }
++}

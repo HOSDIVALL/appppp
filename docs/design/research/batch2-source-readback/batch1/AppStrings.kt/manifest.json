@@ -1,0 +1,23 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/ui/i18n/AppStrings.kt"
+  },
+  "bytes": 11409,
+  "git_blob": "8b45674d31e2e06da87a460f898a1885a444e11c",
+  "sha256": "13b881aac341b17e420b5a8886fcb0a8e5fed803d8f7a40f453611477e7c2981",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 7032,
+      "sha256": "773dc076ee2ee1945dcf85e227d2603ab49fb83d3588fa8c3d3f4ad538360a8e"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 4377,
+      "sha256": "fb0b328081d71efd55f6f1a9e698ed8afc5d8a455bf1d7a62f7157894db23828"
+    }
+  ],
+  "symbol_hits": []
+}

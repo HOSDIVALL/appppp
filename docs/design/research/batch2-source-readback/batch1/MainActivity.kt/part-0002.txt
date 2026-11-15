@@ -1,0 +1,177 @@
+d；消费掉就置空 */
+    private var pendingNoteId by mutableStateOf<String?>(null)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // 真正的边到边显示：内容铺到状态栏和导航栏后面，和系统应用一致
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+
+        pendingNoteId = intent?.getStringExtra(ReminderNotifications.EXTRA_OPEN_NOTE)
+        ReminderNotifications.ensureChannel(this)
+
+        setContent {
+            NotesApp(
+                openNoteId = pendingNoteId,
+                onOpenNoteHandled = {
+                    pendingNoteId = null
+                    // 消费掉 intent 里的 id：旋转重建后不要把同一条再当成一次新的打开
+                    intent?.removeExtra(ReminderNotifications.EXTRA_OPEN_NOTE)
+                }
+            )
+        }
+    }
+
+    // App 在后台时点通知，走这里而不是重新创建 Activity
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(ReminderNotifications.EXTRA_OPEN_NOTE)?.let { pendingNoteId = it }
+    }
+}
+
+/**
+ * App 的根节点：负责「现在该显示哪个页面」。
+ *
+ * 三个页面：列表 / 编辑 / 回收站。
+ * 仍然不用 Navigation 库：三个页面两个变量就够了，
+ * 等页面多起来、需要转场动画和深链接时再引入 navigation-compose。
+ *
+ * 最外层的 Box 只为一件事：全屏看图要盖住所有内容（含 FAB、Snackbar），
+ * 又必须铺到状态栏和导航栏后面，所以放在 Scaffold 外面单独叠一层。
+ */
+@Composable
+fun NotesApp(
+    openNoteId: String? = null,
+    onOpenNoteHandled: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val settings = remember { AppSettings(context) }
+
+    val state = remember {
+        NotesState(
+            repository = NotesRepository(context),
+            settings = settings,
+            scope = scope,
+            scheduler = ReminderScheduler(context),
+            recentStore = RecentNotesStore.getInstance(context)
+        )
+    }
+
+    // 主题字体：选项 + 已导入的自定义字体（立即持久化）
+    val fontState = remember { FontState(context) }
+
+    // 录音页的状态：录音机 / 播放器 / 文件列表
+    val recorder = remember { RecorderState(context, settings, scope) }
+
+    // 全局触觉入口：语义化、单次触发，不跟重组绑定
+    val haptics = rememberAppHaptics()
+
+    // 录音流程的一次性结果事件（暂停 / 保存 / 删除 / 失败）在这里消费。
+    // SharedFlow 没有 replay：重组、旋转、从别的页面回来都不会重放旧事件。
+    LaunchedEffect(recorder, haptics) {
+        recorder.hapticCues.collect { cue ->
+            when (cue) {
+                HapticCue.Paused -> haptics.toggleOff()
+                HapticCue.Saved -> haptics.success()
+                HapticCue.Discarded -> haptics.success()
+                HapticCue.Failure -> haptics.failure()
+            }
+        }
+    }
+
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var newNoteId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showTrash by rememberSaveable { mutableStateOf(false) }
+    var showFontSettings by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+
+    // Notes GO 2.0：主题预设 + 界面语言（都立即持久化）
+    var themePresetId by remember { mutableStateOf(settings.themePresetId) }
+    var language by remember { mutableStateOf(AppLanguage.fromTag(settings.appLanguage)) }
+    val strings = remember(language) { stringsFor(language) }
+    val themePreset = themePresetOf(themePresetId)
+
+    // 主页的两个页签：笔记 / 录音
+    var homeTab by rememberSaveable { mutableStateOf(HomeTab.NOTES) }
+
+    // 正在查看的录音（详情页），null 表示在录音列表
+    var openedRecordingId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // 全局深浅色：跟随系统 / 浅色 / 深色
+    var themeMode by remember { mutableStateOf(settings.themeMode) }
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    // 选好备份文件后先弹确认框，确认了才真的覆盖
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
+    // 系统没给「精确闹钟」时提示一次，别每次都弹
+    var showExactAlarmHint by remember { mutableStateOf(false) }
+
+    // 三点抽屉正在操作的那段录音 / 重命名对话框
+    var sheetRecordingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var renameTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+    var renameText by remember { mutableStateOf("") }
+
+    // 「添加到笔记」：正在挑笔记的那段录音
+    var notePickerRecordingId by rememberSaveable { mutableStateOf<String?>(null) }
+
+
+    // 编辑页在退场动画期间 editingId 已经被清空，
+    // 这里留一份最后可见的快照，抽屉滑下去的过程才不会突然变空白。
+    // 放在根作用域是因为编辑页现在是叠在 Scaffold 外面的一层
+    var editorMemo by remember { mutableStateOf(state.findNote(editingId)) }
+    LaunchedEffect(editingId) {
+        if (editingId != null) editorMemo = state.findNote(editingId)
+    }
+
+    // 全屏看图：图片清单 + 从第几张开始
+    var viewerFiles by remember { mutableStateOf<List<File>?>(null) }
+    var viewerIndex by remember { mutableStateOf(0) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) { state.load() }
+
+    /** 新建笔记 / 待办：导航栏的 + 和菜单里的「新建待办」共用这一处 */
+    fun createNoteNow(checklist: Boolean = false) {
+        val note = state.createNote(checklist)
+        newNoteId = note.id
+        editingId = note.id
+    }
+
+    // ---------- 录音：权限 + 起飞 ----------
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            recorder.start()
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("没有麦克风权限就没法录音") }
+        }
+    }
+
+    /** 点导航栏那颗橙色麦克风 */
+    fun startRecording() {
+        if (recorder.isRecording) return
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            recorder.start()
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    /** 把录音当音频文件分享出去 */
+    fun shareRecording(recording: com.example.myapplicationfirstapp.data.Recording) {
+        runCatching {
+         

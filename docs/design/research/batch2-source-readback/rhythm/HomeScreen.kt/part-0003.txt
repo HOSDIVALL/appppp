@@ -1,0 +1,116 @@
+entation.components.common.RhythmButtonWeighted
+import chromahub.rhythm.app.shared.presentation.components.common.RhythmButtonSize
+import chromahub.rhythm.app.shared.presentation.components.common.ActionProgressLoader
+import chromahub.rhythm.app.shared.presentation.components.common.NetworkOperationLoader
+import chromahub.rhythm.app.shared.presentation.components.common.ExpressiveAnimatedCounter
+import chromahub.rhythm.app.shared.presentation.components.common.horizontalEdgeBlend
+
+import chromahub.rhythm.app.shared.presentation.components.bottomsheets.AddToPlaylistBottomSheet
+import chromahub.rhythm.app.shared.presentation.components.bottomsheets.SongInfoBottomSheet
+import chromahub.rhythm.app.shared.presentation.components.AudioQualityBadges
+import chromahub.rhythm.app.shared.presentation.components.AudioQualityIcon
+import chromahub.rhythm.app.util.ImageUtils
+import chromahub.rhythm.app.util.M3ImageUtils
+import chromahub.rhythm.app.shared.presentation.viewmodel.AppVersion
+import chromahub.rhythm.app.shared.presentation.components.dialogs.CreatePlaylistDialog
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
+import java.util.Calendar
+import kotlin.random.Random
+import androidx.core.text.HtmlCompat
+import androidx.compose.ui.res.stringResource
+import chromahub.rhythm.app.util.windowScreenWidthDp
+import chromahub.rhythm.app.util.windowScreenHeightDp
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun HomeScreen(
+    musicViewModel: chromahub.rhythm.app.viewmodel.MusicViewModel,
+    songs: List<Song>,
+    albums: List<Album>,
+    artists: List<Artist>,
+    recentlyPlayed: List<Song>,
+    currentSong: Song?,
+    isPlaying: Boolean,
+    onSongClick: (Song) -> Unit,
+    onAlbumClick: (Album) -> Unit,
+    onArtistClick: (Artist) -> Unit,
+    onPlayPause: () -> Unit,
+    onPlayerClick: () -> Unit,
+    onViewAllSongs: () -> Unit,
+    onViewAllAlbums: () -> Unit,
+    onViewAllArtists: () -> Unit,
+    onSkipNext: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    onNavigateToLibrary: () -> Unit = {},
+    onAddToQueue: (Song) -> Unit = {},
+    onAddSongToPlaylist: (Song, String) -> Unit = { _, _ -> },
+    onNavigateToPlaylist: (String) -> Unit = {},
+    onCreatePlaylist: (String) -> Unit = { _ -> },
+    onNavigateToStats: () -> Unit = {},
+    onNavigateToRhythmGuard: () -> Unit = {},
+    onNavigateToArtist: (Artist) -> Unit = {},
+    isStreamingMode: Boolean = false,
+    streamingViewModel: chromahub.rhythm.app.features.streaming.presentation.viewmodel.StreamingMusicViewModel? = null,
+    streamingSongs: List<Song> = emptyList(),
+    streamingAlbums: List<Album> = emptyList(),
+    streamingArtists: List<Artist> = emptyList(),
+    streamingPlaylists: List<chromahub.rhythm.app.shared.data.model.Playlist> = emptyList(),
+    streamingRecentlyPlayed: List<Song> = emptyList(),
+    streamingServiceName: String = "",
+    streamingServiceConnected: Boolean = false,
+    streamingIsLoading: Boolean = false,
+    streamingError: String? = null,
+    onConfigureService: (String) -> Unit = {},
+    onSwitchToLocalMode: () -> Unit = {},
+    onStreamingNavigateToArtist: (chromahub.rhythm.app.features.streaming.domain.model.StreamingArtist) -> Unit = {},
+    onStreamingNavigateToAlbum: (chromahub.rhythm.app.features.streaming.domain.model.StreamingAlbum) -> Unit = {},
+    onStreamingNavigateToPlaylist: (chromahub.rhythm.app.features.streaming.domain.model.StreamingPlaylist) -> Unit = {},
+    onStreamingPlayQueue: (List<chromahub.rhythm.app.features.streaming.domain.model.StreamingSong>, Int, Boolean) -> Unit = { _, _, _ -> },
+    onStreamingShuffleQueue: (List<chromahub.rhythm.app.features.streaming.domain.model.StreamingSong>) -> Unit = {}
+) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val coroutineScope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val isTablet = windowScreenWidthDp() >= 600
+    val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
+    val appSettings = remember { AppSettings.getInstance(context) }
+
+    // Home header customization
+    val headerDisplayMode by appSettings.homeHeaderDisplayMode.collectAsState()
+    val showAppIcon by appSettings.homeShowAppIcon.collectAsState()
+    val iconVisibilityMode by appSettings.homeAppIconVisibility.collectAsState()
+    val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsState()
+
+    // State for AddToPlaylist bottom sheet
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var selectedSongForPlaylist by remember { mutableStateOf<Song?>(null) }
+    val addToPlaylistSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
+    // Song info bottom sheet state
+    var showSongInfoSheet by remember { mutableStateOf(false) }
+
+    // Home section order bottom sheet state
+    var showHomeSectionOrderSheet by remember { mutableStateOf(false) }
+
+    val isLibraryRefreshing by musicViewModel.isLibraryRefreshing.collectAsState()
+    var streamingIsRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(streamingIsLoading) {
+        if (!streamingIsLoading) streamingIsRefreshing = false
+    }
+
+    // Pending write request for metadata editing (Android 11+)
+    val pendingWriteRequest by musicViewModel.pendingWriteRequest.collectAsState()
+
+    var pendingMetadataEditCompleteCallback by remember { mutableStateOf

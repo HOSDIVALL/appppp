@@ -1,0 +1,64 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt"
+  },
+  "bytes": 49227,
+  "git_blob": "57dd36c67811c2f800c710dbf93c62b6630aece6",
+  "sha256": "cddd196c62707f23597965a0f6205b88c9358c488ac9fa2c3219186306ae4e74",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6220,
+      "sha256": "9053cac19214d5a94271c3ca0254becab5c6aaac50625936bc8bc05b2c7b9ac2"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 6760,
+      "sha256": "fc0b4a63ba4d774d1c10faa11daef72d64c0422296347d60e5acd46709cdf715"
+    },
+    {
+      "file": "part-0003.txt",
+      "bytes": 6740,
+      "sha256": "e4d1902b1f7808525ced5c0c5bed1ce9890642a0d106c8f56e05dd8be02cf138"
+    },
+    {
+      "file": "part-0004.txt",
+      "bytes": 6350,
+      "sha256": "f64aa90960c89f66a4ca851bb8dba9b9bbe6e609f61e15578ec66a88066ec9f1"
+    },
+    {
+      "file": "part-0005.txt",
+      "bytes": 6644,
+      "sha256": "951d4f09556a01bccf9cd8452e16759928f7ab5a50e5191748b9c00cc1fa7ecd"
+    },
+    {
+      "file": "part-0006.txt",
+      "bytes": 6290,
+      "sha256": "abaa70814bc1da431698ed5056e0fd5132e911f07ba265b6c3bf40855d473d1a"
+    },
+    {
+      "file": "part-0007.txt",
+      "bytes": 6614,
+      "sha256": "be8edfd8acaff218dcf9c9bf2aec2aee247dccc3f65b0782fe7a338872a3f98c"
+    },
+    {
+      "file": "part-0008.txt",
+      "bytes": 3609,
+      "sha256": "ccd0a9f44c6e8b0ea694021ae5fd7707cfda41da0f20f90ff345c72d976a73d1"
+    }
+  ],
+  "symbol_hits": [
+    {
+      "symbol": "fun NotesListScreen",
+      "line": 121,
+      "part": 1
+    },
+    {
+      "symbol": "fun NoteRowWithSwipe",
+      "line": 620,
+      "part": 5
+    }
+  ]
+}

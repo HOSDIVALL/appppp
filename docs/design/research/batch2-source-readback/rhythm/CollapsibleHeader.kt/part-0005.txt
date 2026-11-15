@@ -1,0 +1,121 @@
+                     text = "$artistSongsCount songs",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Scaffold with transparent topBar that overlays the background
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent,
+            contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+            topBar = {
+                val collapsedFraction = scrollBehavior.state.collapsedFraction
+                val fontSize = (24 + (32 - 24) * (1 - collapsedFraction)).sp
+
+                Column(
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        if (scrollBehavior.state.heightOffset == 0f || expandedHeaderHeight == 0) {
+                            expandedHeaderHeight = coordinates.size.height - scrollBehavior.state.heightOffset.toInt()
+                        }
+                    }
+                ) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LargeTopAppBar(
+                        title = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(start = 14.dp)
+                            ) {
+                                // For artist screen, only show title when collapsed (normal behavior)
+                                val shouldShowTitle = collapsedFraction >= 0.5f
+
+                                if (shouldShowTitle) {
+                                    Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.headlineLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = fontSize
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        },
+                        navigationIcon = {
+                            if (showBackButton) {
+                                IconButton(
+                                    onClick = onBackClick,
+                                    modifier = Modifier.padding(start = 12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(50))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = RhythmIcons.Back,
+                                            contentDescription = stringResource(R.string.cd_back),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(25.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        actions = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = 12.dp)
+                            ) {
+                                filterDropdown()
+                                HeaderActionGroup(headerActions)
+                                actions()
+                            }
+                        },
+                        scrollBehavior = scrollBehavior,
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = containerColor
+                        )
+                    )
+                    // Intentionally no header blend here for artist screen —
+                    // the artwork background already includes its own gradient overlay.
+                }
+            }
+        ) { paddingValues ->
+            val density = LocalDensity.current
+            val baseTopPadding = remember(expandedHeaderHeight, paddingValues) {
+                if (expandedHeaderHeight > 0) {
+                    with(density) { expandedHeaderHeight.toDp() }
+                } else {
+                    paddingValues.calculateTopPadding()
+                }
+            }
+            // Dynamically adjust top padding to follow header collapse
+            // without the visual bottom-gap caused by offset().
+            val dynamicTopPadding = with(density) {
+                (baseTopPadding.toPx() + scrollBehavior.state.heightOffset).toDp()
+                    .coerceAtLeast(0.dp)
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = dynamicTopPadding)
+                    .graphicsLayer {
+                        alpha = contentAlpha
+                        translationY = contentOffset
+                    }
+            ) {
+                content(Modifier.fillMax

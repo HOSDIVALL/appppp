@@ -1,0 +1,167 @@
+                         }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+            item {
+                Spacer(modifier = Modifier.height(30.dp))
+            }
+        }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ModernRecentlyPlayedSection(
+    recentlyPlayed: List<Song>,
+    onSongClick: (Song) -> Unit,
+    musicViewModel: chromahub.rhythm.app.viewmodel.MusicViewModel,
+    coroutineScope: CoroutineScope,
+    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    heightSizeClass: WindowHeightSizeClass = WindowHeightSizeClass.Medium
+) {
+    val context = LocalContext.current
+    Column {
+        ModernSectionTitle(
+            title = context.getString(R.string.home_recently_played),
+            subtitle = context.getString(R.string.home_recently_played_subtitle),
+            onPlayAll = {
+                coroutineScope.launch {
+                    if (recentlyPlayed.isNotEmpty()) {
+                        musicViewModel.playSongs(recentlyPlayed)
+                    }
+                }
+            },
+            onShufflePlay = {
+                coroutineScope.launch {
+                    if (recentlyPlayed.isNotEmpty()) {
+                        musicViewModel.playShuffled(recentlyPlayed)
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        if (recentlyPlayed.isNotEmpty()) {
+            val isTablet = widthSizeClass != WindowWidthSizeClass.Compact
+            if (isTablet) {
+                // Grid layout for tablets - better use of space
+                val gridColumns = when (widthSizeClass) {
+                    WindowWidthSizeClass.Medium -> 2
+                    WindowWidthSizeClass.Expanded -> 3
+                    else -> 2
+                }
+                val gridState = rememberLazyGridState()
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(gridColumns),
+                    state = gridState,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.height(300.dp)
+                ) {
+                    items(
+                        items = recentlyPlayed,
+                        key = { "recentplay_${it.id}" },
+                        contentType = { "song" }
+                    ) { song ->
+                        ModernRecentSongCard(
+                            song = song,
+                            onClick = { onSongClick(song) },
+                            widthSizeClass = widthSizeClass,
+                            heightSizeClass = heightSizeClass
+                        )
+                    }
+                }
+            } else {
+                // Horizontal scroll for phones
+                val recentlyPlayedListState = rememberLazyListState()
+                LazyRow(
+                    state = recentlyPlayedListState,
+                    modifier = Modifier.horizontalEdgeBlend(
+                        lazyListState = recentlyPlayedListState,
+                        fadeWidth = 16.dp
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(
+                        items = recentlyPlayed,
+                        key = { "recentplay_${it.id}" },
+                        contentType = { "song" }
+                    ) { song ->
+                        ModernRecentSongCard(
+                            song = song,
+                            onClick = { onSongClick(song) },
+                            widthSizeClass = widthSizeClass,
+                            heightSizeClass = heightSizeClass
+                        )
+                    }
+                }
+            }
+        } else {
+            // Empty state for recently played
+            ModernEmptyState(
+                icon = MaterialSymbolIcon("history", filled = true),
+                title = context.getString(R.string.home_no_recent_activity),
+                subtitle = context.getString(R.string.home_no_recent_activity_desc),
+                iconSize = 32.dp
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModernRecentSongCard(
+    song: Song,
+    onClick: () -> Unit,
+    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    heightSizeClass: WindowHeightSizeClass = WindowHeightSizeClass.Medium
+) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
+    val (cardWidth, cardHeight) = when (widthSizeClass) {
+        WindowWidthSizeClass.Compact -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 160.dp to 70.dp
+            else -> 180.dp to 80.dp
+        }
+        WindowWidthSizeClass.Medium -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> Dp.Unspecified to 90.dp
+            else -> Dp.Unspecified to 95.dp
+        }
+        WindowWidthSizeClass.Expanded -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> Dp.Unspecified to 100.dp
+            else -> Dp.Unspecified to 100.dp
+        }
+        else -> 180.dp to 80.dp
+    }
+
+    val cardModifier = if (cardWidth == Dp.Unspecified) {
+        Modifier
+            .fillMaxWidth()
+            .height(cardHeight)
+    } else {
+        Modifier
+            .width(cardWidth)
+            .height(cardHeight)
+    }
+
+    ExpressiveCard(
+        onClick = {
+            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+            onClick()
+        },
+        modifier = cardModifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        shape = ExpressiveShapes.Large
+    ) {
+        Row(
+            modifier = Modifier
+                .

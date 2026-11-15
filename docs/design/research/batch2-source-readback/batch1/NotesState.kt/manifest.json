@@ -1,0 +1,38 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt"
+  },
+  "bytes": 29709,
+  "git_blob": "82417a73a7b878abd9449f06175527f233902054",
+  "sha256": "bac428d83351adfaed116a0bf19d80513167eb8f27fb659c8cc95f11d474dd84",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6812,
+      "sha256": "2842b912efc951572b6664fe1e717f9564cc9d6ad3dcbdd742b0632d1faff575"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 6546,
+      "sha256": "cdeb9b998420d7d96d55e327d74e551475926272eb645c1206bdbbc5c94e23ce"
+    },
+    {
+      "file": "part-0003.txt",
+      "bytes": 6588,
+      "sha256": "5b23158ad64a90aea8793b1ed3320ae2fbc47a58b8223fdabb5dcd12c70b996f"
+    },
+    {
+      "file": "part-0004.txt",
+      "bytes": 7258,
+      "sha256": "367bff6df2472983b22dea431568995045543d7af737129375e680b655c9d2d0"
+    },
+    {
+      "file": "part-0005.txt",
+      "bytes": 2505,
+      "sha256": "b782249918f77b50b1ccbaee2df8043917be9d23d3540c9ffa6ef7ece399959f"
+    }
+  ],
+  "symbol_hits": []
+}

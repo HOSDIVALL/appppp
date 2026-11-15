@@ -1,0 +1,170 @@
+ LocalContext.current
+    Column {
+        ModernSectionTitle(
+            title = context.getString(R.string.home_top_artists),
+            subtitle = context.getString(R.string.home_top_artists_subtitle),
+            viewAllAction = onViewAllArtists
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val artistsListState = rememberLazyListState()
+        LazyRow(
+            state = artistsListState,
+            modifier = Modifier.horizontalEdgeBlend(
+                lazyListState = artistsListState,
+                fadeWidth = 16.dp
+            ),
+            contentPadding = PaddingValues(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(
+                items = artists,
+                key = { "artist_${it.id}" },
+                contentType = { "artist" }
+            ) { artist ->
+                ModernArtistCard(
+                    artist = artist,
+                    songs = songs,
+                    onClick = { onArtistClick(artist) },
+                    widthSizeClass = widthSizeClass,
+                    heightSizeClass = heightSizeClass
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModernArtistCard(
+    artist: Artist,
+    songs: List<Song>,
+    onClick: () -> Unit,
+    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    heightSizeClass: WindowHeightSizeClass = WindowHeightSizeClass.Medium,
+    onPlayClick: ((Artist) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val viewModel = viewModel<chromahub.rhythm.app.viewmodel.MusicViewModel>()
+    val haptic = LocalHapticFeedback.current
+    val handleArtistPlayClick = onPlayClick ?: { artistToPlay -> viewModel.playArtist(artistToPlay) }
+
+    val cardSize = when (widthSizeClass) {
+        WindowWidthSizeClass.Compact -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 100.dp
+            else -> 120.dp
+        }
+        WindowWidthSizeClass.Medium -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 110.dp
+            else -> 120.dp
+        }
+        WindowWidthSizeClass.Expanded -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 115.dp
+            else -> 125.dp
+        }
+        else -> 120.dp
+    }
+
+    val columnModifier = Modifier
+        .width(cardSize)
+        .clickable {
+            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+            onClick()
+        }
+
+    Column(
+        modifier = columnModifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(modifier = Modifier.size(cardSize)) {
+            M3ImageUtils.ArtistImage(
+                imageUrl = artist.artworkUri,
+                artistName = artist.name,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            ExpressiveFilledIconButton(
+                onClick = {
+                    HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                    handleArtistPlayClick(artist)
+                    onClick()
+                },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                modifier = Modifier
+                    .size(40.dp)
+                    .align(Alignment.BottomEnd)
+                    .padding(4.dp)
+            ) {
+                Icon(
+                    imageVector = RhythmIcons.Play,
+                    contentDescription = context.getString(R.string.cd_play_artist, artist.name),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = artist.name,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            minLines = 2,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface,
+            lineHeight = 18.sp
+        )
+    }
+}
+
+@Composable
+private fun ModernAlbumCard(
+    album: Album,
+    onClick: (Album) -> Unit,
+    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    heightSizeClass: WindowHeightSizeClass = WindowHeightSizeClass.Medium,
+    onPlayClick: ((Album) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val viewModel = viewModel<chromahub.rhythm.app.viewmodel.MusicViewModel>()
+    val haptic = LocalHapticFeedback.current
+    val handlePlayClick = onPlayClick ?: { albumToPlay -> viewModel.playAlbum(albumToPlay) }
+
+    val (cardWidth, cardHeight) = when (widthSizeClass) {
+        WindowWidthSizeClass.Compact -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 140.dp to 210.dp
+            else -> 160.dp to 240.dp
+        }
+        WindowWidthSizeClass.Medium -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 180.dp to 270.dp
+            else -> 200.dp to 300.dp
+        }
+        WindowWidthSizeClass.Expanded -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 200.dp to 300.dp
+            else -> 220.dp to 330.dp
+        }
+        else -> 160.dp to 240.dp
+    }
+
+    ExpressiveCard(
+        onClick = {
+            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+            onClick(album)
+        },
+        modifier = Modifier
+            .width(cardWidth)
+            .height(cardHeight),
+        shape = ExpressiveShapes.SquircleLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    ) {
+        Column(modifier = Modifier.padding(
+            when (widthSizeClass) {
+                WindowWidthSizeClass.Compact -> 12.dp
+                WindowWidth

@@ -1,0 +1,122 @@
+                             },
+                                onTranscribe = { recorder.transcribe(target) },
+                                modelReady = recorder.modelReady,
+                                transcribing = recorder.transcribingId == target.id,
+                                transcribeProgress = recorder.transcribeProgress,
+                                modifier = contentModifier
+                            )
+                        } else {
+                            Box(modifier = contentModifier)
+                        }
+                    }
+
+                    else -> AnimatedContent(
+                        targetState = homeTab,
+                        // 参考 Rhythm：新页淡入的同时轻微放大、上移一点点，旧页快速淡出。
+                        // 不用左右滑——两个平级页签横向滑动会让人以为有层级关系。
+                        transitionSpec = {
+                            // 页签之间横着走：旧页向左推出，新页从右边推进来，
+                            // 两页同速，像一张连续的纸在滑
+                            val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                            (slideInHorizontally(
+                                animationSpec = spring(dampingRatio = 1f, stiffness = 380f)
+                            ) { width -> direction * width } +
+                                fadeIn(spring(stiffness = Spring.StiffnessMediumLow))) togetherWith
+                                (slideOutHorizontally(
+                                    animationSpec = spring(dampingRatio = 1f, stiffness = 420f)
+                                ) { width -> -direction * width } + fadeOut(tween(120)))
+                        },
+                        label = "homeTab"
+                    ) { tab ->
+                        when (tab) {
+                            HomeTab.NOTES -> NotesListScreen(
+                                state = state,
+                                onOpen = { id ->
+                                    // 列表点击也走同一个入口：校验 + 记录 + 允许打开
+                                    state.openNote(id)?.let { editingId = it.id }
+                                },
+                                onDelete = { note ->
+                                    trashNote(state, note, snackbarHostState, scope, strings)
+                                },
+                                onOpenSettings = { showSettings = true },
+                                modifier = contentModifier
+                            )
+
+                            HomeTab.RECORD -> RecordScreen(
+                                state = recorder,
+                                dark = darkTheme,
+                                onOpen = { recording ->
+                                    recorder.open(recording)
+                                    openedRecordingId = recording.id
+                                },
+                                onOpenActions = { recording -> sheetRecordingId = recording.id },
+                                modifier = contentModifier
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------- 编辑页：抽屉式叠加在列表之上 ----------
+        // 单独一层而不是塞进 AnimatedContent 的 when 里，
+        // 这样列表页会一直留在底下不动，抽屉顶上的圆角才能透出后面的内容
+        AnimatedVisibility(
+            visible = page == AppPage.Editor,
+            enter = slideInVertically(
+                animationSpec = spring(dampingRatio = 1f, stiffness = 320f)
+            ) { height -> height } + fadeIn(tween(110)),
+            exit = slideOutVertically(
+                animationSpec = spring(dampingRatio = 1f, stiffness = 380f)
+            ) { height -> height } + fadeOut(tween(120)),
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(4f)
+        ) {
+            // 退场动画期间 editingId 已被清空，退回 memo 里最后一份快照
+            // 活跃时仍优先取实时数据，保证输入/自动保存正常渲染
+            val editingNote = state.findNote(editingId) ?: editorMemo
+            if (editingNote != null) {
+                NoteEditorScreen(
+                    note = editingNote,
+                    state = state,
+                    recorder = recorder,
+                    onDelete = {
+                        val trashed = state.moveToTrash(editingNote.id)
+                        editingId = null
+                        newNoteId = null
+                        if (trashed != null) {
+                            scope.launch {
+                                showUndo(
+                                    host = snackbarHostState,
+                                    message = "已移到回收站「${trashed.displayTitle}」",
+                                    onUndo = { state.restoreFromTrash(trashed.id) }
+                                )
+                            }
+                        }
+                    },
+                    onBack = {
+                        // 新建后什么都没写就返回：直接丢掉，不污染回收站
+                        val current = state.findNote(editingNote.id)
+                        if (current != null &&
+                            current.id == newNoteId &&
+                            current.title.isBlank() &&
+                            current.content.isBlank() &&
+                            current.images.isEmpty() &&
+                            current.todos.none { it.text.isNotBlank() }
+                        ) {
+                            state.deleteForever(current.id)
+                        }
+                        newNoteId = null
+                        editingId = null
+                    },
+                    onOpenImages = { files, index ->
+                        viewerFiles = files
+                        viewerIndex = index
+                    },
+                    onSetReminder = { at ->
+                        if (at != null) ensureNotificationPermission()
+                        state.setReminder(editingNote.id, at)
+
+                        // 第一次设提醒时提示开精确闹钟：不开也能响，只是可能晚几分钟
+                        if (at != 

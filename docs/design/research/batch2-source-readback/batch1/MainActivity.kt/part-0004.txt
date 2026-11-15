@@ -1,0 +1,129 @@
+terialTheme.colorScheme.surface,
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.padding(bottom = snackbarBottom)
+                )
+            }
+        ) { padding ->
+            if (!state.loaded) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+                return@Scaffold
+            }
+
+            // ---------- 页面切换动画（Material 共享轴 X） ----------
+            // 前进（列表 → 编辑 / 回收站）：新页从右侧滑入，旧页往左淡出；
+            // 返回则反向。深度用来判断方向：列表是根，编辑和回收站都是一层。
+            // 编辑页不参与这层切换：它单独叠在上面当抽屉。
+            // 所以底层的目标页在编辑状态下保持在列表页，列表页会一直留在抽屉背后
+            val basePage = if (page == AppPage.Editor) AppPage.List else page
+
+            AnimatedContent(
+                targetState = basePage,
+                transitionSpec = {
+                    val dir = if (targetState.depth >= initialState.depth) 1 else -1
+                    (slideInHorizontally(
+                        animationSpec = spring(dampingRatio = 1f, stiffness = 340f)
+                    ) { dir * it / 3 } +
+                        fadeIn(spring(stiffness = Spring.StiffnessMediumLow))) togetherWith
+                        (fadeOut(tween(100)) +
+                            slideOutHorizontally(
+                                animationSpec = spring(dampingRatio = 1f, stiffness = 460f)
+                            ) { -dir * it / 4 })
+                },
+                label = "pageSwitch"
+            ) { current ->
+                val contentModifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .zIndex(if (current == page) 2f else 1f)
+
+                when (current) {
+                    AppPage.Settings -> SettingsScreen(
+                        preset = themePreset,
+                        language = language,
+                        themeMode = themeMode,
+                        trashedCount = state.trashedNotes.size,
+                        dark = darkTheme,
+                        onBack = { showSettings = false },
+                        onSelectPreset = { p ->
+                            themePresetId = p.id
+                            settings.themePresetId = p.id
+                        },
+                        onSelectLanguage = { l ->
+                            language = l
+                            settings.appLanguage = l.tag
+                        },
+                        onSelectThemeMode = { mode ->
+                            // 真的换了模式才给一次反馈；点已选中的那一项不震
+                            if (mode != themeMode) haptics.toggleOn()
+                            themeMode = mode
+                            settings.themeMode = mode
+                        },
+                        onOpenFontSettings = { showFontSettings = true },
+                        onOpenTrash = {
+                            showSettings = false
+                            showTrash = true
+                        },
+                        onExport = {
+                            val stamp = SimpleDateFormat(
+                                "yyyyMMdd-HHmm",
+                                Locale.getDefault()
+                            ).format(Date())
+                            exportLauncher.launch("notes-backup-$stamp.zip")
+                        },
+                        onImport = {
+                            importLauncher.launch(
+                                arrayOf("application/zip", "application/octet-stream", "*/*")
+                            )
+                        },
+                        modifier = contentModifier
+                    )
+
+                    AppPage.Trash -> TrashScreen(
+                        notes = state.trashedNotes,
+                        onRestore = { note ->
+                            state.restoreFromTrash(note.id)
+                            scope.launch {
+                                snackbarHostState.showSnackbar("已恢复「${note.displayTitle}」")
+                            }
+                        },
+                        onDeleteForever = { note ->
+                            state.deleteForever(note.id)
+                            scope.launch {
+                                snackbarHostState.showSnackbar("已彻底删除「${note.displayTitle}」")
+                            }
+                        },
+                        onEmpty = {
+                            val count = state.emptyTrash()
+                            if (count > 0) {
+                                scope.launch { snackbarHostState.showSnackbar("已清空 $count 条笔记") }
+                            }
+                        },
+                        onBack = { showTrash = false },
+                        modifier = contentModifier
+                    )
+
+                    AppPage.Recording -> {
+                        val target = recorder.recordings.firstOrNull { it.id == openedRecordingId }
+                        if (target != null) {
+                            RecordingDetailScreen(
+                                recording = target,
+                                state = recorder,
+                                dark = darkTheme,
+                                onBack = {
+                                    recorder.releasePlayer()
+                                    openedRecordingId = null
+                                },
+                                onDelete = {
+                                    recorder.delete(target)
+                                    openedRecordingId = null
+                                },
+                                onMessage = { msg ->
+                                    scope.launch { snackbarHostState.showSnackbar(msg) }
+   

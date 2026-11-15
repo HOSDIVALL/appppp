@@ -1,0 +1,154 @@
+ -43,4 +43,37 @@ class RecentNoteUsageTest {
+         recentNoteIds(rows, setOf("a", "b"))
+         assertEquals(before, rows)
+     }
++
++    // ---- 展示映射：最近使用 → 可展示的笔记 ----
++
++    @Test fun displayKeepsOpenOrderNotUpdatedAtOrder() {
++        val old = Note(id = "old", title = "老笔记", updatedAt = 9_000L)
++        val fresh = Note(id = "fresh", title = "刚编辑过", updatedAt = 1_000L)
++        val rows = listOf(RecentNoteUsage("fresh", 10L, 1L), RecentNoteUsage("old", 20L, 2L))
++        // openOrder 2 的 old 排在前：哪怕 fresh 的 updatedAt 更新，也不能拿它冒充历史
++        assertEquals(listOf("old", "fresh"), recentNotesForDisplay(rows, listOf(old, fresh)).map { it.id })
++    }
++
++    @Test fun displayExcludesTrashedAndUnknownNotes() {
++        val active = Note(id = "a", title = "A")
++        val trashed = Note(id = "b", title = "B", deletedAt = 1_000L)
++        val rows = listOf(
++            RecentNoteUsage("b", 3L, 3L),
++            RecentNoteUsage("missing", 2L, 2L),
++            RecentNoteUsage("a", 1L, 1L)
++        )
++        assertEquals(listOf("a"), recentNotesForDisplay(rows, listOf(active, trashed)).map { it.id })
++    }
++
++    @Test fun displayAppliesLimitAfterFiltering() {
++        val notes = (1..8).map { Note(id = "n$it", title = "笔记$it") }
++        val rows = (1..8).map { RecentNoteUsage("n$it", it.toLong(), it.toLong()) }
++        val shown = recentNotesForDisplay(rows, notes)
++        assertEquals(6, shown.size)
++        assertEquals(listOf("n8", "n7", "n6", "n5", "n4", "n3"), shown.map { it.id })
++    }
++
++    @Test fun displayOfEmptyUsageIsEmpty() {
++        assertEquals(emptyList<Note>(), recentNotesForDisplay(emptyList(), listOf(Note(id = "a"))))
++    }
+ }
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt
+new file mode 100644
+index 0000000..2dc3f96
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt
+@@ -0,0 +1,189 @@
++package com.example.myapplicationfirstapp.data
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * 真实 SQLite：最近使用的独立元数据库 recent_notes.db。
++ *
++ * 边界说明：
++ * - 用**真实 SQLiteOpenHelper + 真实数据库文件**，库文件落在沙箱 `databases/` 下；
++ * - 「重启」用 [RecentNotesStore.openOnSameDatabase] 新开一个实例，证明行落在磁盘上，
++ *   不等于进程被杀后的恢复实验；
++ * - 不读不写 notes.json，真实 notes.json 与真实 recent_notes.db 的指纹前后必须一致。
++ */
++@RunWith(AndroidJUnit4::class)
++class RecentNotesStoreTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realNotesBefore: String = "<unset>"
++    private var realDbExistedBefore: Boolean = false
++
++    @Before
++    fun setUp() {
++        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
++        realNotesBefore = realNotesFingerprint()
++        realDbExistedBefore = File(realContext.getDatabasePath("recent_notes.db").path).exists()
++        sandbox = isolatedStorage("recent-store")
++    }
++
++    @After
++    fun tearDown() {
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realNotesBefore).toMutableList()
++        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
++        val realDb = File(realContext.getDatabasePath("recent_notes.db").path)
++        if (realDb.exists() != realDbExistedBefore) {
++            violations += "数据库隔离失效：真实 recent_notes.db 存在性前后不一致（before=$realDbExistedBefore after=${realDb.exists()}）"
++        }
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    private fun store(): RecentNotesStore = RecentNotesStore.openOnSameDatabase(sandbox)
++
++    @Test
++    fun recordsAndOrdersByOpenOrder() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("c", 300L)
++
++        val rows = store.load()
++        assertEquals(listOf("c", "b", "a"), rows.map { it.noteId })
++        assertEquals(300L, rows.first().lastOpenedAt)
++        assertTrue("openOrder 必须递增", rows[0].openOrder > rows[1].openOrder)
++    }
++
++    @Test
++    fun reopeningMovesToTopWithoutDuplicates() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("a", 300L)
++
++        val rows = store.load()
++        assertEquals(listOf("a", "b"), rows.map { it.noteId })
++        assertEquals("同一条笔记只能有一行", 2, rows.size)
++        // 同名不同 ID 必须各记一行，不能串
++        store.recordOpened("a2", 400L)
++        assertEquals(listOf("a2", "a", "b"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun orderSurvivesClockRollback() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 900L)
++        store.recordOpened("b", 100L) // 时钟被回拨
++
++        assertEquals(listOf("b", "a"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun rowsSurviveNewStoreInstance() = runBlocking {
++        store().recordOpened("a", 100L)
++
++        val reopened = RecentNotesStore.openOnSameDatabase(sandbox)
++        assertEquals(listOf("a"), reopened.load().map { it.noteId })
++        assertTrue(
++            "数据库文件必须真的落在沙箱里",
++            sandbox.getDatabasePath("recent_notes.db").isFile
++        )
++    }
++
++    @Test
++    fun forgetRemovesOnlyThatRow() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++
++        assertEquals(listOf("a"), store.forget("b").map { it.noteId })
++        assertEquals(listOf("a"), store.load().map { it.

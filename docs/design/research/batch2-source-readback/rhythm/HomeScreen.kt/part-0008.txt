@@ -1,0 +1,136 @@
+yed = remember(isSyncing, isEffectivelyOffline, rawDownloadedSongs, recentlyPlayed) {
+        if (isSyncing || isEffectivelyOffline) {
+            val downloadedIds = rawDownloadedSongs.map { it.id }.toSet()
+            recentlyPlayed.filter { it.id in downloadedIds }
+        } else {
+            recentlyPlayed
+        }
+    }
+    val hasStreamingContent = effectiveSongs.isNotEmpty() ||
+        effectiveAlbums.isNotEmpty() ||
+        effectiveArtists.isNotEmpty() ||
+        effectiveRecentlyPlayed.isNotEmpty()
+
+    val hasLoadedHomeContent = vm?.hasLoadedHomeContent?.collectAsState()?.value ?: false
+    val hasLoadedLibrary = vm?.hasLoadedLibrary?.collectAsState()?.value ?: false
+    LaunchedEffect(vm, hasLoadedHomeContent) {
+        if (vm != null && !hasLoadedHomeContent) {
+            vm.loadHomeContent()
+        }
+    }
+    LaunchedEffect(vm, hasLoadedLibrary) {
+        if (vm != null && !hasLoadedLibrary) {
+            vm.loadLibrary()
+        }
+    }
+
+    val playQueueFromMapped: (List<Song>, Int, Boolean) -> Unit = { mappedSongs, startIndex, shuffle ->
+        val originals = mappedSongs.mapNotNull { streamingSongById[it.id] }
+        if (originals.isNotEmpty()) onPlayQueue(originals, startIndex, shuffle)
+    }
+
+    val serviceSessions = vm?.serviceSessions?.collectAsState()?.value ?: emptyMap()
+    val isAuthenticated = vm?.isAuthenticated?.collectAsState()?.value ?: false
+    val hasOfflineContent = rawDownloadedSongs.isNotEmpty() || rawDownloadedAlbums.isNotEmpty()
+    val hasConfiguredSession = serviceSessions.values.any { it.serverUrl.isNotBlank() }
+
+    if (!hasConfiguredSession && !hasOfflineContent) {
+        StreamingHomeWelcomeContent(
+            modifier = modifier.fillMaxSize(),
+            serviceSessions = serviceSessions,
+            isAuthenticated = isAuthenticated,
+            onConfigureService = onConfigureService,
+            onSwitchToLocalMode = onSwitchToLocalMode
+        )
+        return
+    }
+
+    val pullToRefreshState = rememberPullToRefreshState()
+    val isListAtTop by remember { derivedStateOf { scrollState.value == 0 } }
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        state = pullToRefreshState,
+        enabled = isListAtTop,
+        modifier = modifier.fillMaxSize(),
+        indicator = {
+            PullToRefreshDefaults.LoadingIndicator(
+                state = pullToRefreshState,
+                isRefreshing = isRefreshing,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
+    ) {
+        if (!hasStreamingContent) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState),
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    isEffectivelyOffline || !serviceConnected || errorMessage != null -> {
+                        EmptyState(
+                            message = context.getString(R.string.streaming_home_selected_service_unavailable),
+                            icon = RhythmIcons.Connectivity.WifiOff,
+                            subtitle = errorMessage?.takeIf { it.isNotBlank() }
+                                ?: context.getString(
+                                    R.string.streaming_home_connect_selected_service,
+                                    serviceName.ifBlank { context.getString(R.string.streaming_not_selected) }
+                                ),
+                            actionLabel = context.getString(R.string.streaming_service_setup_reconnect),
+                            onRefresh = { onConfigureService(serviceName) }
+                        )
+                    }
+                    isSyncing || isLoading -> {
+                        EmptyState(
+                            message = context.getString(R.string.streaming_library_syncing),
+                            icon = MaterialSymbolIcon("sync"),
+                            subtitle = context.getString(R.string.streaming_home_no_content_hint),
+                            actionLabel = null,
+                            onRefresh = null
+                        )
+                    }
+                    else -> {
+                        ModernEmptyState(
+                            icon = MaterialSymbolIcon("cloud_sync", filled = true),
+                            title = context.getString(R.string.streaming_home_no_content_title),
+                            subtitle = context.getString(R.string.streaming_home_no_content_hint)
+                        )
+                    }
+                }
+            }
+        } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(sectionSpacing)
+        ) {
+        if (showDiscoverCarousel && effectiveAlbums.isNotEmpty()) {
+            ModernFeaturedSection(
+                albums = effectiveAlbums.take(discoverItemCount),
+                onAlbumClick = { album ->
+                    streamingAlbumById[album.id]?.let(onNavigateToAlbum)
+                },
+                showAlbumName = discoverShowAlbumName,
+                showArtistName = discoverShowArtistName,
+                showYear = discoverShowYear,
+                showPlayButton = discoverShowPlayButton,
+                showGradient = discoverShowGradient,
+                widthSizeClass = widthSizeClass,
+                heightSizeClass = heightSizeClass,
+                onPlayAlbum = { album ->
+                    playQueueFromMapped(album.songs, 0, false)
+                }
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = horizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(sectionSpacing)
+        ) {
+        if (!isEffectivelyOffline && errorMessage != null && !syncProgress.isSyncing && !isLoading) {
+  

@@ -1,0 +1,18 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/ui/AttachmentImageLoader.kt"
+  },
+  "bytes": 1224,
+  "git_blob": "9a4c9bc3c8f67c18e099ac24a7c1f5c4370fc817",
+  "sha256": "4b97f5b25e112a32b61d4461b55fd2cc1ad4878a8920b6d266d56a89fae45687",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 1224,
+      "sha256": "4b97f5b25e112a32b61d4461b55fd2cc1ad4878a8920b6d266d56a89fae45687"
+    }
+  ],
+  "symbol_hits": []
+}

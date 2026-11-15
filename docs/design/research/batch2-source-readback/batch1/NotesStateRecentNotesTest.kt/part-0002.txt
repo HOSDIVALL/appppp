@@ -1,0 +1,99 @@
+   state.openNote(b.id)
+        state.moveToTrash(a.id)
+        state.moveToTrash(b.id)
+
+        state.emptyTrash()
+
+        assertEquals(setOf(a.id, b.id), gateway.forgotten.toSet())
+        assertTrue(state.recentNotes.isEmpty())
+    }
+
+    // ---------- 失败与交错 ----------
+
+    @Test
+    fun recordFailureDoesNotBlockOpening() = runBlocking {
+        val gateway = FakeGateway().apply { failRecord = true }
+        val state = newState(gateway)
+        state.load()
+        val note = state.createNote()
+
+        val opened = state.openNote(note.id)
+
+        assertNotNull("元数据写失败也要照常打开", opened)
+        assertEquals(note.id, opened?.id)
+        assertNotNull("错误必须落在 recentError", state.recentError)
+        assertNull("不得污染正文的 persistenceError", state.persistenceError)
+    }
+
+    @Test
+    fun loadFailureDoesNotBlockNotes() = runBlocking {
+        val gateway = FakeGateway().apply { failLoad = true }
+        val state = newState(gateway)
+        state.load()
+
+        assertTrue("正文照常判定为已加载", state.loaded)
+        assertNotNull("错误必须落在 recentError", state.recentError)
+        assertNull(state.persistenceError)
+    }
+
+    @Test
+    fun staleSnapshotDoesNotOverwriteNewerState() = runBlocking {
+        val gateway = FakeGateway()
+        val state = newState(gateway)
+        state.load()
+        val note = state.createNote()
+
+        // 1) 打开：这次 recordOpened 会挂在闸门后，直到测试放行
+        gateway.gate = CompletableDeferred()
+        state.openNote(note.id)
+        assertEquals("挂起期间状态还没更新", emptyList<String>(), state.recentNotes.map { it.id })
+
+        // 2) 紧接着永久删除：更新的操作先完成，状态以它为准
+        state.deleteForever(note.id)
+        assertTrue(state.recentNotes.isEmpty())
+
+        // 3) 放行那个更早的、已经过时的快照
+        gateway.gate?.complete(Unit)
+        gateway.gate = null
+
+        assertTrue("旧快照不得把已删除的笔记写回状态", state.recentNotes.isEmpty())
+        assertTrue(state.recentUsages.isEmpty())
+    }
+
+    private class FakeGateway : RecentNotesGateway {
+        val recorded = mutableListOf<String>()
+        val forgotten = mutableListOf<String>()
+        var failRecord = false
+        var failLoad = false
+        var gate: CompletableDeferred<Unit>? = null
+
+        private var order = 0L
+        private var rows = mutableListOf<RecentNoteUsage>()
+
+        override suspend fun load(): List<RecentNoteUsage> {
+            if (failLoad) error("recent database unavailable")
+            return rows.toList()
+        }
+
+        override suspend fun recordOpened(noteId: String, openedAt: Long): List<RecentNoteUsage> {
+            if (failRecord) error("recent database is read-only")
+            recorded += noteId
+            rows.removeAll { it.noteId == noteId }
+            order += 1
+            rows.add(0, RecentNoteUsage(noteId, openedAt, order))
+            // 返回「调用当时」的快照：如果这里挂起，回来时它已经是旧数据
+            val snapshot = rows.toList()
+            gate?.await()
+            return snapshot
+        }
+
+        override suspend fun forget(noteId: String): List<RecentNoteUsage> =
+            forgetAll(listOf(noteId))
+
+        override suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage> {
+            forgotten += noteIds
+            rows.removeAll { it.noteId in noteIds }
+            return rows.toList()
+        }
+    }
+}

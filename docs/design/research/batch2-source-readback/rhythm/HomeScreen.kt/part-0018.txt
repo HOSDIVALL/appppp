@@ -1,0 +1,164 @@
+fillMaxSize()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            M3ImageUtils.TrackImage(
+                imageUrl = song.artworkUri,
+                trackName = song.title,
+                modifier = Modifier.size(52.dp),
+                applyExpressiveShape = true
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = song.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Icon(
+                imageVector = RhythmIcons.Play,
+                contentDescription = context.getString(R.string.cd_play),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModernSectionTitle(
+    title: String,
+    subtitle: String? = null,
+    viewAllAction: (() -> Unit)? = null,
+    onPlayAll: (() -> Unit)? = null,
+    onShufflePlay: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            subtitle?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onPlayAll != null || onShufflePlay != null) {
+                RhythmGroupedButton(
+                    size = RhythmButtonSize.Small,
+                    isFillMaxWidth = false,
+                    modifier = Modifier.widthIn(max = 120.dp)
+                ) {
+                    val playAction = onPlayAll
+                    val shuffleAction = onShufflePlay
+                    if (playAction != null) {
+                        RhythmButtonWeighted(
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                                playAction()
+                            },
+                            weight = 1f,
+                            isFirst = true,
+                            isLast = shuffleAction == null,
+                            text = context.getString(R.string.action_play)
+                        )
+                    }
+
+                    if (shuffleAction != null) {
+                        RhythmButtonWeighted(
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                                shuffleAction()
+                            },
+                            weight = 1f,
+                            isFirst = playAction == null,
+                            isLast = true,
+                            icon = RhythmIcons.Shuffle,
+                            text = if (playAction == null) context.getString(R.string.cd_shuffle) else null
+                        )
+                    }
+                }
+            }
+
+            viewAllAction?.let { action ->
+                IconButton(
+                    onClick = {
+                        HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                        action()
+                    }
+                ) {
+                    Icon(
+                        imageVector = MaterialSymbolIcon("arrow_forward", filled = true),
+                        contentDescription = context.getString(R.string.ui_view_all),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+private fun ModernFeaturedSection(
+    albums: List<Album>,
+    onAlbumClick: (Album) -> Unit,
+    showAlbumName: Boolean = true,
+    showArtistName: Boolean = true,
+    showYear: Boolean = true,
+    showPlayButton: Boolean = true,
+    showGradient: Boolean = true,
+    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    heightSizeClass: WindowHeightSizeClass = WindowHeightSizeClass.Medium,
+    onPlayAlbum: ((Album) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val viewModel = viewModel<chromahub.rhythm.app.viewmodel.MusicViewModel>()
+
+    val screenWidth = windowScreenWidthDp().dp
+    val isTablet = widthSizeClass != Window

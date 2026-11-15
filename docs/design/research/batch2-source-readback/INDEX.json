@@ -1,0 +1,125 @@
+{
+  "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+  "evidence": "a81885479378d615d7293467481f7b98c8ca1d4a",
+  "reference": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+  "reference_status": "available",
+  "workflow_commit": "f60cf6789ca141943152393d53bd3ee52d059101",
+  "run_url": "https://github.com/HOSDIVALL/appppp/actions/runs/43722535255",
+  "scope": "Source review only. First-batch patch applied in an ephemeral worktree, never to repository app/. No build, installation or runtime data.",
+  "sources": [
+    {
+      "name": "batch1-patch",
+      "manifest": "batch1-patch/manifest.json",
+      "bytes": 39910,
+      "parts": 7
+    },
+    {
+      "name": "batch1/MainActivity.kt",
+      "manifest": "batch1/MainActivity.kt/manifest.json",
+      "bytes": 47311,
+      "parts": 8
+    },
+    {
+      "name": "batch1/RecentNoteUsage.kt",
+      "manifest": "batch1/RecentNoteUsage.kt/manifest.json",
+      "bytes": 1444,
+      "parts": 1
+    },
+    {
+      "name": "batch1/RecentNotesStore.kt",
+      "manifest": "batch1/RecentNotesStore.kt/manifest.json",
+      "bytes": 5621,
+      "parts": 1
+    },
+    {
+      "name": "batch1/NotesState.kt",
+      "manifest": "batch1/NotesState.kt/manifest.json",
+      "bytes": 29709,
+      "parts": 5
+    },
+    {
+      "name": "batch1/NotesListScreen.kt",
+      "manifest": "batch1/NotesListScreen.kt/manifest.json",
+      "bytes": 49227,
+      "parts": 8
+    },
+    {
+      "name": "batch1/NotesListScrollbar.kt",
+      "manifest": "batch1/NotesListScrollbar.kt/manifest.json",
+      "bytes": 20380,
+      "parts": 4
+    },
+    {
+      "name": "batch1/AppStrings.kt",
+      "manifest": "batch1/AppStrings.kt/manifest.json",
+      "bytes": 11409,
+      "parts": 2
+    },
+    {
+      "name": "batch1/ListVisualTokens.kt",
+      "manifest": "batch1/ListVisualTokens.kt/manifest.json",
+      "bytes": 2555,
+      "parts": 1
+    },
+    {
+      "name": "batch1/AppSpacing.kt",
+      "manifest": "batch1/AppSpacing.kt/manifest.json",
+      "bytes": 1807,
+      "parts": 1
+    },
+    {
+      "name": "batch1/AttachmentImageLoader.kt",
+      "manifest": "batch1/AttachmentImageLoader.kt/manifest.json",
+      "bytes": 1224,
+      "parts": 1
+    },
+    {
+      "name": "batch1/Note.kt",
+      "manifest": "batch1/Note.kt/manifest.json",
+      "bytes": 8462,
+      "parts": 2
+    },
+    {
+      "name": "batch1/RecentNoteUsageTest.kt",
+      "manifest": "batch1/RecentNoteUsageTest.kt/manifest.json",
+      "bytes": 3323,
+      "parts": 1
+    },
+    {
+      "name": "batch1/IsolatedNoteStorage.kt",
+      "manifest": "batch1/IsolatedNoteStorage.kt/manifest.json",
+      "bytes": 5264,
+      "parts": 1
+    },
+    {
+      "name": "batch1/RecentNotesStoreTest.kt",
+      "manifest": "batch1/RecentNotesStoreTest.kt/manifest.json",
+      "bytes": 7402,
+      "parts": 2
+    },
+    {
+      "name": "batch1/NotesStateRecentNotesTest.kt",
+      "manifest": "batch1/NotesStateRecentNotesTest.kt/manifest.json",
+      "bytes": 9995,
+      "parts": 2
+    },
+    {
+      "name": "rhythm/HomeScreen.kt",
+      "manifest": "rhythm/HomeScreen.kt/manifest.json",
+      "bytes": 156899,
+      "parts": 27
+    },
+    {
+      "name": "rhythm/LICENSE",
+      "manifest": "rhythm/LICENSE/manifest.json",
+      "bytes": 35149,
+      "parts": 6
+    },
+    {
+      "name": "rhythm/CollapsibleHeader.kt",
+      "manifest": "rhythm/CollapsibleHeader.kt/manifest.json",
+      "bytes": 37316,
+      "parts": 7
+    }
+  ]
+}

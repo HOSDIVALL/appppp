@@ -1,0 +1,186 @@
+tate.createNote()
++
++        val opened = state.openNote(note.id)
++
++        assertEquals(note.id, opened?.id)
++        assertEquals(listOf(note.id), gateway.recorded)
++        assertEquals(listOf(note.id), state.recentNotes.map { it.id })
++        assertNull("元数据正常时不应有错误", state.recentError)
++    }
++
++    @Test
++    fun openingDoesNotTouchContentOrUpdatedAt() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.updateNote(note.id, "标题", "正文")
++        val before = state.findNote(note.id)!!
++
++        state.openNote(note.id)
++
++        val after = state.findNote(note.id)!!
++        assertEquals(before.updatedAt, after.updatedAt)
++        assertEquals(before.title, after.title)
++        assertEquals(before.content, after.content)
++    }
++
++    @Test
++    fun unknownNoteIsNotOpenedAndNotRecorded() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++
++        assertNull(state.openNote("does-not-exist"))
++        assertTrue(gateway.recorded.isEmpty())
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    @Test
++    fun trashedNoteIsNotOpenedAndNotRecorded() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.moveToTrash(note.id)
++
++        assertNull("回收站里的笔记不能打开", state.openNote(note.id))
++        assertTrue(gateway.recorded.isEmpty())
++    }
++
++    @Test
++    fun softDeleteHidesFromDisplayButKeepsHistory() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val keep = state.createNote()
++        val drop = state.createNote()
++        state.openNote(keep.id)
++        state.openNote(drop.id)
++        assertEquals(listOf(drop.id, keep.id), state.recentNotes.map { it.id })
++
++        state.moveToTrash(drop.id)
++
++        assertEquals("软删除只影响展示", listOf(keep.id), state.recentNotes.map { it.id })
++        assertTrue("软删除不得删除元数据行", gateway.forgotten.isEmpty())
++    }
++
++    @Test
++    fun reopeningOrdersMostRecentFirst() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val a = state.createNote()
++        val b = state.createNote()
++
++        state.openNote(a.id)
++        state.openNote(b.id)
++        assertEquals(listOf(b.id, a.id), state.recentNotes.map { it.id })
++
++        state.openNote(a.id)
++        assertEquals(listOf(a.id, b.id), state.recentNotes.map { it.id })
++        assertEquals(listOf(a.id, b.id, a.id), gateway.recorded)
++    }
++
++    // ---------- 清理 ----------
++
++    @Test
++    fun permanentDeleteForgetsMetadata() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.openNote(note.id)
++
++        state.deleteForever(note.id)
++
++        assertEquals(listOf(note.id), gateway.forgotten)
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    @Test
++    fun emptyTrashForgetsEveryTrashedId() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val a = state.createNote()
++        val b = state.createNote()
++        state.openNote(a.id)
++        state.openNote(b.id)
++        state.moveToTrash(a.id)
++        state.moveToTrash(b.id)
++
++        state.emptyTrash()
++
++        assertEquals(setOf(a.id, b.id), gateway.forgotten.toSet())
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    // ---------- 失败与交错 ----------
++
++    @Test
++    fun recordFailureDoesNotBlockOpening() = runBlocking {
++        val gateway = FakeGateway().apply { failRecord = true }
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        val opened = state.openNote(note.id)
++
++        assertNotNull("元数据写失败也要照常打开", opened)
++        assertEquals(note.id, opened?.id)
++        assertNotNull("错误必须落在 recentError", state.recentError)
++        assertNull("不得污染正文的 persistenceError", state.persistenceError)
++    }
++
++    @Test
++    fun loadFailureDoesNotBlockNotes() = runBlocking {
++        val gateway = FakeGateway().apply { failLoad = true }
++        val state = newState(gateway)
++        state.load()
++
++        assertTrue("正文照常判定为已加载", state.loaded)
++        assertNotNull("错误必须落在 recentError", state.recentError)
++        assertNull(state.persistenceError)
++    }
++
++    @Test
++    fun staleSnapshotDoesNotOverwriteNewerState() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        // 1) 打开：这次 recordOpened 会挂在闸门后，直到测试放行
++        gateway.gate = CompletableDeferred()
++        state.openNote(note.id)
++        assertEquals("挂起期间状态还没更新", emptyList<String>(), state.recentNotes.map { it.id })
++
++        // 2) 紧接着永久删除：更新的操作先完成，状态以它为准
++        state.deleteForever(note.id)
++        assertTrue(state.recentNotes.isEmpty())
++
++        // 3) 放行那个更早的、已经过时的快照
++        gateway.gate?.complete(Unit)
++        gateway.gate = null
++
++        assertTrue("旧快照不得把已删除的笔记写回状态", state.recentNotes.isEmpty())
++        assertTrue(state.recentUsages.isEmpty())
++    }
++
++    private class FakeGateway : RecentNotesGateway {
++        val recorded = mutableListOf<String>()
++        val forgotten = mutableListOf<String>()
++        var failRecord = false
++        var failLoad = false
++        var gate: CompletableDeferred<Unit>? = null
++
++        private var order = 0L
++        private var rows = mutableListOf<RecentNoteUsage>()
++
++        override suspend fun load(): List<RecentNoteUsage> {
++            if (failLoad) error("recent database unavailable")
++            return rows.toList()
++        }
++
++        override suspend fun recordOpened(noteId: String, openedAt: Long): 

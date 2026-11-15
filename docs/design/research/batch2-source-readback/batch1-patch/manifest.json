@@ -1,0 +1,47 @@
+{
+  "origin": {
+    "commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "recent-notes-1/batch1/batch1.diff"
+  },
+  "bytes": 39910,
+  "git_blob": "b43e62b22e6c940932f3de01416e8341a10f350a",
+  "sha256": "4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6446,
+      "sha256": "01dbf9f2715c36a51248176ff6d55b4f462727915ec8a2137a104d7853adb48f"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 6000,
+      "sha256": "22acc69acd493d0c4dac96dfb5a7ebc9e0f381382be9ecf7133ff029cc40b257"
+    },
+    {
+      "file": "part-0003.txt",
+      "bytes": 7096,
+      "sha256": "d3b7d6872bbefff5b680ab893ea69abdcd499a6663fef1b3b827d774b3bb6bae"
+    },
+    {
+      "file": "part-0004.txt",
+      "bytes": 6430,
+      "sha256": "eaabe96d3625c59e7cd57b3f155431d2c47cc3cb3748b9c4d76247f4cc21b18a"
+    },
+    {
+      "file": "part-0005.txt",
+      "bytes": 6752,
+      "sha256": "3c7d501fe6454cf9834a373511556dddac0ca897c9d52724b63085cafa89ac06"
+    },
+    {
+      "file": "part-0006.txt",
+      "bytes": 6350,
+      "sha256": "6b07050fefcadd6ae6644e3f7b33bae68d97b0280767f597490de5578691a129"
+    },
+    {
+      "file": "part-0007.txt",
+      "bytes": 836,
+      "sha256": "7fb2a0d96cab56ce685bd77ec43838ac6b100bcf0541818953a770ff6f5930ed"
+    }
+  ],
+  "symbol_hits": []
+}

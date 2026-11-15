@@ -1,0 +1,135 @@
+WidthSizeClass.Compact
+    val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    if (isTablet) {
+        val carouselState = rememberCarouselState { albums.size }
+
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    if (albums.isNotEmpty() && !carouselState.isScrollInProgress) {
+                        coroutineScope.launch {
+                            carouselState.scrollToItem(carouselState.currentItem.coerceIn(0, albums.lastIndex))
+                        }
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
+        }
+
+        LaunchedEffect(albums.size) {
+            if (albums.size > 1) {
+                while (true) {
+                    delay(4500)
+                    if (!carouselState.isScrollInProgress) {
+                        val nextItem = (carouselState.currentItem + 1) % albums.size
+                        carouselState.animateScrollToItem(
+                            nextItem,
+                            animationSpec = tween(durationMillis = 800)
+                        )
+                    }
+                }
+            }
+        }
+
+        val carouselHeight = when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 240.dp
+            else -> 280.dp
+        }
+        val preferredItemWidth = when (widthSizeClass) {
+            WindowWidthSizeClass.Expanded -> 360.dp
+            else -> 280.dp
+        }
+        val horizontalPadding = when (widthSizeClass) {
+            WindowWidthSizeClass.Expanded -> 32.dp
+            else -> 16.dp
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 32.dp, bottom = 8.dp)
+        ) {
+            HorizontalMultiBrowseCarousel(
+                state = carouselState,
+                preferredItemWidth = preferredItemWidth,
+                itemSpacing = 16.dp,
+                contentPadding = PaddingValues(horizontal = horizontalPadding),
+                minSmallItemWidth = 48.dp,
+                maxSmallItemWidth = 140.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(carouselHeight)
+            ) { page ->
+                val album = albums.getOrNull(page) ?: return@HorizontalMultiBrowseCarousel
+                Card(
+                    onClick = {
+                        HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                        onAlbumClick(album)
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .maskClip(MaterialTheme.shapes.extraLarge),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    )
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        M3ImageUtils.AlbumArt(
+                            imageUrl = album.artworkUri,
+                            albumName = album.title,
+                            modifier = Modifier.fillMaxSize(),
+                            applyExpressiveShape = false
+                        )
+
+                        if (showGradient) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.Transparent,
+                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                                            ),
+                                            startY = 0f,
+                                            endY = Float.POSITIVE_INFINITY
+                                        )
+                                    )
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            if (showAlbumName) {
+                                Text(
+                                    text = album.title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            if (showArtistName) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = album.artist,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                       

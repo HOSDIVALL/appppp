@@ -1,0 +1,367 @@
+   fun createNote(checklist: Boolean = false): Note {
+
+        val now = System.currentTimeMillis()
+
+        val note = Note(
+
+            createdAt = now,
+
+            updatedAt = now,
+
+            colorIndex = activeNotes.size % 3,
+
+            checklist = checklist,
+
+            todos = if (checklist) listOf(TodoItem()) else emptyList()
+
+        )
+
+        _notes.add(0, note)
+
+        persist()
+
+        return note
+
+    }
+
+
+
+    fun updateNote(id: String, title: String, content: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val old = _notes[index]
+
+        // 内容没变就不写文件，避免每次重组都触发一次磁盘写入
+
+        if (old.title == title && old.content == content) return
+
+
+
+        _notes[index] = old.copy(
+
+            title = title,
+
+            content = content,
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        persist()
+
+    }
+
+
+
+    // ============ 待办清单 ============
+
+
+
+    /**
+
+     * 在「文本 / 清单」之间切换，并把已有内容带过去：
+
+     * - 转清单：正文按行拆成待办（`- [x]` 前缀的勾选状态会保留）
+
+     * - 转文本：待办写回成 `- [ ] / - [x]` 行，再切回清单时状态不丢
+
+     */
+
+    fun setChecklist(id: String, enabled: Boolean) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (note.checklist == enabled) return
+
+
+
+        _notes[index] = if (enabled) {
+
+            val converted = contentToTodos(note.content)
+
+            note.copy(
+
+                checklist = true,
+
+                // 正文留着不删：清单模式下它不显示，但里面的图片/录音标记要留着，
+
+                // 切回文本时才能把媒体按原位插回去
+
+                todos = converted.ifEmpty { listOf(TodoItem()) },
+
+                updatedAt = System.currentTimeMillis()
+
+            )
+
+        } else {
+
+            note.copy(
+
+                checklist = false,
+
+                content = mergeMediaIntoText(
+
+                    text = todosToContent(note.todos),
+
+                    anchors = mediaAnchors(note.content)
+
+                ),
+
+                todos = emptyList(),
+
+                updatedAt = System.currentTimeMillis()
+
+            )
+
+        }
+
+        persist()
+
+    }
+
+
+
+    fun toggleTodo(id: String, todoId: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        val todoIndex = note.todos.indexOfFirst { it.id == todoId }
+
+        if (todoIndex < 0) return
+
+
+
+        val updated = note.todos.toMutableList()
+
+        updated[todoIndex] = updated[todoIndex].let { it.copy(done = !it.done) }
+
+        _notes[index] = note.copy(todos = updated, updatedAt = System.currentTimeMillis())
+
+        persist()
+
+    }
+
+
+
+    fun updateTodoText(id: String, todoId: String, text: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        val todoIndex = note.todos.indexOfFirst { it.id == todoId }
+
+        if (todoIndex < 0) return
+
+        if (note.todos[todoIndex].text == text) return
+
+
+
+        val updated = note.todos.toMutableList()
+
+        updated[todoIndex] = updated[todoIndex].copy(text = text)
+
+        _notes[index] = note.copy(todos = updated, updatedAt = System.currentTimeMillis())
+
+        persist()
+
+    }
+
+
+
+    /**
+
+     * 新增一项待办。[afterId] 指定插在哪一项后面（回车续行），
+
+     * 为空则追加到末尾。返回新项，方便界面把焦点移过去。
+
+     */
+
+    fun addTodo(id: String, text: String = "", afterId: String? = null): TodoItem? {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return null
+
+
+
+        val note = _notes[index]
+
+        val item = TodoItem(text = text)
+
+        val updated = note.todos.toMutableList()
+
+        val at = afterId?.let { anchor ->
+
+            updated.indexOfFirst { it.id == anchor }.let { if (it < 0) updated.size else it + 1 }
+
+        } ?: updated.size
+
+        updated.add(at, item)
+
+
+
+        _notes[index] = note.copy(todos = updated, updatedAt = System.currentTimeMillis())
+
+        persist()
+
+        return item
+
+    }
+
+
+
+    fun removeTodo(id: String, todoId: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (note.todos.none { it.id == todoId }) return
+
+
+
+        _notes[index] = note.copy(
+
+            todos = note.todos.filterNot { it.id == todoId },
+
+            updatedAt = System.currentTimeMillis()
+
+        )
+
+        persist()
+
+    }
+
+
+
+    /** 一键清掉已完成项，返回清掉的条数 */
+
+    fun clearCompletedTodos(id: String): Int {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return 0
+
+
+
+        val note = _notes[index]
+
+        val remaining = note.todos.filterNot { it.done }
+
+        val removed = note.todos.size - remaining.size
+
+        if (removed <= 0) return 0
+
+
+
+        _notes[index] = note.copy(todos = remaining, updatedAt = System.currentTimeMillis())
+
+        persist()
+
+        return removed
+
+    }
+
+
+
+    /**
+
+     * 清掉空白的待办行。离开编辑页时调用：
+
+     * 点「添加待办」加了一行却没写，不该在清单里留一个空壳。
+
+     * 整篇一条都没写时不动，方便下次进来接着写。
+
+     */
+
+    fun pruneBlankTodos(id: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (!note.checklist) return
+
+
+
+        val kept = note.todos.filter { it.text.isNotBlank() }
+
+        if (kept.isEmpty() || kept.size == note.todos.size) return
+
+
+
+        _notes[index] = note.copy(todos = kept)
+
+        persist()
+
+    }
+
+
+
+    fun togglePin(id: String) {
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        _notes[index] = _notes[index].let { it.copy(pinned = !it.pinned) }
+
+        persist()
+
+    }
+
+
+
+    fun addTag(id: String, tag: String) {
+
+        val clean = tag.trim().removePrefix("#")
+
+        if (clean.isEmpty()) return
+
+
+
+        val index = _notes.indexOfFirst { it.id == id }
+
+        if (index < 0) return
+
+
+
+        val note = _notes[index]
+
+        if (clean in note.tags) return
+
+
+
+        _notes[index] = note.copy(tags = not

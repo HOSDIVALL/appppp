@@ -1,0 +1,120 @@
+overShowGradient by appSettings.homeDiscoverShowGradient.collectAsState()
+    val showRhythmGuardSection by appSettings.streamingHomeShowRhythmGuard.collectAsState()
+    val showRhythmStatsSection by appSettings.streamingHomeShowRhythmStats.collectAsState()
+
+    val rhythmGuardMode by appSettings.rhythmGuardMode.collectAsState()
+    val rhythmGuardAge by appSettings.rhythmGuardAge.collectAsState()
+    val rhythmGuardAlertThresholdMinutes by appSettings.rhythmGuardAlertThresholdMinutes.collectAsState()
+    val rhythmGuardTimeoutUntilMs by appSettings.rhythmGuardTimeoutUntilMs.collectAsState()
+    val dailyListeningStats by appSettings.dailyListeningStats.collectAsState()
+    val persistedSongsPlayed by appSettings.songsPlayed.collectAsState()
+    val listeningTimeMs by appSettings.listeningTime.collectAsState()
+
+    val rhythmGuardPolicy = remember(rhythmGuardAge) { appSettings.getRhythmGuardPolicy(rhythmGuardAge) }
+    val rhythmGuardRecommendedMinutes = when (rhythmGuardMode) {
+        AppSettings.RHYTHM_GUARD_MODE_MANUAL -> rhythmGuardAlertThresholdMinutes
+            .takeIf { it > 0 }
+            ?: rhythmGuardPolicy.recommendedDailyMinutes
+        else -> rhythmGuardPolicy.recommendedDailyMinutes
+    }
+    val playbackStatsRepository = remember(context) { PlaybackStatsRepository.getInstance(context) }
+    var todayListeningMinutes by remember { mutableIntStateOf(0) }
+
+    val currentProgress by musicViewModel.progress.collectAsState()
+    val currentDurationMs by musicViewModel.duration.collectAsState()
+    val currentIsPlaying by musicViewModel.isPlaying.collectAsState()
+
+    LaunchedEffect(dailyListeningStats, persistedSongsPlayed, listeningTimeMs, currentProgress, currentDurationMs, currentIsPlaying) {
+        val todaySummary = runCatching {
+            playbackStatsRepository.loadSummary(StatsTimeRange.TODAY)
+        }.getOrNull()
+        val dbDurationMs = todaySummary?.totalDurationMs ?: 0L
+        val activeSessionDurationMs = if (currentIsPlaying && currentDurationMs > 0) {
+            (currentProgress * currentDurationMs).toLong()
+        } else {
+            0L
+        }
+        val totalMs = dbDurationMs + activeSessionDurationMs
+        todayListeningMinutes = (totalMs / 60000L).toInt().coerceAtLeast(0)
+    }
+
+    val horizontalPadding = when (widthSizeClass) {
+        WindowWidthSizeClass.Compact -> 20.dp
+        WindowWidthSizeClass.Medium -> 48.dp
+        WindowWidthSizeClass.Expanded -> 64.dp
+        else -> 20.dp
+    }
+    val sectionSpacing = when (widthSizeClass) {
+        WindowWidthSizeClass.Compact -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 32.dp
+            else -> 40.dp
+        }
+        WindowWidthSizeClass.Medium -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 48.dp
+            else -> 56.dp
+        }
+        WindowWidthSizeClass.Expanded -> when (heightSizeClass) {
+            WindowHeightSizeClass.Compact -> 52.dp
+            else -> 64.dp
+        }
+        else -> 40.dp
+    }
+
+    val vm = streamingViewModel
+    val rawAllSongs = vm?.allSongs?.collectAsState()?.value ?: emptyList()
+    val rawRecommendations = vm?.recommendations?.collectAsState()?.value ?: emptyList()
+    val rawNewReleases = vm?.newReleases?.collectAsState()?.value ?: emptyList()
+    val rawArtists = vm?.followedArtists?.collectAsState()?.value ?: emptyList()
+    val rawPlaylists = vm?.savedPlaylists?.collectAsState()?.value ?: emptyList()
+    val rawDownloadedSongs = vm?.downloadedSongs?.collectAsState()?.value ?: emptyList()
+    val rawDownloadedAlbums = vm?.downloadedAlbums?.collectAsState()?.value ?: emptyList()
+    val rawDownloadedArtists = vm?.downloadedArtists?.collectAsState()?.value ?: emptyList()
+    val syncProgress = vm?.syncProgress?.collectAsState()?.value ?: chromahub.rhythm.app.features.streaming.presentation.viewmodel.StreamingSyncProgress()
+    val isSyncing = syncProgress.isSyncing
+
+    val streamingSongById by rememberOffMain(emptyMap<String, StreamingSong>(), rawAllSongs, rawRecommendations, rawNewReleases, rawDownloadedSongs) {
+        (rawAllSongs + rawRecommendations + rawNewReleases.flatMap { it.tracks } + rawDownloadedSongs)
+            .distinctBy { it.id }
+            .associateBy { it.id }
+    }
+    val streamingAlbumById = remember(rawNewReleases, rawDownloadedAlbums) {
+        (rawNewReleases + rawDownloadedAlbums).distinctBy { it.id }.associateBy { it.id }
+    }
+    val streamingArtistById = remember(rawArtists, rawDownloadedArtists) {
+        (rawArtists + rawDownloadedArtists).distinctBy { it.id }.associateBy { it.id }
+    }
+    val streamingPlaylistById = remember(rawPlaylists) { rawPlaylists.associateBy { it.id } }
+
+    val offlineMode by appSettings.offlineMode.collectAsState()
+    val isVmOnline = vm?.isOnline?.collectAsState()?.value ?: true
+    val isEffectivelyOffline = !serviceConnected || offlineMode || !isVmOnline
+
+    val effectiveSongs = remember(isSyncing, isEffectivelyOffline, rawDownloadedSongs, songs) {
+        if (isSyncing || isEffectivelyOffline) {
+            rawDownloadedSongs.map { it.toLibrarySong() }
+        } else {
+            songs
+        }
+    }
+    val effectiveAlbums = remember(isSyncing, isEffectivelyOffline, rawDownloadedAlbums, albums) {
+        if (isSyncing || isEffectivelyOffline) {
+            rawDownloadedAlbums.map { it.toLibraryAlbum(emptyList()) }
+        } else {
+            albums
+        }
+    }
+    val effectiveArtists = remember(isSyncing, isEffectivelyOffline, rawDownloadedArtists, effectiveSongs, effectiveAlbums, artists) {
+        if (isSyncing || isEffectivelyOffline) {
+            rawDownloadedArtists.map {
+                it.toLibraryArtist(
+                    librarySongs = effectiveSongs,
+                    libraryAlbums = effectiveAlbums,
+                    separatorEnabled = false,
+                    separatorDelimiters = ""
+                )
+            }
+        } else {
+            artists
+        }
+    }
+    val effectiveRecentlyPla

@@ -1,0 +1,68 @@
+  }
+        }
+    }
+
+    /**
+     * 备份覆盖导入后：只清理指向已不存在笔记的记录，保留下来的 id 维持原顺序。
+     * 不扩展备份格式，也不因为一次导入就清空全部历史。
+     */
+    private fun pruneRecentTo(activeIds: Set<String>) {
+        val token = recentToken.incrementAndGet()
+        scope.launch {
+            try {
+                val current = recentStore.load()
+                val stale = current.map { it.noteId }.filterNot { it in activeIds }
+                val snapshot = if (stale.isEmpty()) current else recentStore.forgetAll(stale)
+                if (token == recentToken.get()) {
+                    recentUsages = snapshot
+                    recentError = null
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (token == recentToken.get()) recentError = recentFailure(failure)
+            }
+        }
+    }
+
+    private fun recentFailure(failure: Exception): String =
+        failure.message ?: "最近使用记录读写失败"
+
+    private val writeCoordinator = com.example.myapplicationfirstapp.data.NotesWriteCoordinator()
+    private var newestSaveTicket: com.example.myapplicationfirstapp.data.NotesWriteCoordinator.Ticket? = null
+
+    private fun persist() {
+        val snapshot = _notes.toList()
+        // No replace() calls are introduced in this patch. Before adding them,
+        // guard state mutations before they happen; never silently drop a save.
+        val ticket = checkNotNull(writeCoordinator.reserve()) { "Replacement is active" }
+        newestSaveTicket = ticket
+        scope.launch {
+            try {
+                val written = writeCoordinator.save(ticket) { repository.save(snapshot) }
+                if (written && newestSaveTicket === ticket) persistenceError = null
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (newestSaveTicket === ticket) {
+                    persistenceError = failure.message ?: "Saving notes failed"
+                }
+            }
+        }
+    }
+
+
+
+    private companion object {
+
+        /** 回收站保留 30 天 */
+        const val TRASH_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1000
+
+        /** 本项目首页轮播的展示上限；不是 Rhythm 的硬性规定 */
+        const val RECENT_LIMIT = 6
+    }
+
+}
+
+
+

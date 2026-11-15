@@ -1,0 +1,18 @@
+{
+  "origin": {
+    "base": "fd9438894d3b121ed8ed233e887ac19ce113f20b",
+    "patch_commit": "a81885479378d615d7293467481f7b98c8ca1d4a",
+    "path": "app/src/main/java/com/example/myapplicationfirstapp/ui/ListVisualTokens.kt"
+  },
+  "bytes": 2555,
+  "git_blob": "999962cf563766067f5ea6b3be99a2ce01e1d9da",
+  "sha256": "b6f8fa445ddfbae871ba4daaec8904fb435b485aa0db8092e86997843ea6a044",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 2555,
+      "sha256": "b6f8fa445ddfbae871ba4daaec8904fb435b485aa0db8092e86997843ea6a044"
+    }
+  ],
+  "symbol_hits": []
+}

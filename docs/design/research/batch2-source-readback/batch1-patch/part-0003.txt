@@ -1,0 +1,185 @@
+ents(purged.flatMap(::allImageNames))
+ 
++            // 过期回收站里的笔记已经不存在了，对应的最近使用记录也一并清掉
++            forgetRecent(purged.map { it.id })
++
+             persist()
+ 
+         }
+ 
+         loaded = true
+ 
++        // 元数据独立加载：晚到或失败都不影响正文列表，错误只落 recentError
++        scope.launch { refreshRecent() }
++
+ 
+ 
+         // 启动时把还没到点的提醒重新排一遍：
+@@ -802,6 +820,8 @@ class NotesState(
+ 
+         repository.deleteAttachments(allImageNames(removed))
+ 
++        forgetRecent(listOf(removed.id))
++
+         persist()
+ 
+         return removed
+@@ -824,6 +844,8 @@ class NotesState(
+ 
+         repository.deleteAttachments(trashed.flatMap(::allImageNames))
+ 
++        forgetRecent(trashed.map { it.id })
++
+         persist()
+ 
+         return trashed.size
+@@ -1208,6 +1230,9 @@ class NotesState(
+ 
+         persist()
+ 
++        // 只清理指向旧数据里已消失笔记的记录；备份里仍在的 id 保留原有顺序
++        pruneRecentTo(imported.map { it.id }.toSet())
++
+         return imported.size
+ 
+     }
+@@ -1248,6 +1273,122 @@ class NotesState(
+     var persistenceError by mutableStateOf<String?>(null)
+         private set
+ 
++    // ============ 最近使用（元数据，独立于正文） ============
++
++    /** 由独立 recent_notes.db 读回的原始记录，顺序以 openOrder 为准 */
++    var recentUsages by mutableStateOf<List<RecentNoteUsage>>(emptyList())
++        private set
++
++    /** 最近使用自己的错误通道：元数据坏了不能连带正文的 persistenceError */
++    var recentError by mutableStateOf<String?>(null)
++        private set
++
++    /**
++     * 首页轮播真正展示的列表：只在「存在且不在回收站」的笔记里挑，
++     * 顺序来自打开顺序，不用 updatedAt 伪造。软删除的笔记只是暂时排除，记录本身保留。
++     */
++    val recentNotes: List<Note>
++        get() = recentNotesForDisplay(recentUsages, _notes, RECENT_LIMIT)
++
++    /**
++     * 每次读写元数据都领一个令牌，只有最新一次的结果能写回状态。
++     * 加载、打开、删除交错时，慢回来的旧快照不会覆盖新状态。
++     */
++    private val recentToken = AtomicInteger(0)
++
++    /**
++     * 统一的「打开笔记」入口：笔记必须存在且不在回收站，确认后才记录一次使用。
++     *
++     * 只有用户真的发起打开（列表点击、轮播点击、点通知）时才走这里；
++     * 旋转、进程恢复只是把 editingId 还原，不经过本方法，所以不会重复计次。
++     */
++    fun openNote(id: String): Note? {
++        val note = _notes.firstOrNull { it.id == id } ?: return null
++        if (note.deletedAt != null) return null
++        recordRecentOpen(note.id)
++        return note
++    }
++
++    /** 启动时读一次元数据；失败只落 recentError，不阻塞正文加载 */
++    suspend fun refreshRecent() {
++        val token = recentToken.incrementAndGet()
++        try {
++            val snapshot = recentStore.load()
++            if (token == recentToken.get()) {
++                recentUsages = snapshot
++                recentError = null
++            }
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (failure: Exception) {
++            if (token == recentToken.get()) recentError = recentFailure(failure)
++        }
++    }
++
++    private fun recordRecentOpen(id: String) {
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val snapshot = recentStore.recordOpened(id)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                // 记录失败不影响这次打开：笔记照常打开，正文与保存顺序都不动
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    /** 永久删除 / 清空回收站 / 过期回收站清理后，把这些 id 的元数据一并清掉 */
++    private fun forgetRecent(ids: Collection<String>) {
++        val clean = ids.filter { it.isNotBlank() }.distinct()
++        if (clean.isEmpty()) return
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val snapshot = recentStore.forgetAll(clean)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    /**
++     * 备份覆盖导入后：只清理指向已不存在笔记的记录，保留下来的 id 维持原顺序。
++     * 不扩展备份格式，也不因为一次导入就清空全部历史。
++     */
++    private fun pruneRecentTo(activeIds: Set<String>) {
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val current = recentStore.load()
++                val stale = current.map { it.noteId }.filterNot { it in activeIds }
++                val snapshot = if (stale.isEmpty()) current else recentStore.forgetAll(stale)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    private fun recentFailure(failure: Exception): String =
++        failure.message ?: "最近使用记录读写失败"
++
+     private val writeCoordinator = com.example.myapplicationfirstapp.data.NotesWriteCoordinator()
+     private var newestSaveTicket: com.example.myapplicationfirstapp.data.NotesWriteCoordinator.Ticket? = null
+ 
+@@ -1276,9 +1417,10 @@ class NotesState(
+     private companion object {
+ 
+         /** 回收站保留 30 天 */
+-
+         const val TRASH_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1000
+ 
++        /** 本项目首页轮播的展示上限；不是 Rhythm 的硬性规定 */
++        const val RECENT_LIMIT = 6
+     }
+ 
+ }
+diff --git a/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt b/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
+index a7b4277..5afd3ef 100644
+--- a/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
++++ b/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
+@@

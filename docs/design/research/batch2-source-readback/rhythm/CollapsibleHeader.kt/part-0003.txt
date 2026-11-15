@@ -1,0 +1,147 @@
+ = 12.dp) // Add padding to the back button
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp) // Adjust size as needed
+                                        .clip(RoundedCornerShape(50))
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh), // Circular background 
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = RhythmIcons.Back,
+                                        contentDescription = stringResource(R.string.cd_back),
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(25.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    actions = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 12.dp)
+                        ) {
+                            filterDropdown()
+                            HeaderActionGroup(headerActions)
+                            actions()
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = containerColor,
+                        scrolledContainerColor = containerColor
+                    )
+                )
+                if (headerContent != null) {
+                    Spacer(modifier = Modifier.height(headerContentSpacing))
+                    headerContent()
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(headerBlendHeight)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    headerBlendBaseColor,
+                                    headerBlendBaseColor.copy(alpha = 0.72f),
+                                    headerBlendBaseColor.copy(alpha = 0.32f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
+            }
+        }
+    ) { paddingValues ->
+        val density = LocalDensity.current
+        val baseTopPadding = remember(expandedHeaderHeight, paddingValues) {
+            if (expandedHeaderHeight > 0) {
+                with(density) { expandedHeaderHeight.toDp() }
+            } else {
+                paddingValues.calculateTopPadding()
+            }
+        }
+        // Dynamically adjust top padding based on header collapse progress.
+        // heightOffset is 0 when expanded and negative when collapsing, so adding it
+        // shrinks the top padding proportionally — avoiding a visual layout gap at
+        // the screen bottom that the old offset() approach used to cause.
+        val dynamicTopPadding = with(density) {
+            (baseTopPadding.toPx() + scrollBehavior.state.heightOffset).toDp()
+                .coerceAtLeast(headerBlendHeight)
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = (dynamicTopPadding - headerBlendHeight).coerceAtLeast(0.dp))
+                .graphicsLayer {
+                    alpha = contentAlpha
+                    translationY = contentOffset
+                }
+        ) {
+            content(Modifier.fillMaxSize())
+        }
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ArtistCollapsibleHeaderScreen(
+    title: String,
+    artist: Artist?,
+    artworkUri: String?,
+    artistName: String,
+    artistSongsCount: Int,
+    artistAlbumsCount: Int,
+    showBackButton: Boolean = false,
+    onBackClick: () -> Unit = {},
+    actions: @Composable () -> Unit = {},
+    headerActions: List<HeaderAction> = emptyList(),
+    filterDropdown: @Composable () -> Unit = {},
+    scrollBehaviorKey: String? = null,
+    showAppIcon: Boolean = false,
+    iconVisibilityMode: Int = 0,
+    headerDisplayMode: Int = 1,
+    alwaysCollapsed: Boolean = false,
+    containerColor: Color = Color.Transparent,
+    content: @Composable (Modifier) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val appSettings = remember { chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context) }
+    val globalCollapseBehavior by appSettings.headerCollapseBehavior.collectAsState()
+
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
+        topAppBarState,
+        canScroll = { true }
+    )
+
+    var expandedHeaderHeight by remember { mutableIntStateOf(0) }
+
+    // Apply global collapse behavior or screen-specific override
+    val shouldStartCollapsed = alwaysCollapsed || globalCollapseBehavior == 1
+
+    // If shouldStartCollapsed is true, set the initial state to fully collapsed
+    LaunchedEffect(shouldStartCollapsed) {
+        if (shouldStartCollapsed) {
+            topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
+        }
+    }
+
+    // Entrance animation state
+    var showContent by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(50) // Small delay for smoother transition
+        showContent = true
+    }
+
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (showContent) 1f else 0f,
+        animationSpec = tween(durationMillis = 400),
+        label = "contentAlpha"
+    )
+
+    val contentOffset by animateFloatAsState(
+        targetValue = if (showContent) 0f else 

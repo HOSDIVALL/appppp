@@ -1,0 +1,43 @@
+{
+  "origin": {
+    "repository": "cromaguy/Rhythm",
+    "commit": "6f26f963b82ed592ec28f05824bb7f12b65b82ea",
+    "path": "LICENSE"
+  },
+  "bytes": 35149,
+  "git_blob": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+  "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+  "parts": [
+    {
+      "file": "part-0001.txt",
+      "bytes": 6000,
+      "sha256": "438410c6b27bcdcac3bdfb792ec6f32735cb84cbfc3fa7f5320852a7191a159d"
+    },
+    {
+      "file": "part-0002.txt",
+      "bytes": 6000,
+      "sha256": "1bd3234d47c61d9066f4578da21e63ec818a13a430586d194241a0a7569e8ba2"
+    },
+    {
+      "file": "part-0003.txt",
+      "bytes": 6000,
+      "sha256": "4f5c455cb0b4d0487c8979151f0c38c5b47d6d68bab854520f0625ca73f269e0"
+    },
+    {
+      "file": "part-0004.txt",
+      "bytes": 6000,
+      "sha256": "9a65a7ac03b86d903136fa8154b041859d06804b67644e64a09434118a0284f9"
+    },
+    {
+      "file": "part-0005.txt",
+      "bytes": 6000,
+      "sha256": "8aea2376f77a2c1709f766e5c5df41a86322102a2b1d153abbbc11757bd9dcbb"
+    },
+    {
+      "file": "part-0006.txt",
+      "bytes": 5149,
+      "sha256": "27021d17a717ac365bdd41fa6e1c1fe8213d9425220c5a118418b6ecdc42b09b"
+    }
+  ],
+  "symbol_hits": []
+}

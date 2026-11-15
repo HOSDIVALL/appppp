@@ -1,0 +1,125 @@
+{
+            StreamingHomeBody(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(bottom = if (currentSong != null) 0.dp else 0.dp),
+                streamingViewModel = streamingViewModel,
+                songs = streamingSongs,
+                albums = streamingAlbums,
+                artists = streamingArtists,
+                playlists = streamingPlaylists,
+                recentlyPlayed = if (streamingRecentlyPlayed.isNotEmpty()) streamingRecentlyPlayed else recentlyPlayed,
+                serviceName = streamingServiceName,
+                serviceConnected = streamingServiceConnected,
+                isLoading = streamingIsLoading,
+                errorMessage = streamingError,
+                onConfigureService = onConfigureService,
+                onSwitchToLocalMode = onSwitchToLocalMode,
+                onNavigateToArtist = onStreamingNavigateToArtist,
+                onNavigateToAlbum = onStreamingNavigateToAlbum,
+                onNavigateToPlaylist = onStreamingNavigateToPlaylist,
+                onPlayQueue = onStreamingPlayQueue,
+                onShuffleQueue = onStreamingShuffleQueue,
+                onViewAllArtists = onViewAllArtists,
+                onNavigateToLibrary = onNavigateToLibrary,
+                onSongClick = onSongClick,
+                onNavigateToStats = onNavigateToStats,
+                onNavigateToRhythmGuard = onNavigateToRhythmGuard,
+                musicViewModel = musicViewModel,
+                coroutineScope = coroutineScope,
+                isRefreshing = streamingIsRefreshing,
+                onRefresh = {
+                    streamingIsRefreshing = true
+                    streamingViewModel?.refreshHome()
+                }
+            )
+        } else {
+            ModernScrollableContent(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(bottom = if (currentSong != null) 0.dp else 0.dp),
+                featuredContent = featuredContent,
+                albums = albums,
+                topArtists = topArtists,
+                newReleases = currentYearReleases,
+                recentlyAddedSongs = recentlyAddedSongs,
+                recentlyAddedAlbums = recentlyAddedAlbums,
+                recentlyPlayed = recentlyPlayed,
+                songs = songs,
+                onSongClick = onSongClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = { artist: Artist ->
+                    onNavigateToArtist(artist)
+                },
+                onViewAllSongs = onViewAllSongs,
+                onViewAllAlbums = onViewAllAlbums,
+                onViewAllArtists = onViewAllArtists,
+                onSearchClick = onSearchClick,
+                onSettingsClick = onSettingsClick,
+                onNavigateToLibrary = onNavigateToLibrary,
+                onNavigateToPlaylist = onNavigateToPlaylist,
+                onNavigateToStats = onNavigateToStats,
+                onNavigateToRhythmGuard = onNavigateToRhythmGuard,
+                musicViewModel = musicViewModel,
+                coroutineScope = coroutineScope,
+                isRefreshing = isLibraryRefreshing,
+                onRefresh = {
+                    musicViewModel.refreshLibrary(showMediaScanLoader = false)
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Go-mode (streaming) home body.
+ *
+ * Renders streaming content through the exact same local Modern* card language:
+ * streaming models are converted to local model types by the caller, and play
+ * actions are routed back to the streaming view model (which hands off to the
+ * shared local player via the playback handler).
+ */
+@Composable
+private fun StreamingHomeBody(
+    modifier: Modifier = Modifier,
+    streamingViewModel: chromahub.rhythm.app.features.streaming.presentation.viewmodel.StreamingMusicViewModel?,
+    songs: List<Song>,
+    albums: List<Album>,
+    artists: List<Artist>,
+    playlists: List<chromahub.rhythm.app.shared.data.model.Playlist>,
+    recentlyPlayed: List<Song>,
+    serviceName: String,
+    serviceConnected: Boolean,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onConfigureService: (String) -> Unit,
+    onSwitchToLocalMode: () -> Unit = {},
+    onNavigateToArtist: (chromahub.rhythm.app.features.streaming.domain.model.StreamingArtist) -> Unit,
+    onNavigateToAlbum: (chromahub.rhythm.app.features.streaming.domain.model.StreamingAlbum) -> Unit,
+    onNavigateToPlaylist: (chromahub.rhythm.app.features.streaming.domain.model.StreamingPlaylist) -> Unit,
+    onPlayQueue: (List<chromahub.rhythm.app.features.streaming.domain.model.StreamingSong>, Int, Boolean) -> Unit,
+    onShuffleQueue: (List<chromahub.rhythm.app.features.streaming.domain.model.StreamingSong>) -> Unit,
+    onViewAllArtists: () -> Unit,
+    onNavigateToLibrary: () -> Unit,
+    onSongClick: (Song) -> Unit,
+    onNavigateToStats: () -> Unit = {},
+    onNavigateToRhythmGuard: () -> Unit = {},
+    musicViewModel: chromahub.rhythm.app.viewmodel.MusicViewModel,
+    coroutineScope: CoroutineScope,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val windowSizeClass = calculateWindowSizeClass(context as android.app.Activity)
+    val widthSizeClass = windowSizeClass.widthSizeClass
+    val heightSizeClass = windowSizeClass.heightSizeClass
+    val scrollState = rememberScrollState()
+
+    val appSettings = AppSettings.getInstance(context)
+    val showDiscoverCarousel by appSettings.homeShowDiscoverCarousel.collectAsState()
+    val discoverItemCount by appSettings.homeDiscoverItemCount.collectAsState()
+    val discoverShowAlbumName by appSettings.homeDiscoverShowAlbumName.collectAsState()
+    val discoverShowArtistName by appSettings.homeDiscoverShowArtistName.collectAsState()
+    val discoverShowYear by appSettings.homeDiscoverShowYear.collectAsState()
+    val discoverShowPlayButton by appSettings.homeDiscoverShowPlayButton.collectAsState()
+    val disc

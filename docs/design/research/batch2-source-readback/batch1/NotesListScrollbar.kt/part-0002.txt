@@ -1,0 +1,125 @@
+    tracker.observe(visibleItems, layoutInfo.mainAxisItemSpacing)
+
+            val viewportHeightPx = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat().coerceAtLeast(1f)
+            val itemStridePx = tracker.representativeStridePx(visibleItems, layoutInfo.mainAxisItemSpacing)
+            val estimatedVisibleItems = (viewportHeightPx / itemStridePx).coerceAtLeast(1f)
+            val lastItemIndex = (totalItemsCount - 1).coerceAtLeast(0)
+
+            val currentScrollPx = (tracker.distanceBefore(listState.firstVisibleItemIndex, itemStridePx) + listState.firstVisibleItemScrollOffset).coerceAtLeast(0f)
+            val totalScrollableContentPx = (
+                layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
+            ).toFloat() + (
+                tracker.distanceBefore(lastItemIndex, itemStridePx) + tracker.itemSizePx(lastItemIndex, itemStridePx) - viewportHeightPx
+            ).coerceAtLeast(1f)
+
+            val approxMaxIndex = (totalItemsCount - estimatedVisibleItems).toInt().coerceAtLeast(1)
+
+            val boundedScrollPx = currentScrollPx.coerceIn(0f, totalScrollableContentPx)
+            val realProgress = if (!listState.canScrollForward) 1f
+            else if (!listState.canScrollBackward) 0f
+            else (boundedScrollPx / totalScrollableContentPx).coerceIn(0f, 0.999f)
+
+            val availableHeight = with(density) { constraintsMaxHeight.toPx() }
+            val handleHeightPx = with(density) { minHeight.toPx() }
+            val scrollableHeight = (availableHeight - handleHeightPx).coerceAtLeast(1f)
+
+            return ScrollStats(realProgress, approxMaxIndex, scrollableHeight)
+        }
+
+        fun updateProgressFromTouch(touchY: Float, grabOffset: Float) {
+            val stats = getScrollStats()
+            val targetHandleTop = touchY - grabOffset
+            val newProgress = (targetHandleTop / stats.scrollableHeight).coerceIn(0f, 1f)
+            dragProgress = newProgress
+            pendingScrollIndex = if (newProgress >= 1f) {
+                (displayNotes.size - 1).coerceAtLeast(0)
+            } else {
+                (newProgress * stats.maxScrollIndex).toInt().coerceIn(0, (displayNotes.size - 1).coerceAtLeast(0))
+            }
+        }
+
+        LaunchedEffect(listState) {
+            snapshotFlow { pendingScrollIndex }
+                .distinctUntilChanged()
+                .collectLatest { index ->
+                    if (index >= 0) {
+                        listState.scrollToItem(index)
+                    }
+                }
+        }
+
+        LaunchedEffect(listState, constraintsMaxHeight, minHeight, isDragging) {
+            if (isDragging) return@LaunchedEffect
+
+            snapshotFlow { getScrollStats() }
+                .distinctUntilChanged()
+                .collectLatest { stats ->
+                    val targetProgress = stats.progress
+                    if (!hasSyncedDisplayedProgress) {
+                        displayedProgress.snapTo(targetProgress)
+                        hasSyncedDisplayedProgress = true
+                    } else {
+                        val sourceIsScrolling = listState.isScrollInProgress
+                        val handleDeltaPx = abs(targetProgress - displayedProgress.value) * stats.scrollableHeight
+                        val estimatedStepPx = stats.scrollableHeight / stats.maxScrollIndex.coerceAtLeast(1).toFloat()
+                        val shouldSmoothJump = !sourceIsScrolling &&
+                            estimatedStepPx >= coarseJumpThresholdPx &&
+                            handleDeltaPx >= smoothJumpMinDistancePx
+
+                        if (shouldSmoothJump) {
+                            displayedProgress.animateTo(
+                                targetValue = targetProgress,
+                                animationSpec = tween(durationMillis = 70, easing = FastOutSlowInEasing)
+                            )
+                        } else {
+                            displayedProgress.snapTo(targetProgress)
+                        }
+                    }
+                }
+        }
+
+        LaunchedEffect(isDragging, dragProgress) {
+            if (isDragging && dragProgress >= 0f) {
+                displayedProgress.snapTo(dragProgress)
+                hasSyncedDisplayedProgress = true
+            }
+        }
+
+        val indicatorPath = remember { Path() }
+
+        val handleHeightPx = with(density) { minHeight.toPx() }
+        val visualProgress = displayedProgress.value
+        val displayProgress = if (isDragging && dragProgress >= 0f) dragProgress else visualProgress
+        val stats = getScrollStats()
+        val handleY = displayProgress * stats.scrollableHeight
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(expandedIndicatorWidth + paddingEnd)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            try {
+                                awaitRelease()
+                            } finally {
+                                isPressed = false
+                            }
+                        }
+                    )
+                }
+                .pointerInput(Unit) {
+                    var grabOffset = 0f
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            isDragging = true
+                            val isTouchOnHandle = offset.y >= handleY && offset.y <= (handleY + handleHeightPx)
+                            if (isTouchOnHandle) {
+                                grabOffset = offset.y - handleY
+                                dragProgress = visualProgress
+                                pendingScrollIndex = listState.firstVisibleItemIndex
+                            } else {
+                                grabOffset = handleHeightPx / 2f
+                  

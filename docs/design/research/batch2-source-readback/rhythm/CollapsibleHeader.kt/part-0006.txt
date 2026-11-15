@@ -1,0 +1,165 @@
+Size())
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FixedHeaderScreen(
+    title: String,
+    modifier: Modifier = Modifier,
+    showBackButton: Boolean = false,
+    onBackClick: () -> Unit = {},
+    actions: @Composable () -> Unit = {},
+    headerActions: List<HeaderAction> = emptyList(),
+    containerColor: Color = Color.Transparent,
+    backButtonContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    backButtonContentColor: Color = MaterialTheme.colorScheme.onSurface,
+    content: @Composable (Modifier) -> Unit
+) {
+    // Entrance animation state
+    var showContent by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        delay(50) // Small delay for smoother transition
+        showContent = true
+    }
+    
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (showContent) 1f else 0f,
+        animationSpec = tween(durationMillis = 400),
+        label = "contentAlpha"
+    )
+    
+    val contentOffset by animateFloatAsState(
+        targetValue = if (showContent) 0f else 30f,
+        animationSpec = tween(durationMillis = 450),
+        label = "contentOffset"
+    )
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = containerColor,
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+        topBar = {
+            Column {
+                Spacer(modifier = Modifier.height(10.dp))
+                androidx.compose.material3.TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(start = 14.dp)
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 24.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(
+                                onClick = onBackClick,
+                                modifier = Modifier.padding(start = 12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(backButtonContainerColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = RhythmIcons.Back,
+                                        contentDescription = stringResource(R.string.cd_back),
+                                        tint = backButtonContentColor,
+                                        modifier = Modifier.size(25.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    actions = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 12.dp)
+                        ) {
+                            HeaderActionGroup(headerActions)
+                            actions()
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = containerColor,
+                        scrolledContainerColor = containerColor
+                    )
+                )
+            }
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .graphicsLayer {
+                    alpha = contentAlpha
+                    translationY = contentOffset
+                }
+        ) {
+            content(Modifier.fillMaxSize())
+        }
+    }
+}
+
+/**
+ * A single action rendered by [HeaderActionGroup].
+ *
+ * Provide [icon] (and optional [text]) for the common case, or [content] for a
+ * fully custom button body.
+ */
+data class HeaderAction(
+    val onClick: () -> Unit,
+    val contentDescription: String? = null,
+    val icon: MaterialSymbolIcon? = null,
+    val text: String? = null,
+    val enabled: Boolean = true,
+    val content: (@Composable () -> Unit)? = null
+)
+
+/**
+ * Renders header actions as a single connected button group (same component as
+ * the Play/Shuffle group). One action renders as a plain round button; two or
+ * more merge into one grouped pill.
+ */
+@Composable
+fun HeaderActionGroup(
+    actions: List<HeaderAction>,
+    modifier: Modifier = Modifier,
+    size: RhythmButtonSize = RhythmButtonSize.Small,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    if (actions.isEmpty()) return
+
+    val segmentHeight = 40.dp
+    val segmentIconSize = 25.dp
+
+    RhythmGroupedButton(
+        modifier = modifier.padding(end = 4.dp),
+        size = size,
+        isFillMaxWidth = false
+    ) {
+        actions.forEachIndexed { index, action ->
+            RhythmButtonWeighted(
+                onClick = action.onClick,
+                type = RhythmButtonType.Filled,
+                size = size,
+                text = action.text,
+                icon = action.icon,
+                enabled = 

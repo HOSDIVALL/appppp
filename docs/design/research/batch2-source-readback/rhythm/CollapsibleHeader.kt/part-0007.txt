@@ -1,0 +1,40 @@
+action.enabled,
+                containerColor = containerColor,
+                contentColor = contentColor,
+                height = segmentHeight,
+                iconSize = segmentIconSize,
+                isFirst = index == 0,
+                isLast = index == actions.lastIndex,
+                useWeight = false,
+                contentDescription = action.contentDescription,
+                content = action.content
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun CollapsibleHeaderScreenPreview() {
+    RhythmTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            CollapsibleHeaderScreen(
+                title = stringResource(R.string.settings_backup_settings),
+                showBackButton = true,
+                onBackClick = { /* Handle back click in preview */ }
+            ) { modifier ->
+                LazyColumn(
+                    modifier = modifier.padding(horizontal = 16.dp) // Consistent horizontal padding for content
+                ) {
+                    items(50) { index ->
+                        Text(text = "Item $index", modifier = Modifier.padding(vertical = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+

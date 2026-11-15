@@ -1,0 +1,126 @@
+                               }
+                                ) {
+                                    Text(
+                                        text = if (isConnected) {
+                                            stringResource(id = R.string.streaming_manage)
+                                        } else {
+                                            stringResource(id = R.string.streaming_connect)
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        onClick = {
+                            appSettings.setStreamingService(service.id)
+                            onConfigureService(service.id)
+                        }
+                    )
+                }
+            }
+
+            Material3SettingsGroup(items = settingsItems)
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(18.dp))
+        }
+    }
+}
+
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ModernScrollableContent(
+    modifier: Modifier = Modifier,
+    featuredContent: List<Album>,
+    albums: List<Album>,
+    topArtists: List<Artist>,
+    newReleases: List<Album>,
+    recentlyAddedSongs: List<Song>,
+    recentlyAddedAlbums: List<Album>,
+    recentlyPlayed: List<Song>,
+    songs: List<Song>,
+    onSongClick: (Song) -> Unit,
+    onAlbumClick: (Album) -> Unit,
+    onArtistClick: (Artist) -> Unit,
+    onViewAllSongs: () -> Unit,
+    onViewAllAlbums: () -> Unit,
+    onViewAllArtists: () -> Unit,
+    onSearchClick: () -> Unit,
+    onSettingsClick: () -> Unit = {},
+    onNavigateToLibrary: () -> Unit = {},
+    onNavigateToPlaylist: (String) -> Unit = {},
+    onNavigateToStats: () -> Unit = {},
+    onNavigateToRhythmGuard: () -> Unit = {},
+    musicViewModel: chromahub.rhythm.app.viewmodel.MusicViewModel,
+    coroutineScope: CoroutineScope,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val windowSizeClass = calculateWindowSizeClass(context as android.app.Activity)
+    val widthSizeClass = windowSizeClass.widthSizeClass
+    val heightSizeClass = windowSizeClass.heightSizeClass
+    val scrollState = rememberScrollState()
+    val allSongs by musicViewModel.filteredSongs.collectAsState()
+
+    // Home Screen Customization Settings
+    val appSettings = AppSettings.getInstance(context)
+    val sectionOrder by appSettings.homeSectionOrder.collectAsState()
+    val showRecentlyPlayed by appSettings.homeShowRecentlyPlayed.collectAsState()
+    val showDiscoverCarousel by appSettings.homeShowDiscoverCarousel.collectAsState()
+    val showArtists by appSettings.homeShowArtists.collectAsState()
+    val showNewReleases by appSettings.homeShowNewReleases.collectAsState()
+    val showRecentlyAdded by appSettings.homeShowRecentlyAdded.collectAsState()
+    val showRecommended by appSettings.homeShowRecommended.collectAsState()
+    val showListeningStats by appSettings.homeShowListeningStats.collectAsState()
+    val discoverItemCount by appSettings.homeDiscoverItemCount.collectAsState()
+    val recentlyPlayedCount by appSettings.homeRecentlyPlayedCount.collectAsState()
+    val artistsCount by appSettings.homeArtistsCount.collectAsState()
+    val newReleasesCount by appSettings.homeNewReleasesCount.collectAsState()
+    val recentlyAddedCount by appSettings.homeRecentlyAddedCount.collectAsState()
+    val recommendedCount by appSettings.homeRecommendedCount.collectAsState()
+
+    // Rhythm Guard States (pulled up from LazyColumn block)
+    val rhythmGuardMode by appSettings.rhythmGuardMode.collectAsState()
+    val showRhythmGuardWidget by appSettings.homeShowRhythmGuard.collectAsState()
+    val rhythmGuardAge by appSettings.rhythmGuardAge.collectAsState()
+    val rhythmGuardAlertThresholdMinutes by appSettings.rhythmGuardAlertThresholdMinutes.collectAsState()
+    val rhythmGuardTimeoutUntilMs by appSettings.rhythmGuardTimeoutUntilMs.collectAsState()
+    val dailyListeningStats by appSettings.dailyListeningStats.collectAsState()
+    val persistedSongsPlayed by appSettings.songsPlayed.collectAsState()
+    val listeningTimeMs by appSettings.listeningTime.collectAsState()
+
+    val rhythmGuardPolicy = remember(rhythmGuardAge) { appSettings.getRhythmGuardPolicy(rhythmGuardAge) }
+    val rhythmGuardRecommendedMinutes = when (rhythmGuardMode) {
+        AppSettings.RHYTHM_GUARD_MODE_MANUAL -> rhythmGuardAlertThresholdMinutes
+            .takeIf { it > 0 }
+            ?: rhythmGuardPolicy.recommendedDailyMinutes
+        else -> rhythmGuardPolicy.recommendedDailyMinutes
+    }
+    val playbackStatsRepository = remember(context) { PlaybackStatsRepository.getInstance(context) }
+    var todayListeningMinutes by remember { mutableIntStateOf(0) }
+
+    val currentProgress by musicViewModel.progress.collectAsState()
+    val currentDurationMs by musicViewModel.duration.collectAsState()
+    val currentIsPlaying by musicViewModel.isPlaying.collectAsState()
+
+    LaunchedEffect(dailyListeningStats, persistedSongsPlayed, listeningTimeMs, currentProgress, currentDurationMs, currentIsPlaying) {
+        val todaySummary = runCatching {
+            playbackStatsRepository.loadSummary(StatsTimeRange.TODAY)
+        }.getOrNull()
+        val dbDurationMs = todaySummary?.totalDurationMs ?: 0L
+        val activeSessionDurationMs = if (currentIsPlaying && currentDurationMs > 0) {
+            (currentProgress * currentDurationMs).toLong()
+        } else {
+            0L
+        }
+        val totalMs = dbDurationMs + activeSessionDurationMs
+        todayListeningMinutes = (totalMs / 60000L).toInt().coerceAtLeast(0)
+    }
+
+    // Discover widget card content visibility settings
+    val discoverShowAlbumName by appSettings.homeDiscoverShowAlbumName.collectAsState()
+    val discoverShowArtistName by appSettings.homeDiscoverShowArtistName.collectAsState()
+    val discoverShowYear by appSettings.homeDiscoverShowYear.collectAsState()
+    val discover

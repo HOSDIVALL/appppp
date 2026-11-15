@@ -1,0 +1,117 @@
+ -> {
+                    if (showListeningStats) {
+                        ModernListeningStatsSection(onClick = onNavigateToStats)
+                    }
+                }
+            }
+        }
+
+        fun isLocalSectionVisible(sectionId: String): Boolean = when (sectionId) {
+            "RECENTLY_PLAYED" -> showRecentlyPlayed
+            "ARTISTS" -> showArtists
+            "NEW_RELEASES" -> showNewReleases
+            "RECENTLY_ADDED" -> showRecentlyAdded
+            "RECOMMENDED" -> showRecommended
+            "RHYTHM_GUARD" -> showRhythmGuardWidget && rhythmGuardMode != AppSettings.RHYTHM_GUARD_MODE_OFF
+            "STATS" -> showListeningStats
+            else -> false
+        }
+
+        if (isLandscapeTablet) {
+            if (showDiscoverCarousel && sectionOrder.contains("DISCOVER")) {
+                item(key = "section_discover") {
+                    if (currentFeaturedAlbums.isNotEmpty()) {
+                        ModernFeaturedSection(
+                            albums = currentFeaturedAlbums,
+                            onAlbumClick = onAlbumClick,
+                            showAlbumName = discoverShowAlbumName,
+                            showArtistName = discoverShowArtistName,
+                            showYear = discoverShowYear,
+                            showPlayButton = discoverShowPlayButton,
+                            showGradient = discoverShowGradient,
+                            widthSizeClass = widthSizeClass,
+                            heightSizeClass = heightSizeClass
+                        )
+                    } else {
+                        Box(modifier = Modifier.padding(horizontal = horizontalPadding)) {
+                            ModernEmptyState(
+                                icon = RhythmIcons.AlbumFilled,
+                                title = context.getString(R.string.home_no_featured_albums),
+                                subtitle = context.getString(R.string.home_no_featured_albums_desc),
+                                iconSize = 32.dp
+                            )
+                        }
+                    }
+                }
+            }
+
+            val visibleSections = sectionOrder.filter { it != "DISCOVER" && isLocalSectionVisible(it) }
+            val leftSections = visibleSections.filterIndexed { index, _ -> index % 2 == 0 }
+            val rightSections = visibleSections.filterIndexed { index, _ -> index % 2 == 1 }
+
+            if (visibleSections.isNotEmpty()) {
+                item(key = "two_column_home_sections") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = horizontalPadding),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(sectionSpacing)
+                        ) {
+                            for (sectionId in leftSections) {
+                                RenderLocalSection(sectionId)
+                            }
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(sectionSpacing)
+                        ) {
+                            for (sectionId in rightSections) {
+                                RenderLocalSection(sectionId)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            sectionOrder.forEach { sectionId ->
+                when (sectionId) {
+                    "DISCOVER" -> {
+                        if (showDiscoverCarousel) {
+                            item(key = "section_discover") {
+                                Column {
+                                    if (currentFeaturedAlbums.isNotEmpty()) {
+                                        ModernFeaturedSection(
+                                            albums = currentFeaturedAlbums,
+                                            onAlbumClick = onAlbumClick,
+                                            showAlbumName = discoverShowAlbumName,
+                                            showArtistName = discoverShowArtistName,
+                                            showYear = discoverShowYear,
+                                            showPlayButton = discoverShowPlayButton,
+                                            showGradient = discoverShowGradient,
+                                            widthSizeClass = widthSizeClass,
+                                            heightSizeClass = heightSizeClass
+                                        )
+                                    } else {
+                                        Box(modifier = Modifier.padding(horizontal = horizontalPadding)) {
+                                            ModernEmptyState(
+                                                icon = RhythmIcons.AlbumFilled,
+                                                title = context.getString(R.string.home_no_featured_albums),
+                                                subtitle = context.getString(R.string.home_no_featured_albums_desc),
+                                                iconSize = 32.dp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        if (isLocalSectionVisible(sectionId)) {
+                            item(key = "section_${sectionId.lowercase()}") {
+                                Box(modifier = Modifier.padding(horizontal = horizontalPadding)) {
+                                    RenderLocalSection(sectionId)
+       

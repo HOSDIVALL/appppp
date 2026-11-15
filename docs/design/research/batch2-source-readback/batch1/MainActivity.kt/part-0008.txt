@@ -1,0 +1,38 @@
+ String> {
+    val name = queryDisplayName(context, uri)
+        ?: uri.lastPathSegment
+        ?: "字体.ttf"
+    val ext = if (name.endsWith(".otf", ignoreCase = true)) ".otf" else ".ttf"
+    val dir = File(context.filesDir, "fonts").apply { mkdirs() }
+    val target = File(dir, "custom_font$ext")
+    target.delete()
+    context.contentResolver.openInputStream(uri)!!.use { input ->
+        target.outputStream().use { output -> input.copyTo(output) }
+    }
+    Typeface.createFromFile(target) // 校验，失败抛异常
+    return target to name.substringBeforeLast('.')
+}
+
+/** SAF 文件的真实文件名（选择器里看到的名字） */
+private fun queryDisplayName(context: Context, uri: Uri): String? =
+    context.contentResolver.query(
+        uri,
+        arrayOf(OpenableColumns.DISPLAY_NAME),
+        null,
+        null,
+        null
+    )?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
+
+/**
+ * 页面枚举：[AnimatedContent] 的目标状态。
+ * [depth] 决定切换方向：列表是根页面（depth 0），编辑 / 回收站都是第二层，
+ * 目标比出发页深 → 前进（新页从右进），否则 → 返回（新页从左进）。
+ */
+private enum class AppPage {
+    List, Editor, Trash, Recording, Settings;
+
+    val depth: Int
+        get() = if (this == List) 0 else 1
+}
