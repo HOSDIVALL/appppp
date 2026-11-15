@@ -1,0 +1,66 @@
+{
+  "source_commit": "4943dbf973ea43eb136b69f222433c5f1eddc165",
+  "workflow_commit": "6c02e150535355a34016f1b925c2d35fafbce19f",
+  "run_id": "43705107301",
+  "run_attempt": "1",
+  "run_url": "https://github.com/HOSDIVALL/appppp/actions/runs/43705107301",
+  "scope": "Isolated pure JVM selector tests only; NOT an Android app build or RecentNotesStore integration test",
+  "kotlin": "2.2.10",
+  "junit": "4.13.2",
+  "wrapper": "Unmodified repository Gradle Wrapper",
+  "step_outcome": "success",
+  "status": "passed",
+  "tests": 7,
+  "counts": {
+    "passed": 7,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "expected_cases_match": true,
+  "parse_errors": [],
+  "source_sha256": {
+    "app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt": "dda4c4dd72c9ea473c6cb88a026307ac5e83bdfe2b2337841aa157394a668e53",
+    "app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt": "0ed5c1c23a8341b14256687e2f832c1eba753e5cee532c095bc17ba3507c2376"
+  },
+  "xml_files": [
+    "TEST-com.example.myapplicationfirstapp.data.RecentNoteUsageTest.xml"
+  ],
+  "cases": [
+    {
+      "class": "com.example.myapplicationfirstapp.data.RecentNoteUsageTest",
+      "name": "equalOrdersHaveDeterministicIdOrder",
+      "status": "passed"
+    },
+    {
+      "class": "com.example.myapplicationfirstapp.data.RecentNoteUsageTest",
+      "name": "deduplicatesBeforeLimiting",
+      "status": "passed"
+    },
+    {
+      "class": "com.example.myapplicationfirstapp.data.RecentNoteUsageTest",
+      "name": "orderSurvivesClockRollback",
+      "status": "passed"
+    },
+    {
+      "class": "com.example.myapplicationfirstapp.data.RecentNoteUsageTest",
+      "name": "zeroLimitAndEmptyInputStayEmpty",
+      "status": "passed"
+    },
+    {
+      "class": "com.example.myapplicationfirstapp.data.RecentNoteUsageTest",
+      "name": "negativeLimitIsRejected",
+      "status": "passed"
+    },
+    {
+      "class": "com.example.myapplicationfirstapp.data.RecentNoteUsageTest",
+      "name": "excludesInactiveAndUnknownNotes",
+      "status": "passed"
+    },
+    {
+      "class": "com.example.myapplicationfirstapp.data.RecentNoteUsageTest",
+      "name": "doesNotMutateInput",
+      "status": "passed"
+    }
+  ]
+}
