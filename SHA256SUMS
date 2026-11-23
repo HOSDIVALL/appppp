@@ -1,4 +1,4 @@
-51cfc02ef02473bd421835129285a7136d451720e8f75929ef8b47e30a004291 *INDEX.md
+b779055a82ad1e5a4a588f574f5b52feb750e22bab65046f3e4f5b5ba9e9ae2b *INDEX.md
 dd8e8f9245e01760bfc023a0e8d31267dbc195f867a1a2b8cafd91dc3882b8e5 *recent-notes-1/batch1/NOTES.md
 4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/batch1/batch1.diff
 054be080b059f4922cb45690aa79dd83ded27b15cba7a58c652aaa535dcb25fd *recent-notes-1/batch1/db/recent_notes.db
@@ -72,6 +72,13 @@ ad3c9ebf9562962fbb3815ad8dcf6ca9d740e77db21b93424be271664b1f4c7d *recent-notes-1
 b85d4fefaeb055b8320774077611ee1e398296b23495efaef2c551da0f9499b3 *recent-notes-1/device-install-gate/v2-request/avd-ready.txt
 2e2e97980b8c65acbdd27b060823882d0961bcec81cc0b3e2c5ace0d774ccae0 *recent-notes-1/device-install-gate/v2-request/build_scrollbar_candidate.sh
 8002c0023771b960f1397cd1d6317b4defaaacef7025e2cfa141c56f9bc8aa71 *recent-notes-1/device-install-gate/v2-request/workbuddy_install_scrollbar_v2.sh
+1f848d4ef178793790824d08b7110eb7b237b95b3f45093d912924798da2c312 *recent-notes-1/feature-landing/NOTES.md
+d50134ccd04a052937fc959ef24b85ec32b312bc54b8f5734a698346730f7938 *recent-notes-1/feature-landing/commit-files.txt
+888666d1243a6ec97bb7da1cdef7fc4434886d3a2793c153f7c7c94eecec69c1 *recent-notes-1/feature-landing/commit-meta.txt
+5dddb93d4af81afddd377583e46bc2ee05de05c028cd825814f8769a68af980c *recent-notes-1/feature-landing/commit-stat.txt
+3d355297907f6989cf5dc18e175a5034b13811b676854996b367e0d0921b4f77 *recent-notes-1/feature-landing/feature-landing.diff
+b14a9d94b35423ceac22157ce325d955c917f11b5db74ef73ed51ef5d0707396 *recent-notes-1/feature-landing/landing-gates.txt
+280fd3ed123b1b75b0dfda278ed7b5abaecf5464b4b6a5aaad7d8c22422442ca *recent-notes-1/feature-landing/remote-readback.txt
 c1744a429ab8e5193e988654febc6627ec0a1f562480030cba2bebb4e5fb2892 *recent-notes-1/home-wiring-5c688af/NOTES.md
 4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/home-wiring-5c688af/batch1.diff
 f9b539b9d1974ea45faa42e18c4a42d57e24bb1d122b506d3a4fe4d5b7523abd *recent-notes-1/home-wiring-5c688af/candidate.diff

@@ -1,0 +1,18 @@
+$ git ls-remote origin refs/heads/ux/rhythm-recent-notes-1 refs/heads/main
+61dff28e4041aa5a8d9376ba1da872a87a009301	refs/heads/main
+eafd31e823f1ddb3e7e8595d9c4762b2ef1d1009	refs/heads/ux/rhythm-recent-notes-1
+
+$ git rev-parse origin/ux/rhythm-recent-notes-1
+eafd31e823f1ddb3e7e8595d9c4762b2ef1d1009
+
+$ git rev-parse HEAD
+eafd31e823f1ddb3e7e8595d9c4762b2ef1d1009
+
+$ git log --oneline -2
+eafd31e feat(notes): wire recent notes home list and scope scrollbar to visible notes
+5c688af feat: add recent-note home model and carousel components
+
+推送记录（该次 push 的实际回显）:
+   To https://github.com/HOSDIVALL/appppp.git
+      5c688af..eafd31e  HEAD -> ux/rhythm-recent-notes-1
+   未使用 --force；refspec 仅指向 refs/heads/ux/rhythm-recent-notes-1

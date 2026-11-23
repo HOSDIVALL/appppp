@@ -1,0 +1,2264 @@
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
+index 890b627..d6219b2 100644
+--- a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
+@@ -2,6 +2,7 @@ package com.example.myapplicationfirstapp.data
+ 
+ import android.content.Context
+ import android.content.ContextWrapper
++import android.database.sqlite.SQLiteDatabase
+ import androidx.test.platform.app.InstrumentationRegistry
+ import java.io.File
+ import java.security.MessageDigest
+@@ -23,6 +24,7 @@ import java.util.UUID
+ internal class IsolatedAppContext(base: Context, internal val rootDir: File) : ContextWrapper(base) {
+     private val isolatedFiles = File(rootDir, "files")
+     private val isolatedCache = File(rootDir, "cache")
++    private val isolatedDatabases = File(rootDir, "databases")
+ 
+     override fun getApplicationContext(): Context = this
+ 
+@@ -36,13 +38,33 @@ internal class IsolatedAppContext(base: Context, internal val rootDir: File) : C
+         return isolatedCache
+     }
+ 
++    /** 让 SQLiteOpenHelper 也落在沙箱里，否则 `recent_notes.db` 会写进真实 databases 目录 */
++    override fun getDatabasePath(name: String): File {
++        isolatedDatabases.mkdirs()
++        return File(isolatedDatabases, name)
++    }
++
++    override fun openOrCreateDatabase(
++        name: String,
++        mode: Int,
++        factory: SQLiteDatabase.CursorFactory?
++    ): SQLiteDatabase = SQLiteDatabase.openOrCreateDatabase(getDatabasePath(name), factory)
++
+     /**
+      * 只删本测试自己的 UUID 沙箱，公共父目录 `save-order-2/` 保留。
+      *
++     * 有重试：NotesState.persist() 的写盘协程可能晚于测试方法返回，
++     * 刚建目录刚删完又被它重建。重试仍然失败就返回 false，由调用方断言，
++     * 不会静默忽略。
++     *
+      * 返回是否真的删干净了 —— 调用方必须检查，不允许静默忽略清理失败。
+      */
+     fun dispose(): Boolean {
+-        rootDir.deleteRecursively()
++        repeat(20) {
++            rootDir.deleteRecursively()
++            if (!rootDir.exists()) return true
++            Thread.sleep(50)
++        }
+         return !rootDir.exists()
+     }
+ }
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt
+new file mode 100644
+index 0000000..2dc3f96
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt
+@@ -0,0 +1,189 @@
++package com.example.myapplicationfirstapp.data
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.io.File
++
++/**
++ * 真实 SQLite：最近使用的独立元数据库 recent_notes.db。
++ *
++ * 边界说明：
++ * - 用**真实 SQLiteOpenHelper + 真实数据库文件**，库文件落在沙箱 `databases/` 下；
++ * - 「重启」用 [RecentNotesStore.openOnSameDatabase] 新开一个实例，证明行落在磁盘上，
++ *   不等于进程被杀后的恢复实验；
++ * - 不读不写 notes.json，真实 notes.json 与真实 recent_notes.db 的指纹前后必须一致。
++ */
++@RunWith(AndroidJUnit4::class)
++class RecentNotesStoreTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realNotesBefore: String = "<unset>"
++    private var realDbExistedBefore: Boolean = false
++
++    @Before
++    fun setUp() {
++        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
++        realNotesBefore = realNotesFingerprint()
++        realDbExistedBefore = File(realContext.getDatabasePath("recent_notes.db").path).exists()
++        sandbox = isolatedStorage("recent-store")
++    }
++
++    @After
++    fun tearDown() {
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realNotesBefore).toMutableList()
++        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
++        val realDb = File(realContext.getDatabasePath("recent_notes.db").path)
++        if (realDb.exists() != realDbExistedBefore) {
++            violations += "数据库隔离失效：真实 recent_notes.db 存在性前后不一致（before=$realDbExistedBefore after=${realDb.exists()}）"
++        }
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    private fun store(): RecentNotesStore = RecentNotesStore.openOnSameDatabase(sandbox)
++
++    @Test
++    fun recordsAndOrdersByOpenOrder() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("c", 300L)
++
++        val rows = store.load()
++        assertEquals(listOf("c", "b", "a"), rows.map { it.noteId })
++        assertEquals(300L, rows.first().lastOpenedAt)
++        assertTrue("openOrder 必须递增", rows[0].openOrder > rows[1].openOrder)
++    }
++
++    @Test
++    fun reopeningMovesToTopWithoutDuplicates() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("a", 300L)
++
++        val rows = store.load()
++        assertEquals(listOf("a", "b"), rows.map { it.noteId })
++        assertEquals("同一条笔记只能有一行", 2, rows.size)
++        // 同名不同 ID 必须各记一行，不能串
++        store.recordOpened("a2", 400L)
++        assertEquals(listOf("a2", "a", "b"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun orderSurvivesClockRollback() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 900L)
++        store.recordOpened("b", 100L) // 时钟被回拨
++
++        assertEquals(listOf("b", "a"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun rowsSurviveNewStoreInstance() = runBlocking {
++        store().recordOpened("a", 100L)
++
++        val reopened = RecentNotesStore.openOnSameDatabase(sandbox)
++        assertEquals(listOf("a"), reopened.load().map { it.noteId })
++        assertTrue(
++            "数据库文件必须真的落在沙箱里",
++            sandbox.getDatabasePath("recent_notes.db").isFile
++        )
++    }
++
++    @Test
++    fun forgetRemovesOnlyThatRow() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++
++        assertEquals(listOf("a"), store.forget("b").map { it.noteId })
++        assertEquals(listOf("a"), store.load().map { it.noteId })
++        // 重复忘记同一个 id 是幂等的
++        assertEquals(listOf("a"), store.forget("b").map { it.noteId })
++    }
++
++    @Test
++    fun forgetAllRemovesBatch() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++        store.recordOpened("b", 200L)
++        store.recordOpened("c", 300L)
++
++        val left = store.forgetAll(listOf("a", "c", "never-recorded"))
++        assertEquals(listOf("b"), left.map { it.noteId })
++        assertEquals(listOf("b"), store.load().map { it.noteId })
++    }
++
++    @Test
++    fun forgetAllWithBlankIdsIsNoOp() = runBlocking {
++        val store = store()
++        store.recordOpened("a", 100L)
++
++        assertEquals(listOf("a"), store.forgetAll(listOf("", " ")).map { it.noteId })
++    }
++
++    @Test
++    fun blankNoteIdIsRejected() {
++        val failure = runCatching { runBlocking { store().recordOpened(" ") } }.exceptionOrNull()
++        assertTrue("空 id 必须被拒绝", failure is IllegalArgumentException)
++    }
++
++    @Test
++    fun negativeTimestampIsRejected() {
++        val failure = runCatching { runBlocking { store().recordOpened("a", -1L) } }.exceptionOrNull()
++        assertTrue("负时间戳必须被拒绝", failure is IllegalArgumentException)
++    }
++
++    /**
++     * 库文件被写坏时，Android 的 DefaultDatabaseErrorHandler 会删掉坏库重建，
++     * 所以真实表现是「历史清空、不崩溃」，而不是往上抛异常。
++     * 这条用例把这个行为钉住：坏库之后 App 仍可正常记录。
++     */
++    @Test
++    fun corruptDatabaseIsRecreatedInsteadOfCrashing() = runBlocking {
++        val dbFile = sandbox.getDatabasePath("recent_notes.db")
++        dbFile.parentFile?.mkdirs()
++        dbFile.writeBytes(ByteArray(4096) { 0x41 })
++
++        val store = store()
++        val recovered = runCatching { store.load() }
++        assertTrue("坏库不应把打开流程炸掉：${recovered.exceptionOrNull()}", recovered.isSuccess)
++        assertEquals("坏库重建后历史为空", emptyList<String>(), recovered.getOrThrow().map { it.noteId })
++
++        // 重建后的库必须还能用
++        assertEquals(listOf("a"), store.recordOpened("a", 100L).map { it.noteId })
++    }
++
++    /**
++     * 打不开数据库（目录不可写）时必须把错误抛给调用方，
++     * 不能静默返回空列表 —— 否则 NotesState 无从把错误落到 recentError。
++     */
++    @Test
++    fun unopenableDatabaseSurfacesError() = runBlocking {
++        val dbFile = sandbox.getDatabasePath("recent_notes.db")
++        val dir = checkNotNull(dbFile.parentFile)
++        check(dir.isDirectory)
++        check(dir.setWritable(false, false)) { "无法把沙箱数据库目录设为只读" }
++        try {
++            val failure = runCatching { store().load() }.exceptionOrNull()
++            assertNotNull("打不开的库必须抛错", failure)
++            assertTrue(
++                "应为 SQLite 异常，实际：${failure?.javaClass?.name}",
++                failure is android.database.SQLException
++            )
++        } finally {
++            dir.setWritable(true, true)
++        }
++        assertFalse("不得写进真实 notes.json", File(sandbox.rootDir, "files/notes.json").exists())
++    }
++}
+diff --git a/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt b/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt
+new file mode 100644
+index 0000000..9c46382
+--- /dev/null
++++ b/app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt
+@@ -0,0 +1,282 @@
++package com.example.myapplicationfirstapp.ui
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import com.example.myapplicationfirstapp.data.AppSettings
++import com.example.myapplicationfirstapp.data.IsolatedAppContext
++import com.example.myapplicationfirstapp.data.NotesRepository
++import com.example.myapplicationfirstapp.data.RecentNoteUsage
++import com.example.myapplicationfirstapp.data.RecentNotesGateway
++import com.example.myapplicationfirstapp.data.ReminderScheduler
++import com.example.myapplicationfirstapp.data.finishIsolatedTest
++import com.example.myapplicationfirstapp.data.isolatedStorage
++import com.example.myapplicationfirstapp.data.realNotesFingerprint
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.cancel
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/**
++ * 第一批接线：NotesState 的最近使用行为。
++ *
++ * 用真实的 NotesRepository / AppSettings / ReminderScheduler，但全部指向沙箱 paths；
++ * 元数据存储换成内存里的 [FakeGateway]，这样可以精确控制「何时返回、返回什么」，
++ * 用来验证旧快照不会覆盖新状态。真实 SQLite 的行为由 RecentNotesStoreTest 覆盖。
++ *
++ * 协程作用域用 [Dispatchers.Unconfined]：`scope.launch` 会同步执行到第一个挂起点，
++ * 因此断言不需要 sleep，也不会出现「测试跑完 state 还没更新」的假绿。
++ */
++@RunWith(AndroidJUnit4::class)
++class NotesStateRecentNotesTest {
++
++    private lateinit var sandbox: IsolatedAppContext
++    private var realNotesBefore: String = "<unset>"
++
++    /** 每个测试一个可取消的作用域：收尾时先停掉后台写盘，再删沙箱 */
++    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
++
++    @Before
++    fun setUp() {
++        realNotesBefore = realNotesFingerprint()
++        sandbox = isolatedStorage("recent-state")
++    }
++
++    @After
++    fun tearDown() {
++        scope.cancel()
++        if (!::sandbox.isInitialized) return
++        val violations = finishIsolatedTest(sandbox, realNotesBefore)
++        assertTrue("收尾检查未通过：\n" + violations.joinToString("\n"), violations.isEmpty())
++    }
++
++    private fun newState(gateway: RecentNotesGateway): NotesState = NotesState(
++        repository = NotesRepository(sandbox),
++        settings = AppSettings(sandbox),
++        scope = scope,
++        scheduler = ReminderScheduler(sandbox),
++        recentStore = gateway
++    )
++
++    // ---------- 打开 ----------
++
++    @Test
++    fun openingExistingNoteRecordsExactlyOnce() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        val opened = state.openNote(note.id)
++
++        assertEquals(note.id, opened?.id)
++        assertEquals(listOf(note.id), gateway.recorded)
++        assertEquals(listOf(note.id), state.recentNotes.map { it.id })
++        assertNull("元数据正常时不应有错误", state.recentError)
++    }
++
++    @Test
++    fun openingDoesNotTouchContentOrUpdatedAt() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.updateNote(note.id, "标题", "正文")
++        val before = state.findNote(note.id)!!
++
++        state.openNote(note.id)
++
++        val after = state.findNote(note.id)!!
++        assertEquals(before.updatedAt, after.updatedAt)
++        assertEquals(before.title, after.title)
++        assertEquals(before.content, after.content)
++    }
++
++    @Test
++    fun unknownNoteIsNotOpenedAndNotRecorded() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++
++        assertNull(state.openNote("does-not-exist"))
++        assertTrue(gateway.recorded.isEmpty())
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    @Test
++    fun trashedNoteIsNotOpenedAndNotRecorded() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.moveToTrash(note.id)
++
++        assertNull("回收站里的笔记不能打开", state.openNote(note.id))
++        assertTrue(gateway.recorded.isEmpty())
++    }
++
++    @Test
++    fun softDeleteHidesFromDisplayButKeepsHistory() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val keep = state.createNote()
++        val drop = state.createNote()
++        state.openNote(keep.id)
++        state.openNote(drop.id)
++        assertEquals(listOf(drop.id, keep.id), state.recentNotes.map { it.id })
++
++        state.moveToTrash(drop.id)
++
++        assertEquals("软删除只影响展示", listOf(keep.id), state.recentNotes.map { it.id })
++        assertTrue("软删除不得删除元数据行", gateway.forgotten.isEmpty())
++    }
++
++    @Test
++    fun reopeningOrdersMostRecentFirst() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val a = state.createNote()
++        val b = state.createNote()
++
++        state.openNote(a.id)
++        state.openNote(b.id)
++        assertEquals(listOf(b.id, a.id), state.recentNotes.map { it.id })
++
++        state.openNote(a.id)
++        assertEquals(listOf(a.id, b.id), state.recentNotes.map { it.id })
++        assertEquals(listOf(a.id, b.id, a.id), gateway.recorded)
++    }
++
++    // ---------- 清理 ----------
++
++    @Test
++    fun permanentDeleteForgetsMetadata() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++        state.openNote(note.id)
++
++        state.deleteForever(note.id)
++
++        assertEquals(listOf(note.id), gateway.forgotten)
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    @Test
++    fun emptyTrashForgetsEveryTrashedId() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val a = state.createNote()
++        val b = state.createNote()
++        state.openNote(a.id)
++        state.openNote(b.id)
++        state.moveToTrash(a.id)
++        state.moveToTrash(b.id)
++
++        state.emptyTrash()
++
++        assertEquals(setOf(a.id, b.id), gateway.forgotten.toSet())
++        assertTrue(state.recentNotes.isEmpty())
++    }
++
++    // ---------- 失败与交错 ----------
++
++    @Test
++    fun recordFailureDoesNotBlockOpening() = runBlocking {
++        val gateway = FakeGateway().apply { failRecord = true }
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        val opened = state.openNote(note.id)
++
++        assertNotNull("元数据写失败也要照常打开", opened)
++        assertEquals(note.id, opened?.id)
++        assertNotNull("错误必须落在 recentError", state.recentError)
++        assertNull("不得污染正文的 persistenceError", state.persistenceError)
++    }
++
++    @Test
++    fun loadFailureDoesNotBlockNotes() = runBlocking {
++        val gateway = FakeGateway().apply { failLoad = true }
++        val state = newState(gateway)
++        state.load()
++
++        assertTrue("正文照常判定为已加载", state.loaded)
++        assertNotNull("错误必须落在 recentError", state.recentError)
++        assertNull(state.persistenceError)
++    }
++
++    @Test
++    fun staleSnapshotDoesNotOverwriteNewerState() = runBlocking {
++        val gateway = FakeGateway()
++        val state = newState(gateway)
++        state.load()
++        val note = state.createNote()
++
++        // 1) 打开：这次 recordOpened 会挂在闸门后，直到测试放行
++        gateway.gate = CompletableDeferred()
++        state.openNote(note.id)
++        assertEquals("挂起期间状态还没更新", emptyList<String>(), state.recentNotes.map { it.id })
++
++        // 2) 紧接着永久删除：更新的操作先完成，状态以它为准
++        state.deleteForever(note.id)
++        assertTrue(state.recentNotes.isEmpty())
++
++        // 3) 放行那个更早的、已经过时的快照
++        gateway.gate?.complete(Unit)
++        gateway.gate = null
++
++        assertTrue("旧快照不得把已删除的笔记写回状态", state.recentNotes.isEmpty())
++        assertTrue(state.recentUsages.isEmpty())
++    }
++
++    private class FakeGateway : RecentNotesGateway {
++        val recorded = mutableListOf<String>()
++        val forgotten = mutableListOf<String>()
++        var failRecord = false
++        var failLoad = false
++        var gate: CompletableDeferred<Unit>? = null
++
++        private var order = 0L
++        private var rows = mutableListOf<RecentNoteUsage>()
++
++        override suspend fun load(): List<RecentNoteUsage> {
++            if (failLoad) error("recent database unavailable")
++            return rows.toList()
++        }
++
++        override suspend fun recordOpened(noteId: String, openedAt: Long): List<RecentNoteUsage> {
++            if (failRecord) error("recent database is read-only")
++            recorded += noteId
++            rows.removeAll { it.noteId == noteId }
++            order += 1
++            rows.add(0, RecentNoteUsage(noteId, openedAt, order))
++            // 返回「调用当时」的快照：如果这里挂起，回来时它已经是旧数据
++            val snapshot = rows.toList()
++            gate?.await()
++            return snapshot
++        }
++
++        override suspend fun forget(noteId: String): List<RecentNoteUsage> =
++            forgetAll(listOf(noteId))
++
++        override suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage> {
++            forgotten += noteIds
++            rows.removeAll { it.noteId in noteIds }
++            return rows.toList()
++        }
++    }
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt b/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+index 4c6fc4f..2c4734c 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+@@ -77,6 +77,7 @@ import androidx.core.content.ContextCompat
+ import com.example.myapplicationfirstapp.data.AppSettings
+ import com.example.myapplicationfirstapp.data.Note
+ import com.example.myapplicationfirstapp.data.NotesRepository
++import com.example.myapplicationfirstapp.data.RecentNotesStore
+ import com.example.myapplicationfirstapp.data.ReminderScheduler
+ import com.example.myapplicationfirstapp.data.ThemeMode
+ import com.example.myapplicationfirstapp.data.formatReminderTime
+@@ -133,7 +134,11 @@ class MainActivity : ComponentActivity() {
+         setContent {
+             NotesApp(
+                 openNoteId = pendingNoteId,
+-                onOpenNoteHandled = { pendingNoteId = null }
++                onOpenNoteHandled = {
++                    pendingNoteId = null
++                    // 消费掉 intent 里的 id：旋转重建后不要把同一条再当成一次新的打开
++                    intent?.removeExtra(ReminderNotifications.EXTRA_OPEN_NOTE)
++                }
+             )
+         }
+     }
+@@ -171,7 +176,8 @@ fun NotesApp(
+             repository = NotesRepository(context),
+             settings = settings,
+             scope = scope,
+-            scheduler = ReminderScheduler(context)
++            scheduler = ReminderScheduler(context),
++            recentStore = RecentNotesStore.getInstance(context)
+         )
+     }
+ 
+@@ -419,12 +425,13 @@ fun NotesApp(
+     }
+ 
+     // 点通知进来：等笔记加载完，直接跳到那一条
++    // 走 state.openNote() 统一入口：笔记不存在或已在回收站就不跳，也不会记一次无效打开
+     LaunchedEffect(openNoteId, state.loaded) {
+         val target = openNoteId
+         if (target != null && state.loaded) {
+-            if (state.findNote(target) != null) {
++            state.openNote(target)?.let { opened ->
+                 showTrash = false
+-                editingId = target
++                editingId = opened.id
+             }
+             onOpenNoteHandled()
+         }
+@@ -619,12 +626,19 @@ fun NotesApp(
+                         when (tab) {
+                             HomeTab.NOTES -> NotesListScreen(
+                                 state = state,
+-                                onOpen = { id -> editingId = id },
++                                onOpen = { id ->
++                                    // 列表点击也走同一个入口：校验 + 记录 + 允许打开
++                                    state.openNote(id)?.let { editingId = it.id }
++                                },
+                                 onDelete = { note ->
+                                     trashNote(state, note, snackbarHostState, scope, strings)
+                                 },
+                                 onOpenSettings = { showSettings = true },
+-                                modifier = contentModifier
++                                modifier = contentModifier,
++                                isHomeActive = page == AppPage.List && homeTab == HomeTab.NOTES &&
++                                    !recorder.isRecording && viewerFiles == null && pendingImportUri == null &&
++                                    !showFontSettings && !showExactAlarmHint && sheetRecordingId == null &&
++                                    renameTargetId == null && notePickerRecordingId == null
+                             )
+ 
+                             HomeTab.RECORD -> RecordScreen(
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt
+index b943927..cf0abd0 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt
+@@ -22,3 +22,19 @@ fun recentNoteIds(
+         .take(limit)
+         .toList()
+ }
++
++/**
++ * Project usage metadata onto the notes that may actually be shown.
++ *
++ * Trashed notes stay in the metadata database (a restore should not lose history), but they
++ * never reach the UI. Unknown ids are dropped for the same reason. Order comes only from
++ * [RecentNoteUsage.openOrder] — updatedAt is an editing timestamp, not a usage history.
++ */
++fun recentNotesForDisplay(
++    usages: List<RecentNoteUsage>,
++    notes: List<Note>,
++    limit: Int = 6
++): List<Note> {
++    val activeById = notes.filter { it.deletedAt == null }.associateBy { it.id }
++    return recentNoteIds(usages, activeById.keys, limit).mapNotNull { activeById[it] }
++}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt
+index 3423e76..583b15d 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt
+@@ -9,19 +9,38 @@ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.withContext
+ 
++/**
++ * The seam the UI layer depends on, so usage bookkeeping can be tested with a fake
++ * implementation and never needs a real SQLite handle inside `NotesState`.
++ */
++interface RecentNotesGateway {
++    suspend fun load(): List<RecentNoteUsage>
++
++    /** Call only after resolving an existing, active note at the open boundary. */
++    suspend fun recordOpened(
++        noteId: String,
++        openedAt: Long = System.currentTimeMillis()
++    ): List<RecentNoteUsage>
++
++    /** Permanent deletion only; soft delete must keep the row so a restore keeps history. */
++    suspend fun forget(noteId: String): List<RecentNoteUsage>
++
++    suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage>
++}
++
+ /** Separate metadata database. Does not read, migrate, or rewrite notes.json. */
+-class RecentNotesStore private constructor(context: Context) {
++class RecentNotesStore private constructor(context: Context) : RecentNotesGateway {
+     private val helper = Helper(context.applicationContext)
+     private val mutex = Mutex()
+ 
+-    suspend fun load(): List<RecentNoteUsage> = mutex.withLock {
++    override suspend fun load(): List<RecentNoteUsage> = mutex.withLock {
+         withContext(Dispatchers.IO) { read(helper.readableDatabase) }
+     }
+ 
+     /** Call only after resolving an existing, active note at the open boundary. */
+-    suspend fun recordOpened(
++    override suspend fun recordOpened(
+         noteId: String,
+-        openedAt: Long = System.currentTimeMillis()
++        openedAt: Long
+     ): List<RecentNoteUsage> {
+         require(noteId.isNotBlank()) { "noteId must not be blank" }
+         require(openedAt >= 0L) { "openedAt must not be negative" }
+@@ -49,7 +68,7 @@ class RecentNotesStore private constructor(context: Context) {
+     }
+ 
+     /** Integration must call this on permanent deletion, not on temporary list filtering. */
+-    suspend fun forget(noteId: String): List<RecentNoteUsage> = mutex.withLock {
++    override suspend fun forget(noteId: String): List<RecentNoteUsage> = mutex.withLock {
+         withContext(Dispatchers.IO) {
+             val db = helper.writableDatabase
+             db.delete("recent_note_usage", "note_id = ?", arrayOf(noteId))
+@@ -57,6 +76,23 @@ class RecentNotesStore private constructor(context: Context) {
+         }
+     }
+ 
++    /**
++     * Batch form of [forget] for "empty trash" and expired-trash sweeps.
++     * One transaction-free delete keeps the mutex hold short instead of one round trip per id.
++     */
++    override suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage> =
++        mutex.withLock {
++            withContext(Dispatchers.IO) {
++                val db = helper.writableDatabase
++                val ids = noteIds.filter { it.isNotBlank() }.distinct()
++                if (ids.isNotEmpty()) {
++                    val placeholders = ids.joinToString(",") { "?" }
++                    db.delete("recent_note_usage", "note_id IN ($placeholders)", ids.toTypedArray())
++                }
++                read(db)
++            }
++        }
++
+     private fun read(db: SQLiteDatabase): List<RecentNoteUsage> = buildList {
+         db.query(
+             "recent_note_usage",
+@@ -91,5 +127,13 @@ class RecentNotesStore private constructor(context: Context) {
+         fun getInstance(context: Context): RecentNotesStore = instance ?: synchronized(this) {
+             instance ?: RecentNotesStore(context.applicationContext).also { instance = it }
+         }
++
++        /**
++         * A separate handle on the same database file, bypassing the singleton cache.
++         * Instrumented tests use it to prove rows survive a "restart"; production code must
++         * keep using [getInstance].
++         */
++        fun openOnSameDatabase(context: Context): RecentNotesStore =
++            RecentNotesStore(context.applicationContext)
+     }
+ }
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt
+index 57dd36c..00d4a09 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt
+@@ -76,6 +76,7 @@ import androidx.compose.material3.Text
+ import androidx.compose.material3.toShape
+ import androidx.compose.material3.TopAppBarDefaults
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+@@ -123,7 +124,8 @@ fun NotesListScreen(
+     onOpen: (String) -> Unit,
+     onDelete: (Note) -> Unit,
+     onOpenSettings: () -> Unit,
+-    modifier: Modifier = Modifier
++    modifier: Modifier = Modifier,
++    isHomeActive: Boolean = false
+ ) {
+     val s = LocalStrings.current
+     val notes = state.visibleNotes
+@@ -153,36 +155,14 @@ fun NotesListScreen(
+         onOpen(id)
+     }
+ 
+-    BackHandler(enabled = searchActive) {
++    BackHandler(enabled = searchActive && isHomeActive) {
+         collapseSearch()
+     }
+ 
+-    val pinned = notes.filter { it.pinned }
+-    val regular = notes.filterNot { it.pinned }
+-    val showSections = !isFiltering && pinned.isNotEmpty() && regular.isNotEmpty()
+-
+-    // LazyColumn 显示项 -> 笔记的映射（筛选行/分区标题/空状态记为 null）。
+-    // 快速定位气泡按这份映射解析目标笔记，不拿 index 直接当笔记下标；
+-    // 顺序与下面 items/item 的添加顺序逐项对应。
+-    val displayNotes: List<Note?> = buildList {
+-        add(null) // __filters__
+-        when {
+-            notes.isEmpty() -> add(null) // __empty__
+-            showSections -> {
+-                add(null) // __h_pin__
+-                pinned.forEach { add(it) }
+-                add(null) // __h_recent__
+-                regular.forEach { add(it) }
+-            }
+-            else -> notes.forEach { add(it) }
+-        }
+-    }
+-    // 数据/排序/筛选/置顶任一变化的指纹：拖动中变了就终止旧映射
+-    val listDataKey = notes.hashCode() * 31 +
+-        state.query.hashCode() +
+-        state.filter.ordinal * 7 +
+-        (state.selectedTag?.hashCode() ?: 0) +
+-        state.sortMode.ordinal * 13
++    val recent = state.recentNotes
++    val model = buildNotesHomeListModel(notes, isFiltering, recent.isNotEmpty(), { it.id }, { it.pinned })
++    val displayNotes = model.displayNotes
++    val listDataKey = listOf(model, recent.map { it.id }, state.query, state.sortMode, state.filter, state.selectedTag).hashCode()
+ 
+     Column(
+         modifier = modifier
+@@ -198,6 +178,7 @@ fun NotesListScreen(
+     ) {
+ 
+         // ---------- 顶栏：标题 + 回收站 + 设置 ----------
++        Spacer(Modifier.height(10.dp))
+         LargeTopAppBar(
+             title = {
+                 // 顶栏内置 16dp 起始内边距；再补 6dp = 22dp，文字字形自带约 2dp 侧距，
+@@ -210,7 +191,7 @@ fun NotesListScreen(
+                         text = s.appName,
+                         style = MaterialTheme.typography.displaySmall.copy(
+                             fontWeight = FontWeight.Bold,
+-                            letterSpacing = (-1).sp
++                            fontSize = (32f - 8f * scrollBehavior.state.collapsedFraction).sp
+                         )
+                     )
+                     Spacer(modifier = Modifier.width(8.dp))
+@@ -272,6 +253,65 @@ fun NotesListScreen(
+             windowInsets = WindowInsets(0, 0, 0, 0)
+         )
+ 
++        // ---------- 筛选 chip + 新建按钮 + 笔记列表，同一个 LazyColumn ----------
++        // 以前筛选行和 SplitButton 在列表外面，LazyColumn 自己只剩几张卡片，
++        // 内容高度和视口几乎相同；标题栏一收起视口变大，官方滚动条判定
++        // 「内容不满一屏」就直接不画了 —— 这就是「滚动条不动 + 滑一下就消失」。
++        // 现在整页是一块可滚动内容，滚动条的长度、位置、可视性都由真实内容算。
++        val listState = rememberLazyListState()
++        val carouselVisible by remember(listState) {
++            derivedStateOf {
++                val info = listState.layoutInfo
++                info.visibleItemsInfo.any {
++                    it.key == "home:carousel" && it.offset < info.viewportEndOffset &&
++                        it.offset + it.size > info.viewportStartOffset
++                }
++            }
++        }
++        val bg = MaterialTheme.colorScheme.surface
++        val bottomFade by animateFloatAsState(
++            targetValue = if (listState.canScrollForward) 1f else 0f,
++            animationSpec = tween(180),
++            label = "notesBottomFade"
++        )
++
++        Box(
++            modifier = Modifier
++                .weight(1f)
++                .fillMaxWidth()
++        ) {
++            LazyColumn(
++                state = listState,
++                modifier = Modifier
++                    .fillMaxSize()
++                    // 底部让出 96dp：列表止于悬浮导航栏上方，
++                    // 否则滚到底时最后一条会被导航栏压住。
++                    // 滚动条已换成自定义可拖动版本（见下方 NotesListScrollbar），
++                    // 这里不再挂 material3 的 nonInteractiveScrollbar——
++                    // 同一列表不允许同时出现两套指示器。
++                    .padding(bottom = ListVisualTokens.listBottomReserve)
++                    .nestedScroll(scrollBehavior.nestedScrollConnection),
++                contentPadding = PaddingValues(
++                    // 卡片左右缘压在 24dp 页面上；右侧不再额外留 28dp，
++                    // 滚动条交给 crossAxisTrackInset 处理，避免「左右不等宽」
++                    start = 0.dp,
++                    end = 0.dp,
++                    top = 2.dp,
++                    // 末尾留一段可滚动余量：最后一条笔记能滚到悬浮导航栏上方，
++                    // 滚动条也才有真实行程（否则内容刚好一屏，滑块无处可走）
++                    bottom = 120.dp
++                ),
++                // 行距不再交给全局 rowGap：分组后组内 4 / 组间 12 是两种间距，
++                // 统一 spacedBy 会把筛选行、分区标题也挤成同一个值。
++                verticalArrangement = Arrangement.Top
++            ) {
++                items(model.items, key = { it.key }, contentType = { it.kind }) { entry ->
++                    when (entry.kind) {
++                        NotesHomeItemKind.CAROUSEL -> RecentNotesCarousel(
++                            notes = recent, imageFile = state::imageFile, onOpen = ::openNote,
++                            active = isHomeActive && !searchActive && carouselVisible && !listState.isScrollInProgress
++                        )
++                        NotesHomeItemKind.SUMMARY -> {
+         Row(
+             modifier = Modifier
+                 .fillMaxWidth()
+@@ -290,7 +330,8 @@ fun NotesListScreen(
+             )
+             SortMenu(current = state.sortMode, strings = s, onSelect = state::changeSortMode)
+         }
+-
++                        }
++                        NotesHomeItemKind.SEARCH -> {
+         // ---------- 搜索 ----------
+         // 不用 DockedSearchBar：它展开时把内容放进 focusable Popup（SearchBarKt 反编译确认，
+         // PopupProperties(focusable=true)），Android 的焦点 Popup 会吞掉面板以外的一切触摸，
+@@ -379,52 +420,8 @@ fun NotesListScreen(
+                 }
+             }
+         }
+-
+-        // ---------- 筛选 chip + 新建按钮 + 笔记列表，同一个 LazyColumn ----------
+-        // 以前筛选行和 SplitButton 在列表外面，LazyColumn 自己只剩几张卡片，
+-        // 内容高度和视口几乎相同；标题栏一收起视口变大，官方滚动条判定
+-        // 「内容不满一屏」就直接不画了 —— 这就是「滚动条不动 + 滑一下就消失」。
+-        // 现在整页是一块可滚动内容，滚动条的长度、位置、可视性都由真实内容算。
+-        val listState = rememberLazyListState()
+-        val bg = MaterialTheme.colorScheme.surface
+-        val bottomFade by animateFloatAsState(
+-            targetValue = if (listState.canScrollForward) 1f else 0f,
+-            animationSpec = tween(180),
+-            label = "notesBottomFade"
+-        )
+-
+-        Box(
+-            modifier = Modifier
+-                .weight(1f)
+-                .fillMaxWidth()
+-        ) {
+-            LazyColumn(
+-                state = listState,
+-                modifier = Modifier
+-                    .fillMaxSize()
+-                    // 底部让出 96dp：列表止于悬浮导航栏上方，
+-                    // 否则滚到底时最后一条会被导航栏压住。
+-                    // 滚动条已换成自定义可拖动版本（见下方 NotesListScrollbar），
+-                    // 这里不再挂 material3 的 nonInteractiveScrollbar——
+-                    // 同一列表不允许同时出现两套指示器。
+-                    .padding(bottom = ListVisualTokens.listBottomReserve)
+-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+-                contentPadding = PaddingValues(
+-                    // 卡片左右缘压在 24dp 页面上；右侧不再额外留 28dp，
+-                    // 滚动条交给 crossAxisTrackInset 处理，避免「左右不等宽」
+-                    start = AppSpacing.page,
+-                    end = AppSpacing.page,
+-                    top = 2.dp,
+-                    // 末尾留一段可滚动余量：最后一条笔记能滚到悬浮导航栏上方，
+-                    // 滚动条也才有真实行程（否则内容刚好一屏，滑块无处可走）
+-                    bottom = 120.dp
+-                ),
+-                // 行距不再交给全局 rowGap：分组后组内 4 / 组间 12 是两种间距，
+-                // 统一 spacedBy 会把筛选行、分区标题也挤成同一个值。
+-                verticalArrangement = Arrangement.Top
+-            ) {
+-                // 类型筛选
+-                item(key = "__filters__") {
++                        }
++                        NotesHomeItemKind.FILTERS -> Box(Modifier.padding(horizontal = AppSpacing.page)) {
+                     LazyRow(
+                         modifier = Modifier.fillMaxWidth(),
+                         horizontalArrangement = Arrangement.spacedBy(8.dp)
+@@ -492,83 +489,33 @@ fun NotesListScreen(
+                             )
+                         }
+                     }
+-                }
+-
+-                // 新建入口已统一到右下角官方 FAB Menu（见 NotesNavBar / MainActivity）
+-
+-                if (notes.isEmpty()) {
+-                    item(key = "__empty__") {
+-                        EmptyState(
+-                            isSearching = isFiltering,
+-                            strings = s,
+-                            modifier = Modifier
+-                                .fillMaxWidth()
+-                                .padding(top = ListVisualTokens.listTopGap)
+-                                .height(300.dp)
+-                        )
+-                    }
+-                } else if (showSections) {
+-                    // 两个分区各自是一条逻辑组：首条外角、末条外角各自算，
+-                    // 分区标题不参与组内接缝，也不改 visibleNotes 的顺序。
+-                    item(key = "__h_pin__") {
+-                        ListSectionHeader(
+-                            text = s.pinnedSection,
+-                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
+-                        )
+-                    }
+-                    itemsIndexed(pinned, key = { _, note -> note.id }) { index, note ->
+-                        NoteRowWithSwipe(
+-                            note = note,
+-                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+-                            strings = s,
+-                            onClick = { openNote(note.id) },
+-                            onDelete = { onDelete(note) },
+-                            onTogglePin = { state.togglePin(note.id) },
+-                            topGap = ListVisualTokens.intraGroupGap,
+-                            shape = ListGrouping.shapeOf(
+-                                ListGrouping.slotOf(indexInGroup = index, groupSize = pinned.size)
+-                            )
+-                        )
+-                    }
+-                    item(key = "__h_recent__") {
+-                        ListSectionHeader(
+-                            text = s.recentSection,
+-                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
+-                        )
+-                    }
+-                    itemsIndexed(regular, key = { _, note -> note.id }) { index, note ->
+-                        NoteRowWithSwipe(
+-                            note = note,
+-                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+-                            strings = s,
+-                            onClick = { openNote(note.id) },
+-                            onDelete = { onDelete(note) },
+-                            onTogglePin = { state.togglePin(note.id) },
+-                            topGap = ListVisualTokens.intraGroupGap,
+-                            shape = ListGrouping.shapeOf(
+-                                ListGrouping.slotOf(indexInGroup = index, groupSize = regular.size)
+-                            )
++                        }
++                        NotesHomeItemKind.EMPTY -> EmptyState(
++                            isSearching = isFiltering, strings = s,
++                            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.page)
++                                .padding(top = ListVisualTokens.listTopGap).height(300.dp)
+                         )
+-                    }
+-                } else {
+-                    // 搜索/筛选视图是一整组：组内顺序仍是 visibleNotes 的原顺序
+-                    itemsIndexed(notes, key = { _, note -> note.id }) { index, note ->
+-                        NoteRowWithSwipe(
+-                            note = note,
+-                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+-                            strings = s,
+-                            onClick = { openNote(note.id) },
+-                            onDelete = { onDelete(note) },
+-                            onTogglePin = { state.togglePin(note.id) },
+-                            topGap = if (index == 0) ListVisualTokens.listTopGap
+-                            else ListVisualTokens.intraGroupGap,
+-                            shape = ListGrouping.shapeOf(
+-                                ListGrouping.slotOf(indexInGroup = index, groupSize = notes.size)
+-                            )
++                        NotesHomeItemKind.PINNED_HEADER, NotesHomeItemKind.RECENT_HEADER -> ListSectionHeader(
++                            text = if (entry.kind == NotesHomeItemKind.PINNED_HEADER) s.pinnedSection else s.recentSection,
++                            modifier = Modifier.padding(horizontal = AppSpacing.page).padding(top = ListVisualTokens.interGroupGap)
+                         )
++                        NotesHomeItemKind.NOTE -> {
++                            val note = checkNotNull(entry.note)
++                            Box(Modifier.padding(horizontal = AppSpacing.page)) {
++                                NoteRowWithSwipe(
++                                    note = note, thumbnail = note.images.firstOrNull()?.let(state::imageFile),
++                                    strings = s, onClick = { openNote(note.id) }, onDelete = { onDelete(note) },
++                                    onTogglePin = { state.togglePin(note.id) },
++                                    topGap = if (entry.startsUnsectionedGroup) ListVisualTokens.listTopGap else ListVisualTokens.intraGroupGap,
++                                    shape = ListGrouping.shapeOf(ListGrouping.slotOf(entry.indexInGroup, entry.groupSize))
++                                )
++                            }
++                        }
+                     }
+                 }
+             }
++            Box(Modifier.fillMaxWidth().height(24.dp).align(Alignment.TopCenter)
++                .background(Brush.verticalGradient(listOf(bg, bg.copy(alpha = 0.72f), bg.copy(alpha = 0.32f), Color.Transparent))))
+ 
+             // 底部渐变：内容滚到悬浮导航栏时化开
+             Box(
+@@ -584,12 +531,34 @@ fun NotesListScreen(
+             // 右侧快速定位：替换掉原来的 nonInteractiveScrollbar。
+             // 整层只画，接收手势的只有手柄那一段 40dp；高度扣掉 96dp 导航保留区，
+             // 所以不会盖住顶栏/搜索框，也不会伸进悬浮导航。
++            val noteTrackBounds by remember(listState, displayNotes) {
++                derivedStateOf {
++                    val info = listState.layoutInfo
++                    val viewportHeight = (info.viewportEndOffset - info.viewportStartOffset).coerceAtLeast(0)
++                    if (viewportHeight <= 0) return@derivedStateOf 0f to 0f
++                    var minTop = Int.MAX_VALUE
++                    var maxBottom = Int.MIN_VALUE
++                    for (item in info.visibleItemsInfo) {
++                        if (displayNotes.getOrNull(item.index) != null) {
++                            val top = (item.offset - info.viewportStartOffset).coerceIn(0, viewportHeight)
++                            val bottom = (item.offset + item.size - info.viewportStartOffset).coerceIn(0, viewportHeight)
++                            if (bottom > top) {
++                                if (top < minTop) minTop = top
++                                if (bottom > maxBottom) maxBottom = bottom
++                            }
++                        }
++                    }
++                    if (minTop >= maxBottom) 0f to 0f else minTop.toFloat() to maxBottom.toFloat()
++                }
++            }
+             NotesListScrollbar(
+                 listState = listState,
+                 displayNotes = displayNotes,
+                 sortMode = state.sortMode,
+                 strings = s,
+                 contentKey = listDataKey,
++                trackTopPx = noteTrackBounds.first,
++                trackBottomPx = noteTrackBounds.second,
+                 modifier = Modifier
+                     .align(Alignment.TopEnd)
+                     .fillMaxSize()
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScrollbar.kt b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScrollbar.kt
+index ccbfcc3..fc8418c 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScrollbar.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScrollbar.kt
+@@ -10,14 +10,11 @@ import androidx.compose.foundation.gestures.detectDragGestures
+ import androidx.compose.foundation.gestures.detectTapGestures
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxWithConstraints
+-import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.offset
+-import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.lazy.LazyListItemInfo
+-import androidx.compose.foundation.lazy.LazyListLayoutInfo
+ import androidx.compose.foundation.lazy.LazyListState
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.material.icons.Icons
+@@ -34,7 +31,7 @@ import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.runtime.mutableIntStateOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+-import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.snapshotFlow
+ import androidx.compose.ui.Alignment
+@@ -44,7 +41,6 @@ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.geometry.Rect
+ import androidx.compose.ui.geometry.RoundRect
+ import androidx.compose.ui.geometry.Size
+-import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.Path
+ import androidx.compose.ui.graphics.StrokeCap
+ import androidx.compose.ui.graphics.graphicsLayer
+@@ -52,6 +48,7 @@ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.IntOffset
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+ import com.example.myapplicationfirstapp.data.Note
+@@ -60,13 +57,13 @@ import com.example.myapplicationfirstapp.ui.i18n.AppStrings
+ import kotlinx.coroutines.flow.collectLatest
+ import kotlinx.coroutines.flow.distinctUntilChanged
+ import kotlin.math.abs
++import kotlin.math.roundToInt
+ 
+ /**
+- * 100% 严格对齐 Rhythm 原版 ExpressiveScrollBar.kt 源码实现：
+- * - 轨道：在手柄上下各留 gap (8dp)，上方从 0 到 handleY-gap，下方从 handleY+height+gap 到总高，两端 StrokeCap.Round
+- * - 手柄形状：左侧伸出大半圆 (indicatorWidth / 2)，右侧保持小圆角 (6dp) 的非对称胶囊！
+- * - 手柄内部：展开时淡入 Material unfold_more (上下双箭头图标)
+- * - 气泡：手柄左侧 42dp 的 40×40dp 圆球，单字居中，绝不遮挡正文！
++ * 右侧笔记列表滚动条（限位版）：
++ * - 轨道和触摸热区仅覆盖当前可见笔记行，排除轮播、摘要、搜索、筛选、底部导航与尾部留白
++ * - 拖动只定位当前结果中的实际笔记行，首末端不跳到轮播或分区标题；无可滚动笔记时隐藏
++ * - 拖动开始时固定有效行程并用手指增量更新，避免轨道随列表滚动跳动；列表模型变化时重置状态
+  */
+ @Composable
+ fun NotesListScrollbar(
+@@ -76,6 +73,8 @@ fun NotesListScrollbar(
+     strings: AppStrings,
+     contentKey: Int,
+     modifier: Modifier = Modifier,
++    trackTopPx: Float = 0f,
++    trackBottomPx: Float = Float.NaN,
+     minHeight: Dp = 48.dp,
+     thickness: Dp = 8.dp,
+     indicatorExpandedWidth: Dp = 24.dp,
+@@ -84,26 +83,63 @@ fun NotesListScrollbar(
+     paddingEnd: Dp = 4.dp,
+     trackGap: Dp = 8.dp
+ ) {
+-    val canScrollForward by remember(listState) { derivedStateOf { listState.canScrollForward } }
+-    val canScrollBackward by remember(listState) { derivedStateOf { listState.canScrollBackward } }
+-    val canScroll = canScrollForward || canScrollBackward
++    val noteIndices = remember(displayNotes) {
++        displayNotes.indices.filter { displayNotes[it] != null }
++    }
++    val hasScrollableNotes by remember(listState, noteIndices) {
++        derivedStateOf {
++            if (noteIndices.size < 2) return@derivedStateOf false
++            val info = listState.layoutInfo
++            val visible = info.visibleItemsInfo
++            if (visible.isEmpty()) return@derivedStateOf false
++            val firstIdx = noteIndices.first()
++            val lastIdx = noteIndices.last()
++            val firstItem = visible.firstOrNull { it.index == firstIdx }
++            val lastItem = visible.lastOrNull { it.index == lastIdx }
++            val firstFullyVisible = firstItem != null && firstItem.offset >= info.viewportStartOffset
++            val lastFullyVisible = lastItem != null && (lastItem.offset + lastItem.size) <= info.viewportEndOffset
++            !(firstFullyVisible && lastFullyVisible)
++        }
++    }
+ 
+-    val tracker = remember(listState) { AxisTracker() }
++    val tracker = remember(listState, contentKey) { AxisTracker() }
+     val expandedIndicatorWidth = indicatorExpandedWidth + indicatorExpandedWidthBoost
+ 
+     BoxWithConstraints(modifier = modifier) {
+-        if (!canScroll) return@BoxWithConstraints
++        var isPressed by remember(listState, contentKey) { mutableStateOf(false) }
++        var isDragging by remember(listState, contentKey) { mutableStateOf(false) }
++        var dragProgress by remember(listState, contentKey) { mutableFloatStateOf(-1f) }
++        var pendingScrollIndex by remember(listState, contentKey) { mutableIntStateOf(-1) }
++        var frozenTrackTopPx by remember(listState, contentKey) { mutableFloatStateOf(0f) }
++        var frozenTrackHeightPx by remember(listState, contentKey) { mutableFloatStateOf(0f) }
++        var frozenTravelPx by remember(listState, contentKey) { mutableFloatStateOf(1f) }
++        val displayedProgress = remember(listState, contentKey) { Animatable(0f) }
++        var hasSyncedDisplayedProgress by remember(listState, contentKey) { mutableStateOf(false) }
++
++        val density = LocalDensity.current
++        val fullHeightPx = with(density) { maxHeight.toPx() }
++        val handleHeightPx = with(density) { minHeight.toPx() }
++        val resolvedTopPx = if (trackBottomPx.isNaN()) 0f else trackTopPx.coerceIn(0f, fullHeightPx)
++        val resolvedBottomPx = if (trackBottomPx.isNaN()) fullHeightPx else trackBottomPx.coerceIn(resolvedTopPx, fullHeightPx)
++        val liveTrackHeightPx = (resolvedBottomPx - resolvedTopPx).coerceAtLeast(0f)
+ 
+-        var isPressed by remember(listState) { mutableStateOf(false) }
+-        var isDragging by remember(listState) { mutableStateOf(false) }
+-        var dragProgress by remember(listState) { mutableFloatStateOf(-1f) }
+-        var pendingScrollIndex by remember(listState) { mutableIntStateOf(-1) }
+-        val displayedProgress = remember(listState) { Animatable(0f) }
+-        var hasSyncedDisplayedProgress by remember(listState) { mutableStateOf(false) }
++        val latestResolvedTopPx by rememberUpdatedState(resolvedTopPx)
++        val latestLiveTrackHeightPx by rememberUpdatedState(liveTrackHeightPx)
++        val latestNoteIndices by rememberUpdatedState(noteIndices)
++
++        val activeTopPx = if (isDragging && frozenTrackHeightPx > 0f) frozenTrackTopPx else resolvedTopPx
++        val activeTrackHeightPx = if (isDragging && frozenTrackHeightPx > 0f) frozenTrackHeightPx else liveTrackHeightPx
++
++        if (!isDragging && (!hasScrollableNotes || liveTrackHeightPx < handleHeightPx)) {
++            return@BoxWithConstraints
++        }
++        if (noteIndices.isEmpty() || activeTrackHeightPx < 1f) {
++            return@BoxWithConstraints
++        }
+ 
+         val primaryColor = MaterialTheme.colorScheme.primary
+         val trackBgColor = MaterialTheme.colorScheme.secondaryContainer
+-        val indicatorRightCornerRadiusPx = with(LocalDensity.current) { indicatorRightCornerRadius.toPx() }
++        val indicatorRightCornerRadiusPx = with(density) { indicatorRightCornerRadius.toPx() }
+ 
+         val isInteracting = isPressed || isDragging
+ 
+@@ -119,62 +155,60 @@ fun NotesListScrollbar(
+             label = "IconAlpha"
+         )
+ 
+-        val density = LocalDensity.current
+-        val constraintsMaxHeight = maxHeight
+         val coarseJumpThresholdPx = with(density) { 16.dp.toPx() }
+         val smoothJumpMinDistancePx = with(density) { 10.dp.toPx() }
+ 
+-        fun getScrollStats(): ScrollStats {
++        fun targetNoteIndexForProgress(progress: Float): Int {
++            val indices = latestNoteIndices
++            if (indices.isEmpty()) return -1
++            val slot = scrollbarTarget(progress, (indices.size - 1).coerceAtLeast(1), indices.size)
++            return indices[slot]
++        }
++
++        fun getScrollStats(trackHeightPx: Float): ScrollStats {
+             val layoutInfo = listState.layoutInfo
+             val visibleItems = layoutInfo.visibleItemsInfo
+             val totalItemsCount = layoutInfo.totalItemsCount
+ 
+-            if (visibleItems.isEmpty() || totalItemsCount == 0) {
+-                return ScrollStats(0f, 1, 1f)
++            if (visibleItems.isEmpty() || totalItemsCount == 0 || noteIndices.isEmpty()) {
++                return ScrollStats(0f, 1, scrollbarTravel(trackHeightPx, handleHeightPx))
+             }
+ 
+             tracker.resetIfNeeded(totalItemsCount, layoutInfo.mainAxisItemSpacing)
+             tracker.observe(visibleItems, layoutInfo.mainAxisItemSpacing)
+ 
++            val firstNoteIndex = noteIndices.first()
++            val lastNoteIndex = noteIndices.last()
+             val viewportHeightPx = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat().coerceAtLeast(1f)
+             val itemStridePx = tracker.representativeStridePx(visibleItems, layoutInfo.mainAxisItemSpacing)
+-            val estimatedVisibleItems = (viewportHeightPx / itemStridePx).coerceAtLeast(1f)
+-            val lastItemIndex = (totalItemsCount - 1).coerceAtLeast(0)
+-
+-            val currentScrollPx = (tracker.distanceBefore(listState.firstVisibleItemIndex, itemStridePx) + listState.firstVisibleItemScrollOffset).coerceAtLeast(0f)
+-            val totalScrollableContentPx = (
+-                layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
+-            ).toFloat() + (
+-                tracker.distanceBefore(lastItemIndex, itemStridePx) + tracker.itemSizePx(lastItemIndex, itemStridePx) - viewportHeightPx
+-            ).coerceAtLeast(1f)
+-
+-            val approxMaxIndex = (totalItemsCount - estimatedVisibleItems).toInt().coerceAtLeast(1)
+-
+-            val boundedScrollPx = currentScrollPx.coerceIn(0f, totalScrollableContentPx)
+-            val realProgress = if (!listState.canScrollForward) 1f
+-            else if (!listState.canScrollBackward) 0f
+-            else (boundedScrollPx / totalScrollableContentPx).coerceIn(0f, 0.999f)
+ 
+-            val availableHeight = with(density) { constraintsMaxHeight.toPx() }
+-            val handleHeightPx = with(density) { minHeight.toPx() }
+-            val scrollableHeight = (availableHeight - handleHeightPx).coerceAtLeast(1f)
+-
+-            return ScrollStats(realProgress, approxMaxIndex, scrollableHeight)
+-        }
+-
+-        fun updateProgressFromTouch(touchY: Float, grabOffset: Float) {
+-            val stats = getScrollStats()
+-            val targetHandleTop = touchY - grabOffset
+-            val newProgress = (targetHandleTop / stats.scrollableHeight).coerceIn(0f, 1f)
+-            dragProgress = newProgress
+-            pendingScrollIndex = if (newProgress >= 1f) {
+-                (displayNotes.size - 1).coerceAtLeast(0)
+-            } else {
+-                (newProgress * stats.maxScrollIndex).toInt().coerceIn(0, (displayNotes.size - 1).coerceAtLeast(0))
++            val noteStartPx = tracker.distanceBefore(firstNoteIndex, itemStridePx)
++            val noteEndPx = tracker.distanceBefore(lastNoteIndex, itemStridePx) +
++                tracker.itemSizePx(lastNoteIndex, itemStridePx)
++            val noteContentSpanPx = (noteEndPx - noteStartPx).coerceAtLeast(1f)
++            val noteScrollablePx = (noteContentSpanPx - viewportHeightPx).coerceAtLeast(1f)
++            val currentScrollPx = tracker.distanceBefore(listState.firstVisibleItemIndex, itemStridePx) +
++                listState.firstVisibleItemScrollOffset
++            val boundedNoteScrollPx = (currentScrollPx - noteStartPx).coerceIn(0f, noteScrollablePx)
++
++            val lastVisibleNote = visibleItems.lastOrNull { it.index == lastNoteIndex }
++            val atNoteStart = listState.firstVisibleItemIndex < firstNoteIndex ||
++                (listState.firstVisibleItemIndex == firstNoteIndex && listState.firstVisibleItemScrollOffset == 0)
++            val atNoteEnd = !listState.canScrollForward ||
++                (lastVisibleNote != null && lastVisibleNote.offset + lastVisibleNote.size <= layoutInfo.viewportEndOffset)
++
++            val realProgress = when {
++                atNoteStart -> 0f
++                atNoteEnd -> 1f
++                else -> (boundedNoteScrollPx / noteScrollablePx).coerceIn(0f, 0.999f)
+             }
++
++            val maxNoteStep = (noteIndices.size - 1).coerceAtLeast(1)
++            val scrollableHeight = scrollbarTravel(trackHeightPx, handleHeightPx)
++            return ScrollStats(realProgress, maxNoteStep, scrollableHeight)
+         }
+ 
+-        LaunchedEffect(listState) {
++        LaunchedEffect(listState, contentKey) {
+             snapshotFlow { pendingScrollIndex }
+                 .distinctUntilChanged()
+                 .collectLatest { index ->
+@@ -184,10 +218,10 @@ fun NotesListScrollbar(
+                 }
+         }
+ 
+-        LaunchedEffect(listState, constraintsMaxHeight, minHeight, isDragging) {
++        LaunchedEffect(listState, contentKey, activeTrackHeightPx, minHeight, isDragging) {
+             if (isDragging) return@LaunchedEffect
+ 
+-            snapshotFlow { getScrollStats() }
++            snapshotFlow { getScrollStats(activeTrackHeightPx) }
+                 .distinctUntilChanged()
+                 .collectLatest { stats ->
+                     val targetProgress = stats.progress
+@@ -198,9 +232,13 @@ fun NotesListScrollbar(
+                         val sourceIsScrolling = listState.isScrollInProgress
+                         val handleDeltaPx = abs(targetProgress - displayedProgress.value) * stats.scrollableHeight
+                         val estimatedStepPx = stats.scrollableHeight / stats.maxScrollIndex.coerceAtLeast(1).toFloat()
+-                        val shouldSmoothJump = !sourceIsScrolling &&
+-                            estimatedStepPx >= coarseJumpThresholdPx &&
+-                            handleDeltaPx >= smoothJumpMinDistancePx
++                        val shouldSmoothJump = scrollbarSmooth(
++                            sourceIsScrolling,
++                            estimatedStepPx,
++                            handleDeltaPx,
++                            coarseJumpThresholdPx,
++                            smoothJumpMinDistancePx
++                        )
+ 
+                         if (shouldSmoothJump) {
+                             displayedProgress.animateTo(
+@@ -214,7 +252,7 @@ fun NotesListScrollbar(
+                 }
+         }
+ 
+-        LaunchedEffect(isDragging, dragProgress) {
++        LaunchedEffect(isDragging, dragProgress, contentKey) {
+             if (isDragging && dragProgress >= 0f) {
+                 displayedProgress.snapTo(dragProgress)
+                 hasSyncedDisplayedProgress = true
+@@ -222,19 +260,22 @@ fun NotesListScrollbar(
+         }
+ 
+         val indicatorPath = remember { Path() }
+-
+-        val handleHeightPx = with(density) { minHeight.toPx() }
+         val visualProgress = displayedProgress.value
+         val displayProgress = if (isDragging && dragProgress >= 0f) dragProgress else visualProgress
+-        val stats = getScrollStats()
+-        val handleY = displayProgress * stats.scrollableHeight
++        val travelPx = if (isDragging && frozenTrackHeightPx > 0f) {
++            frozenTravelPx
++        } else {
++            scrollbarTravel(activeTrackHeightPx, handleHeightPx)
++        }
++        val handleY = scrollbarHandleY(displayProgress, travelPx)
+ 
+         Box(
+             modifier = Modifier
+-                .align(Alignment.CenterEnd)
+-                .fillMaxHeight()
++                .align(Alignment.TopEnd)
++                .offset { IntOffset(0, activeTopPx.roundToInt()) }
++                .height(with(density) { activeTrackHeightPx.toDp() })
+                 .width(expandedIndicatorWidth + paddingEnd)
+-                .pointerInput(Unit) {
++                .pointerInput(contentKey) {
+                     detectTapGestures(
+                         onPress = {
+                             isPressed = true
+@@ -246,52 +287,61 @@ fun NotesListScrollbar(
+                         }
+                     )
+                 }
+-                .pointerInput(Unit) {
+-                    var grabOffset = 0f
++                .pointerInput(contentKey) {
+                     detectDragGestures(
+                         onDragStart = { offset ->
++                            val lockedHeight = latestLiveTrackHeightPx.coerceAtLeast(handleHeightPx)
++                            val lockedTravel = scrollbarTravel(lockedHeight, handleHeightPx)
++                            frozenTrackTopPx = latestResolvedTopPx
++                            frozenTrackHeightPx = lockedHeight
++                            frozenTravelPx = lockedTravel
+                             isDragging = true
+-                            val isTouchOnHandle = offset.y >= handleY && offset.y <= (handleY + handleHeightPx)
+-                            if (isTouchOnHandle) {
+-                                grabOffset = offset.y - handleY
+-                                dragProgress = visualProgress
+-                                pendingScrollIndex = listState.firstVisibleItemIndex
++                            val currentVisual = displayedProgress.value
++                            val currentHandleY = scrollbarHandleY(currentVisual, lockedTravel)
++                            val isTouchOnHandle = offset.y >= currentHandleY && offset.y <= (currentHandleY + handleHeightPx)
++                            val startProgress = if (isTouchOnHandle) {
++                                currentVisual
+                             } else {
+-                                grabOffset = handleHeightPx / 2f
+-                                updateProgressFromTouch(offset.y, grabOffset)
++                                scrollbarTouchProgress(offset.y - handleHeightPx / 2f, lockedTravel)
+                             }
++                            dragProgress = startProgress
++                            pendingScrollIndex = targetNoteIndexForProgress(startProgress)
+                         },
+                         onDragEnd = {
+                             isDragging = false
+                             dragProgress = -1f
+                             pendingScrollIndex = -1
++                            frozenTrackHeightPx = 0f
+                         },
+                         onDragCancel = {
+                             isDragging = false
+                             dragProgress = -1f
+                             pendingScrollIndex = -1
++                            frozenTrackHeightPx = 0f
+                         },
+-                        onDrag = { change, _ ->
++                        onDrag = { change, dragAmount ->
+                             change.consume()
+-                            updateProgressFromTouch(change.position.y, grabOffset)
++                            val lockedTravel = frozenTravelPx.coerceAtLeast(1f)
++                            val baseProgress = if (dragProgress >= 0f) dragProgress else displayedProgress.value
++                            val nextProgress = (baseProgress + dragAmount.y / lockedTravel).coerceIn(0f, 1f)
++                            dragProgress = nextProgress
++                            pendingScrollIndex = targetNoteIndexForProgress(nextProgress)
+                         }
+                     )
+                 }
+         ) {
+-            val rightAnchorX = with(density) { (expandedIndicatorWidth).toPx() }
++            val rightAnchorX = with(density) { expandedIndicatorWidth.toPx() }
+             val trackX = rightAnchorX - with(density) { thickness.toPx() / 2f }
+ 
+             Canvas(modifier = Modifier.fillMaxSize()) {
+                 val trackStrokeWidth = thickness.toPx()
+                 val indicatorWidthPx = animatedWidth.toPx()
+                 val gapPx = trackGap.toPx()
+-                // Rhythm 核心手柄几何：左侧是大半圆，右侧是小圆角！
+                 val indicatorLeftCornerRadius = indicatorWidthPx / 2f
+                 val maxAllowedRightCornerRadius = minOf(indicatorWidthPx / 2f, handleHeightPx / 2f)
+                 val resolvedRightCornerRadius = indicatorRightCornerRadiusPx.coerceIn(0f, maxAllowedRightCornerRadius)
+                 val currentIndicatorX = rightAnchorX - indicatorWidthPx
+ 
+-                // 1. 上方淡色轨道（与手柄隔开 8dp gap，绝对不接触）
+                 if (handleY > gapPx) {
+                     drawLine(
+                         color = trackBgColor,
+@@ -302,7 +352,6 @@ fun NotesListScrollbar(
+                     )
+                 }
+ 
+-                // 2. 下方淡色轨道（与手柄隔开 8dp gap，绝对不接触）
+                 if (handleY + handleHeightPx + gapPx < size.height) {
+                     drawLine(
+                         color = trackBgColor,
+@@ -313,7 +362,6 @@ fun NotesListScrollbar(
+                     )
+                 }
+ 
+-                // 3. 非对称胶囊手柄（左大圆角向外伸出，右小圆角靠外边）
+                 indicatorPath.rewind()
+                 indicatorPath.addRoundRect(
+                     RoundRect(
+@@ -330,7 +378,6 @@ fun NotesListScrollbar(
+                 drawPath(indicatorPath, color = primaryColor)
+             }
+ 
+-            // 4. 手柄内部上下箭头图标（展开交互时渐入淡显）
+             if (iconAlpha > 0.01f) {
+                 Box(
+                     modifier = Modifier
+@@ -352,19 +399,13 @@ fun NotesListScrollbar(
+             }
+         }
+ 
+-        // 5. 对齐 v4 原型规范的 40×40dp 圆形定位气泡
+-        val activeTargetIndex = if (pendingScrollIndex >= 0) pendingScrollIndex else listState.firstVisibleItemIndex
+-        val targetNote = displayNotes.getOrNull(activeTargetIndex.coerceIn(0, (displayNotes.size - 1).coerceAtLeast(0)))
+-        val glyph = targetNote?.let {
+-            val text = it.displayTitle.trim()
+-            val first = text.firstOrNull { c -> c.isLetterOrDigit() } ?: '#'
+-            when {
+-                first.isDigit() -> "#"
+-                first in 'a'..'z' -> first.uppercaseChar().toString()
+-                first in 'A'..'Z' -> first.toString()
+-                else -> first.toString()
+-            }
+-        }.orEmpty()
++        val activeTargetIndex = if (pendingScrollIndex >= 0) {
++            pendingScrollIndex
++        } else {
++            noteIndices.firstOrNull { it >= listState.firstVisibleItemIndex } ?: noteIndices.last()
++        }
++        val targetNote = displayNotes.getOrNull(activeTargetIndex)
++        val glyph = targetNote?.let { scrollbarGlyph(it.displayTitle) }.orEmpty()
+ 
+         val showBubble = isDragging && glyph.isNotEmpty()
+         val bubbleAnim by animateFloatAsState(
+@@ -382,14 +423,14 @@ fun NotesListScrollbar(
+                     .align(Alignment.TopEnd)
+                     .offset(
+                         x = -(expandedIndicatorWidth + paddingEnd + 10.dp),
+-                        y = with(density) { (handleY + (handleHeightPx - 40.dp.toPx()) / 2f).toDp() }
++                        y = with(density) { (activeTopPx + handleY + (handleHeightPx - 40.dp.toPx()) / 2f).toDp() }
+                     )
+                     .size(40.dp)
+                     .graphicsLayer {
+                         alpha = bubbleAnim
+-                        scaleX = 0.82f + 0.18f * bubbleAnim
+-                        scaleY = 0.82f + 0.18f * bubbleAnim
+-                        translationX = (1f - bubbleAnim) * with(density) { 8.dp.toPx() }
++                        scaleX = scrollbarScale(bubbleAnim)
++                        scaleY = scrollbarScale(bubbleAnim)
++                        translationX = scrollbarSlide(bubbleAnim, with(density) { 8.dp.toPx() })
+                     }
+             ) {
+                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+@@ -412,43 +453,3 @@ private data class ScrollStats(
+     val maxScrollIndex: Int,
+     val scrollableHeight: Float
+ )
+-
+-private class AxisTracker {
+-    private val strides = HashMap<Int, Float>()
+-    private var totalItems = -1
+-    private var spacing = -1
+-
+-    fun resetIfNeeded(total: Int, itemSpacing: Int) {
+-        if (total != totalItems || itemSpacing != spacing) {
+-            strides.clear()
+-            totalItems = total
+-            spacing = itemSpacing
+-        }
+-    }
+-
+-    fun observe(visibleItems: List<LazyListItemInfo>, itemSpacing: Int) {
+-        visibleItems.zipWithNext().forEach { (curr, next) ->
+-            if (next.index == curr.index + 1) {
+-                strides[curr.index] = (next.offset - curr.offset).toFloat()
+-            }
+-        }
+-    }
+-
+-    fun representativeStridePx(visibleItems: List<LazyListItemInfo>, itemSpacing: Int): Float {
+-        val observed = strides.values.toList()
+-        if (observed.isNotEmpty()) {
+-            return observed.sorted()[observed.size / 2]
+-        }
+-        return visibleItems.firstOrNull()?.let { (it.size + itemSpacing).toFloat() } ?: 150f
+-    }
+-
+-    fun distanceBefore(index: Int, stridePx: Float): Float {
+-        var sum = 0f
+-        for (i in 0 until index) {
+-            sum += strides[i] ?: stridePx
+-        }
+-        return sum
+-    }
+-
+-    fun itemSizePx(index: Int, stridePx: Float): Float = stridePx
+-}
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
+index e61287b..82417a7 100644
+--- a/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
++++ b/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
+@@ -22,6 +22,12 @@ import com.example.myapplicationfirstapp.data.Note
+ 
+ import com.example.myapplicationfirstapp.data.NotesRepository
+ 
++import com.example.myapplicationfirstapp.data.RecentNoteUsage
++
++import com.example.myapplicationfirstapp.data.RecentNotesGateway
++
++import com.example.myapplicationfirstapp.data.recentNotesForDisplay
++
+ import com.example.myapplicationfirstapp.data.ReminderScheduler
+ 
+ import com.example.myapplicationfirstapp.data.SortMode
+@@ -40,12 +46,16 @@ import com.example.myapplicationfirstapp.data.todosToContent
+ 
+ import kotlinx.coroutines.CoroutineScope
+ 
++import kotlinx.coroutines.CancellationException
++
+ import kotlinx.coroutines.launch
+ 
+ import android.net.Uri
+ 
+ import java.io.File
+ 
++import java.util.concurrent.atomic.AtomicInteger
++
+ 
+ 
+ /**
+@@ -82,7 +92,9 @@ class NotesState(
+ 
+     private val scope: CoroutineScope,
+ 
+-    private val scheduler: ReminderScheduler
++    private val scheduler: ReminderScheduler,
++
++    private val recentStore: RecentNotesGateway
+ 
+ ) {
+ 
+@@ -264,12 +276,18 @@ class NotesState(
+ 
+             repository.deleteAttachments(purged.flatMap(::allImageNames))
+ 
++            // 过期回收站里的笔记已经不存在了，对应的最近使用记录也一并清掉
++            forgetRecent(purged.map { it.id })
++
+             persist()
+ 
+         }
+ 
+         loaded = true
+ 
++        // 元数据独立加载：晚到或失败都不影响正文列表，错误只落 recentError
++        scope.launch { refreshRecent() }
++
+ 
+ 
+         // 启动时把还没到点的提醒重新排一遍：
+@@ -802,6 +820,8 @@ class NotesState(
+ 
+         repository.deleteAttachments(allImageNames(removed))
+ 
++        forgetRecent(listOf(removed.id))
++
+         persist()
+ 
+         return removed
+@@ -824,6 +844,8 @@ class NotesState(
+ 
+         repository.deleteAttachments(trashed.flatMap(::allImageNames))
+ 
++        forgetRecent(trashed.map { it.id })
++
+         persist()
+ 
+         return trashed.size
+@@ -1208,6 +1230,9 @@ class NotesState(
+ 
+         persist()
+ 
++        // 只清理指向旧数据里已消失笔记的记录；备份里仍在的 id 保留原有顺序
++        pruneRecentTo(imported.map { it.id }.toSet())
++
+         return imported.size
+ 
+     }
+@@ -1248,6 +1273,122 @@ class NotesState(
+     var persistenceError by mutableStateOf<String?>(null)
+         private set
+ 
++    // ============ 最近使用（元数据，独立于正文） ============
++
++    /** 由独立 recent_notes.db 读回的原始记录，顺序以 openOrder 为准 */
++    var recentUsages by mutableStateOf<List<RecentNoteUsage>>(emptyList())
++        private set
++
++    /** 最近使用自己的错误通道：元数据坏了不能连带正文的 persistenceError */
++    var recentError by mutableStateOf<String?>(null)
++        private set
++
++    /**
++     * 首页轮播真正展示的列表：只在「存在且不在回收站」的笔记里挑，
++     * 顺序来自打开顺序，不用 updatedAt 伪造。软删除的笔记只是暂时排除，记录本身保留。
++     */
++    val recentNotes: List<Note>
++        get() = recentNotesForDisplay(recentUsages, _notes, RECENT_LIMIT)
++
++    /**
++     * 每次读写元数据都领一个令牌，只有最新一次的结果能写回状态。
++     * 加载、打开、删除交错时，慢回来的旧快照不会覆盖新状态。
++     */
++    private val recentToken = AtomicInteger(0)
++
++    /**
++     * 统一的「打开笔记」入口：笔记必须存在且不在回收站，确认后才记录一次使用。
++     *
++     * 只有用户真的发起打开（列表点击、轮播点击、点通知）时才走这里；
++     * 旋转、进程恢复只是把 editingId 还原，不经过本方法，所以不会重复计次。
++     */
++    fun openNote(id: String): Note? {
++        val note = _notes.firstOrNull { it.id == id } ?: return null
++        if (note.deletedAt != null) return null
++        recordRecentOpen(note.id)
++        return note
++    }
++
++    /** 启动时读一次元数据；失败只落 recentError，不阻塞正文加载 */
++    suspend fun refreshRecent() {
++        val token = recentToken.incrementAndGet()
++        try {
++            val snapshot = recentStore.load()
++            if (token == recentToken.get()) {
++                recentUsages = snapshot
++                recentError = null
++            }
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (failure: Exception) {
++            if (token == recentToken.get()) recentError = recentFailure(failure)
++        }
++    }
++
++    private fun recordRecentOpen(id: String) {
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val snapshot = recentStore.recordOpened(id)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                // 记录失败不影响这次打开：笔记照常打开，正文与保存顺序都不动
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    /** 永久删除 / 清空回收站 / 过期回收站清理后，把这些 id 的元数据一并清掉 */
++    private fun forgetRecent(ids: Collection<String>) {
++        val clean = ids.filter { it.isNotBlank() }.distinct()
++        if (clean.isEmpty()) return
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val snapshot = recentStore.forgetAll(clean)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    /**
++     * 备份覆盖导入后：只清理指向已不存在笔记的记录，保留下来的 id 维持原顺序。
++     * 不扩展备份格式，也不因为一次导入就清空全部历史。
++     */
++    private fun pruneRecentTo(activeIds: Set<String>) {
++        val token = recentToken.incrementAndGet()
++        scope.launch {
++            try {
++                val current = recentStore.load()
++                val stale = current.map { it.noteId }.filterNot { it in activeIds }
++                val snapshot = if (stale.isEmpty()) current else recentStore.forgetAll(stale)
++                if (token == recentToken.get()) {
++                    recentUsages = snapshot
++                    recentError = null
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: Exception) {
++                if (token == recentToken.get()) recentError = recentFailure(failure)
++            }
++        }
++    }
++
++    private fun recentFailure(failure: Exception): String =
++        failure.message ?: "最近使用记录读写失败"
++
+     private val writeCoordinator = com.example.myapplicationfirstapp.data.NotesWriteCoordinator()
+     private var newestSaveTicket: com.example.myapplicationfirstapp.data.NotesWriteCoordinator.Ticket? = null
+ 
+@@ -1276,9 +1417,10 @@ class NotesState(
+     private companion object {
+ 
+         /** 回收站保留 30 天 */
+-
+         const val TRASH_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1000
+ 
++        /** 本项目首页轮播的展示上限；不是 Rhythm 的硬性规定 */
++        const val RECENT_LIMIT = 6
+     }
+ 
+ }
+diff --git a/app/src/main/java/com/example/myapplicationfirstapp/ui/ScrollbarMath.kt b/app/src/main/java/com/example/myapplicationfirstapp/ui/ScrollbarMath.kt
+new file mode 100644
+index 0000000..b706afa
+--- /dev/null
++++ b/app/src/main/java/com/example/myapplicationfirstapp/ui/ScrollbarMath.kt
+@@ -0,0 +1,63 @@
++package com.example.myapplicationfirstapp.ui
++
++import androidx.compose.foundation.lazy.LazyListItemInfo
++
++internal fun scrollbarTravel(height: Float, handle: Float) = (height - handle).coerceAtLeast(1f)
++internal fun scrollbarTouchProgress(top: Float, travel: Float) = (top / travel).coerceIn(0f, 1f)
++internal fun scrollbarHandleY(progress: Float, travel: Float) = progress * travel
++internal fun scrollbarTarget(progress: Float, max: Int, count: Int): Int {
++    val last = (count - 1).coerceAtLeast(0)
++    return if (progress >= 1f) last else (progress * max).toInt().coerceIn(0, last)
++}
++internal fun scrollbarSmooth(scrolling: Boolean, step: Float, delta: Float, minStep: Float, minDelta: Float) =
++    !scrolling && step >= minStep && delta >= minDelta
++internal fun scrollbarGlyph(title: String): String {
++    val first = title.trim().firstOrNull { it.isLetterOrDigit() } ?: '#'
++    return when {
++        first.isDigit() -> "#"
++        first in 'a'..'z' -> first.uppercaseChar().toString()
++        else -> first.toString()
++    }
++}
++internal fun scrollbarScale(progress: Float) = 0.82f + 0.18f * progress
++internal fun scrollbarSlide(progress: Float, slide: Float) = (1f - progress) * slide
++
++internal class AxisTracker {
++    private val strides = HashMap<Int, Float>()
++    private var totalItems = -1
++    private var spacing = -1
++
++    fun resetIfNeeded(total: Int, itemSpacing: Int) {
++        if (total != totalItems || itemSpacing != spacing) {
++            strides.clear()
++            totalItems = total
++            spacing = itemSpacing
++        }
++    }
++
++    fun observe(visibleItems: List<LazyListItemInfo>, itemSpacing: Int) {
++        visibleItems.zipWithNext().forEach { (curr, next) ->
++            if (next.index == curr.index + 1) {
++                strides[curr.index] = (next.offset - curr.offset).toFloat()
++            }
++        }
++    }
++
++    fun representativeStridePx(visibleItems: List<LazyListItemInfo>, itemSpacing: Int): Float {
++        val observed = strides.values.toList()
++        if (observed.isNotEmpty()) {
++            return observed.sorted()[observed.size / 2]
++        }
++        return visibleItems.firstOrNull()?.let { (it.size + itemSpacing).toFloat() } ?: 150f
++    }
++
++    fun distanceBefore(index: Int, stridePx: Float): Float {
++        var sum = 0f
++        for (i in 0 until index) {
++            sum += strides[i] ?: stridePx
++        }
++        return sum
++    }
++
++    fun itemSizePx(index: Int, stridePx: Float): Float = stridePx
++}
+diff --git a/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt b/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
+index a7b4277..5afd3ef 100644
+--- a/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
++++ b/app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
+@@ -43,4 +43,37 @@ class RecentNoteUsageTest {
+         recentNoteIds(rows, setOf("a", "b"))
+         assertEquals(before, rows)
+     }
++
++    // ---- 展示映射：最近使用 → 可展示的笔记 ----
++
++    @Test fun displayKeepsOpenOrderNotUpdatedAtOrder() {
++        val old = Note(id = "old", title = "老笔记", updatedAt = 9_000L)
++        val fresh = Note(id = "fresh", title = "刚编辑过", updatedAt = 1_000L)
++        val rows = listOf(RecentNoteUsage("fresh", 10L, 1L), RecentNoteUsage("old", 20L, 2L))
++        // openOrder 2 的 old 排在前：哪怕 fresh 的 updatedAt 更新，也不能拿它冒充历史
++        assertEquals(listOf("old", "fresh"), recentNotesForDisplay(rows, listOf(old, fresh)).map { it.id })
++    }
++
++    @Test fun displayExcludesTrashedAndUnknownNotes() {
++        val active = Note(id = "a", title = "A")
++        val trashed = Note(id = "b", title = "B", deletedAt = 1_000L)
++        val rows = listOf(
++            RecentNoteUsage("b", 3L, 3L),
++            RecentNoteUsage("missing", 2L, 2L),
++            RecentNoteUsage("a", 1L, 1L)
++        )
++        assertEquals(listOf("a"), recentNotesForDisplay(rows, listOf(active, trashed)).map { it.id })
++    }
++
++    @Test fun displayAppliesLimitAfterFiltering() {
++        val notes = (1..8).map { Note(id = "n$it", title = "笔记$it") }
++        val rows = (1..8).map { RecentNoteUsage("n$it", it.toLong(), it.toLong()) }
++        val shown = recentNotesForDisplay(rows, notes)
++        assertEquals(6, shown.size)
++        assertEquals(listOf("n8", "n7", "n6", "n5", "n4", "n3"), shown.map { it.id })
++    }
++
++    @Test fun displayOfEmptyUsageIsEmpty() {
++        assertEquals(emptyList<Note>(), recentNotesForDisplay(emptyList(), listOf(Note(id = "a"))))
++    }
+ }
+diff --git a/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt b/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt
+index f3f85b4..62f159b 100644
+--- a/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt
++++ b/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt
+@@ -1,297 +1,44 @@
+ package com.example.myapplicationfirstapp.ui
+ 
+-import com.example.myapplicationfirstapp.data.Note
+-import com.example.myapplicationfirstapp.data.SortMode
+-import org.junit.Assert.assertEquals
+-import org.junit.Assert.assertFalse
+-import org.junit.Assert.assertTrue
++import org.junit.Assert.*
+ import org.junit.Test
+ 
+-/**
+- * 滚动条纯计算：代表步长（中位数）、前缀修正、固定长度手柄几何、目标下标、标签解析。
+- *
+- * 这一版按 Rhythm ExpressiveScrollBarMetrics 的语义重写：
+- * 手柄高恒定、步长取中位数、已观察步长按项缓存、progress≥1 直接给最后一项。
+- * 锁的是「估算不能越界、不能空转、不能被单条超高行带偏」。
+- */
+ class NotesListScrollbarMathTest {
+-
+-    private fun items(vararg sizes: Int): List<ScrollbarEstimate.Item> {
+-        var offset = 0
+-        return sizes.mapIndexed { index, size ->
+-            ScrollbarEstimate.Item(index = index, offsetPx = offset, sizePx = size)
+-                .also { offset += size }
+-        }
+-    }
+-
+-    private fun estimatorOf(items: List<ScrollbarEstimate.Item>, total: Int, key: Int = 0) =
+-        ScrollbarEstimate.Estimator().also { it.update(items, total, key) }
+-
+-    // ---------- 中位数 ----------
+-
+-    @Test
+-    fun `中位数不被单条超高行带偏`() {
+-        assertEquals(200f, ScrollbarEstimate.median(listOf(200, 200, 200)), 0.01f)
+-        // 一条 900 的行：均值会被拉到 375，中位数仍是 200
+-        assertEquals(200f, ScrollbarEstimate.median(listOf(200, 900, 200)), 0.01f)
+-        val mean = (200 + 900 + 200) / 3f
+-        assertTrue("均值应明显偏大：$mean", mean > ScrollbarEstimate.median(listOf(200, 900, 200)) + 200)
+-        // 偶数个取中间两个均值
+-        assertEquals(250f, ScrollbarEstimate.median(listOf(200, 300)), 0.01f)
+-        assertEquals(0f, ScrollbarEstimate.median(emptyList()), 0.01f)
+-    }
+-
+-    @Test
+-    fun `相邻步长只保留正数并按下标排序`() {
+-        val mixed = listOf(
+-            ScrollbarEstimate.Item(2, 400, 200),
+-            ScrollbarEstimate.Item(0, 0, 200),
+-            ScrollbarEstimate.Item(1, 200, 200)
+-        )
+-        assertEquals(listOf(200, 200), ScrollbarEstimate.stepsOf(mixed))
+-    }
+-
+-    // ---------- 估算器 ----------
+-
+-    @Test
+-    fun `代表步长取可见相邻步长中位数`() {
+-        // 步长 200/200/900：中位数 200，均值被抬到 433
+-        val est = estimatorOf(items(200, 200, 900, 200), 64)
+-        assertEquals(200f, est.representativeStepPx(), 0.01f)
+-    }
+-
+-    @Test
+-    fun `已观察步长会修正前缀距离`() {
+-        // 前 4 条 200，第 5 条 500：可见 5 条时中位步长 200，但第 4 条的步长被单独记下
+-        // 尺寸 200/200/500/200/200：步长是 200/500/200/200，中位数 200
+-        val est = estimatorOf(items(200, 200, 500, 200, 200), 10)
+-        assertEquals(200f, est.representativeStepPx(), 0.01f)
+-        // 未观察到的下标仍按代表步长
+-        assertEquals(400f, est.prefixDistancePx(2), 0.01f)
+-        // 已观察到的第 3 段用真实 500，而不是代表步长 200
+-        assertEquals(400f + 500f, est.prefixDistancePx(3), 0.01f)
+-        assertEquals(400f + 500f + 200f + 200f, est.prefixDistancePx(5), 0.01f)
+-    }
+-
+-    @Test
+-    fun `总条数或内容键变化时清空已观察步长`() {
+-        val est = estimatorOf(items(200, 200, 400), 10, 1)
+-        assertEquals(600f, est.prefixDistancePx(3), 0.01f)
+-        // 条数变了：观测清空，回到只有代表步长的状态
+-        estimatorOf(items(200, 200, 400), 64, 1).let { fresh ->
+-            assertEquals(fresh.prefixDistancePx(3), 600f, 0.01f)
+-        }
+-        est.update(items(200, 200, 400), 64, 1)
+-        assertEquals(600f, est.prefixDistancePx(3), 0.01f)
+-        // 同样的下标，换了内容键也应重算（这里断言不崩且仍非负）
+-        est.update(items(300, 300, 300), 64, 2)
+-        assertTrue(est.prefixDistancePx(3) >= 900f)
+-    }
+-
+-    @Test
+-    fun `目标下标与前缀距离互为逆运算`() {
+-        val est = estimatorOf(items(198, 225, 240, 210, 260, 190), 20)
+-        for (i in 0 until 6) {
+-            val distance = est.prefixDistancePx(i)
+-            val (index, offsetInItem) = est.targetFor(distance, 20)
+-            assertEquals("下标 $i 反查不一致", i, index)
+-            assertEquals(0, offsetInItem)
+-        }
+-    }
+-
+-    @Test
+-    fun `目标下标不越界且空表返回零`() {
+-        val est = estimatorOf(items(200, 200), 3)
+-        assertEquals(0 to 0, est.targetFor(-100f, 3))
+-        val (lastIndex, _) = est.targetFor(1_000_000f, 3)
+-        assertEquals(2, lastIndex)
+-        assertEquals(0 to 0, est.targetFor(500f, 0))
+-    }
+-
+-    @Test
+-    fun `进度在端点被校正为中段单调`() {
+-        val est = estimatorOf(items(200, 200, 200), 30)
+-        assertEquals(
+-            0f,
+-            est.progressOf(0, 0, 2000f, canScrollForward = true, canScrollBackward = false),
+-            0.001f
+-        )
+-        assertEquals(
+-            1f,
+-            est.progressOf(28, 0, 2000f, canScrollForward = false, canScrollBackward = true),
+-            0.001f
+-        )
+-        var prev = -1f
+-        for (index in 5..25 step 5) {
+-            val p = est.progressOf(index, 0, 2000f, canScrollForward = true, canScrollBackward = true)
+-            assertTrue("进度应单调不减：$prev -> $p", p >= prev)
+-            assertTrue("进度应在 0..1：$p", p in 0f..1f)
+-            prev = p
+-        }
+-    }
+-
+-    @Test
+-    fun `内容不足一屏时不显示`() {
+-        val est = estimatorOf(items(200, 200), 2)
+-        assertFalse(
+-            ScrollbarEstimate.isVisible(
+-                totalItems = 2,
+-                estimatedTotalPx = est.estimatedTotalPx(),
+-                viewportPx = 2000f,
+-                trackPx = 2000f,
+-                canScrollForward = false,
+-                canScrollBackward = false
+-            )
+-        )
+-        // 能滚动但轨道为零也不显示
+-        assertFalse(
+-            ScrollbarEstimate.isVisible(60, 12000f, 2000f, 0f, true, true)
+-        )
+-        assertTrue(
+-            ScrollbarEstimate.isVisible(60, 12000f, 2000f, 2000f, true, false)
+-        )
+-    }
+-
+-    // ---------- 固定长度手柄几何 ----------
+-
+-    @Test
+-    fun `手柄长度恒定不随内容变`() {
+-        val thumb = 126f      // 48dp @ density 2.625
+-        val track = 1418f
+-        val gap = 21f         // 8dp
+-        val travel = ScrollbarEstimate.travelPx(track, thumb, gap)
+-        assertEquals(track - 2 * gap - thumb, travel, 0.01f)
+-        // 顶端与底端都不贴边，且不越界
+-        assertEquals(gap, ScrollbarEstimate.thumbTopPx(0f, track, thumb, gap), 0.01f)
+-        assertEquals(gap + travel, ScrollbarEstimate.thumbTopPx(1f, track, thumb, gap), 0.01f)
+-        assertEquals(track - gap - thumb,
+-            ScrollbarEstimate.thumbTopPx(1f, track, thumb, gap), 0.01f)
+-        // 超界夹紧
+-        assertEquals(gap, ScrollbarEstimate.thumbTopPx(-1f, track, thumb, gap), 0.01f)
+-        assertEquals(gap + travel, ScrollbarEstimate.thumbTopPx(2f, track, thumb, gap), 0.01f)
+-    }
+-
+-    @Test
+-    fun `手柄顶端与进度互逆`() {
+-        val thumb = 126f
+-        val track = 1200f
+-        val gap = 21f
+-        for (step in 0..10) {
+-            val p = step / 10f
+-            val top = ScrollbarEstimate.thumbTopPx(p, track, thumb, gap)
+-            assertEquals(p, ScrollbarEstimate.progressOfThumbTop(top, track, thumb, gap), 0.001f)
+-        }
+-    }
+-
+-    @Test
+-    fun `轨道太矮时行程至少一像素不除零`() {
+-        val travel = ScrollbarEstimate.travelPx(trackPx = 100f, thumbPx = 126f, gapPx = 21f)
+-        assertEquals(1f, travel, 0.01f)
+-        val p = ScrollbarEstimate.progressOfThumbTop(80f, 100f, 126f, 21f)
+-        assertTrue("不应出现 NaN 或越界：$p", p in 0f..1f)
+-    }
+-
+-    @Test
+-    fun `70ms平滑只在判据满足时启用`() {
+-        val step = 42f   // 16dp
+-        val jump = 27f   // 10dp
+-        assertTrue(ScrollbarEstimate.shouldSmooth(false, 50f, 40f, step, jump))
+-        assertFalse("源已滚动不加平滑", ScrollbarEstimate.shouldSmooth(true, 50f, 40f, step, jump))
+-        assertFalse("单步太小不加平滑", ScrollbarEstimate.shouldSmooth(false, 30f, 40f, step, jump))
+-        assertFalse("总跳变太小不加平滑", ScrollbarEstimate.shouldSmooth(false, 50f, 20f, step, jump))
+-    }
+-
+-    // ---------- 标签 ----------
+-
+-    @Test
+-    fun `下标落到非笔记项时吸附到最近的笔记`() {
+-        // 0=筛选行 1=标题 2/3=笔记 4=标题 5=笔记
+-        val isNote = { i: Int -> i == 2 || i == 3 || i == 5 }
+-        assertEquals(2, ScrollbarEstimate.nearestNoteIndex(6, 0, isNote))
+-        assertEquals(2, ScrollbarEstimate.nearestNoteIndex(6, 1, isNote))
+-        assertEquals(3, ScrollbarEstimate.nearestNoteIndex(6, 3, isNote))
+-        assertEquals(5, ScrollbarEstimate.nearestNoteIndex(6, 4, isNote))
+-        assertEquals(5, ScrollbarEstimate.nearestNoteIndex(6, 99, isNote))
+-    }
+-
+-    @Test
+-    fun `全部是非笔记项时返回负一而不是猜一条`() {
+-        assertEquals(-1, ScrollbarEstimate.nearestNoteIndex(3, 0) { false })
+-        assertEquals(-1, ScrollbarEstimate.nearestNoteIndex(0, 0) { true })
+-    }
+-
+-    @Test
+-    fun `标题标签扫第一个字母数字且不转拼音`() {
+-        assertEquals("#", ScrollbarEstimate.titleGlyph("3 月旅行计划"))
+-        assertEquals("#", ScrollbarEstimate.titleGlyph("2026 年度目标"))
+-        assertEquals("A", ScrollbarEstimate.titleGlyph("Alpha 项目交接"))
+-        assertEquals("Z", ScrollbarEstimate.titleGlyph("zebra 采购清单"))
+-        assertEquals("季", ScrollbarEstimate.titleGlyph("季度复盘与下周计划"))
+-        // 前导标点不是有效字符，取后面第一个字母数字
+-        assertEquals("重", ScrollbarEstimate.titleGlyph("「重点」待办"))
+-        assertEquals("X", ScrollbarEstimate.titleGlyph("  xyz"))
+-        assertEquals("#", ScrollbarEstimate.titleGlyph(""))
+-        assertEquals("#", ScrollbarEstimate.titleGlyph("!!! ??"))
+-    }
+-
+-    @Test
+-    fun `气泡文案按排序取首字或日期`() {
+-        val note = Note(
+-            id = "n1",
+-            title = "Alpha 项目交接",
+-            createdAt = 1_700_000_000_000L,
+-            updatedAt = 1_700_000_000_000L
+-        )
+-        assertEquals("A", ScrollbarEstimate.bubbleLabel(note, SortMode.TITLE, english = false))
+-        val updated = ScrollbarEstimate.bubbleLabel(note, SortMode.UPDATED, english = false)
+-        val created = ScrollbarEstimate.bubbleLabel(note, SortMode.CREATED, english = false)
+-        assertTrue(updated.isNotBlank())
+-        assertTrue(created.isNotBlank())
+-        assertTrue(updated != "A")
+-        assertEquals(updated, created)
+-    }
+-
+-    @Test
+-    fun `气泡文案随语言切换`() {
+-        val note = Note(
+-            id = "n2",
+-            title = "旅行清单",
+-            createdAt = 1_700_000_000_000L,
+-            updatedAt = 1_700_000_000_000L
+-        )
+-        val zh = ScrollbarEstimate.bubbleLabel(note, SortMode.UPDATED, english = false)
+-        val en = ScrollbarEstimate.bubbleLabel(note, SortMode.UPDATED, english = true)
+-        assertTrue(zh.contains("月") || zh.contains("今天") || zh.contains("昨天"))
+-        assertFalse(en.any { it.code in 0x4E00..0x9FFF })
+-        assertTrue(en.any { it.isDigit() })
+-    }
+-
+-    @Test
+-    fun `气泡入场缩放从 082 到 1`() {
+-        assertEquals(0.82f, ScrollbarEstimate.bubbleScale(0f), 1e-6f)
+-        assertEquals(1f, ScrollbarEstimate.bubbleScale(1f), 1e-6f)
+-        assertEquals(0.91f, ScrollbarEstimate.bubbleScale(0.5f), 1e-6f)
+-    }
+-
+-    @Test
+-    fun `气泡入场位移从 slide 到 0 且随进度单调`() {
+-        val slide = 21f
+-        assertEquals(slide, ScrollbarEstimate.bubbleSlidePx(0f, slide), 1e-6f)
+-        assertEquals(0f, ScrollbarEstimate.bubbleSlidePx(1f, slide), 1e-6f)
+-        assertEquals(slide / 2f, ScrollbarEstimate.bubbleSlidePx(0.5f, slide), 1e-6f)
+-        var last = Float.MAX_VALUE
++    @Test fun emptyTrackerFallsBack() { assertEquals(150f, AxisTracker().representativeStridePx(emptyList(), 0), 0f) }
++    @Test fun unobservedPrefixUsesFallback() { assertEquals(300f, AxisTracker().distanceBefore(3, 100f), 0f) }
++    @Test fun emptyPrefixIsZero() { assertEquals(0f, AxisTracker().distanceBefore(0, 100f), 0f) }
++    @Test fun shortTrackHasOnePixelTravel() { assertEquals(1f, scrollbarTravel(80f, 126f), 0f) }
++    @Test fun travelSubtractsHandle() { assertEquals(874f, scrollbarTravel(1000f, 126f), 0f) }
++    @Test fun touchAndHandleRoundTrip() {
+         for (i in 0..10) {
+-            val v = ScrollbarEstimate.bubbleSlidePx(i / 10f, slide)
+-            assertTrue(v <= last)
+-            last = v
++            val p = i / 10f
++            assertEquals(p, scrollbarTouchProgress(scrollbarHandleY(p, 874f), 874f), 0.00001f)
+         }
+-    }
+-
+-    @Test
+-    fun `气泡入场进度越界不放大也不倒滑`() {
+-        assertEquals(ScrollbarEstimate.BUBBLE_MIN_SCALE, ScrollbarEstimate.bubbleScale(-3f), 1e-6f)
+-        assertEquals(1f, ScrollbarEstimate.bubbleScale(4f), 1e-6f)
+-        assertEquals(30f, ScrollbarEstimate.bubbleSlidePx(-1f, 30f), 1e-6f)
+-        assertEquals(0f, ScrollbarEstimate.bubbleSlidePx(2f, 30f), 1e-6f)
++        assertEquals(0f, scrollbarTouchProgress(-1f, 874f), 0f)
++        assertEquals(1f, scrollbarTouchProgress(900f, 874f), 0f)
++    }
++    @Test fun endTargetsActualLastSlot() { assertEquals(7, scrollbarTarget(1f, 4, 8)) }
++    @Test fun intermediateTargetUsesEstimateAndClamps() {
++        assertEquals(2, scrollbarTarget(0.5f, 4, 8))
++        assertEquals(1, scrollbarTarget(0.9f, 8, 2))
++        assertEquals(0, scrollbarTarget(1f, 8, 0))
++    }
++    @Test fun smoothingChecksBothThresholdsAndIdleSource() {
++        assertTrue(scrollbarSmooth(false, 42f, 27f, 42f, 27f))
++        assertFalse(scrollbarSmooth(true, 42f, 27f, 42f, 27f))
++        assertFalse(scrollbarSmooth(false, 41f, 27f, 42f, 27f))
++        assertFalse(scrollbarSmooth(false, 42f, 26f, 42f, 27f))
++    }
++    @Test fun glyphPreservesChineseAndMapsLeadingDigits() {
++        assertEquals("A", scrollbarGlyph("『alpha」"))
++        assertEquals("季", scrollbarGlyph(" 季度"))
++        assertEquals("#", scrollbarGlyph("3 月"))
++        assertEquals("#", scrollbarGlyph("!"))
++    }
++    @Test fun bubbleAnimationEndpoints() {
++        assertEquals(0.82f, scrollbarScale(0f), 0.00001f)
++        assertEquals(1f, scrollbarScale(1f), 0.00001f)
++        assertEquals(8f, scrollbarSlide(0f, 8f), 0f)
++        assertEquals(0f, scrollbarSlide(1f, 8f), 0f)
+     }
+ }

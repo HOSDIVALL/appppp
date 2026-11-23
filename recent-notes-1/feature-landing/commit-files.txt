@@ -1,0 +1,12 @@
+M	app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt
+A	app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt
+A	app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt
+M	app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt
+M	app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt
+M	app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt
+M	app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt
+M	app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScrollbar.kt
+M	app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt
+A	app/src/main/java/com/example/myapplicationfirstapp/ui/ScrollbarMath.kt
+M	app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt
+M	app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt

@@ -1,0 +1,23 @@
+# 提交前基线闸门（提交前实测：HEAD 与 origin 均为 5c688af4，parent 一致）
+HEAD                              eafd31e823f1ddb3e7e8595d9c4762b2ef1d1009  (提交后)
+origin/ux/rhythm-recent-notes-1   eafd31e823f1ddb3e7e8595d9c4762b2ef1d1009  (提交后，已 fetch 回读)
+提交前 HEAD                       5c688af4d30f01f8939319cad47b2393a8ebaa99
+提交前 origin                     5c688af4d30f01f8939319cad47b2393a8ebaa99
+parent of eafd31e                 5c688af4d30f01f8939319cad47b2393a8ebaa99
+
+# 暂存范围：git add -- app/src/
+提交内文件数                      12
+aar / apk / evidence / libs 混入  0
+
+# git diff --cached --check
+exit 2：18 条 trailing whitespace，全部落在 MainActivity.kt
+原因：该文件 i/crlf w/crlf（git ls-files --eol），仓库无 .gitattributes，core.autocrlf=false
+该文件本次 diff 仅 26 行，不是整篇行尾改写；其余 11 个文件无该告警
+
+# git status --short --cached 说明
+该参数不被 git status 接受（error: unknown option 'cached'），改用等价的 git diff --cached --name-status
+
+# 提交后一致性
+git diff HEAD -- app/src 行数    0
+工作区未跟踪条目                  3（manual-install-evidence/、scope-accept-v2-evidence/、scrollbar-scope-build-evidence/）
+app/libs 是否入库                 0 个文件

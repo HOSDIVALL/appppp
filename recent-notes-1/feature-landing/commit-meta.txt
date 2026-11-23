@@ -1,0 +1,7 @@
+commit eafd31e823f1ddb3e7e8595d9c4762b2ef1d1009
+Author:     HOSDIVALL <HOSDIVALL@users.noreply.github.com>
+AuthorDate: Mon Nov 23 20:46:03 2026 +0800
+Commit:     HOSDIVALL <HOSDIVALL@users.noreply.github.com>
+CommitDate: Mon Nov 23 20:46:03 2026 +0800
+
+    feat(notes): wire recent notes home list and scope scrollbar to visible notes

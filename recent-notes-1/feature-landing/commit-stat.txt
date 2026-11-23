@@ -1,0 +1,14 @@
+eafd31e feat(notes): wire recent notes home list and scope scrollbar to visible notes
+ .../data/IsolatedNoteStorage.kt                    |  24 +-
+ .../data/RecentNotesStoreTest.kt                   | 189 ++++++++++++
+ .../ui/NotesStateRecentNotesTest.kt                | 282 ++++++++++++++++++
+ .../example/myapplicationfirstapp/MainActivity.kt  |  26 +-
+ .../myapplicationfirstapp/data/RecentNoteUsage.kt  |  16 +
+ .../myapplicationfirstapp/data/RecentNotesStore.kt |  54 +++-
+ .../myapplicationfirstapp/ui/NotesListScreen.kt    | 265 ++++++++---------
+ .../myapplicationfirstapp/ui/NotesListScrollbar.kt | 297 +++++++++----------
+ .../example/myapplicationfirstapp/ui/NotesState.kt | 146 +++++++++-
+ .../myapplicationfirstapp/ui/ScrollbarMath.kt      |  63 ++++
+ .../data/RecentNoteUsageTest.kt                    |  33 +++
+ .../ui/NotesListScrollbarMathTest.kt               | 323 +++------------------
+ 12 files changed, 1120 insertions(+), 598 deletions(-)

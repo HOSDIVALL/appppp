@@ -264,3 +264,34 @@ recent-notes-1/device-install-gate/scope-accept-v2/
    而手柄正对行是 `Prairie 草原 16`（P）。若约定为"手柄正对行"，此项不通过。
 6. 搜索 1 条 / 0 条时滚动条均不出现，清空后恢复；crash 缓冲 0 行。
 7. **观察项（未修）**：冷启动首屏仍看不到轮播（05 截图），下滑一次才出现 —— 与上一轮记录同缺陷。
+
+### 7.5 验收通过的源码落盘：`eafd31e` 快进推送到 `ux/rhythm-recent-notes-1`
+
+```
+recent-notes-1/feature-landing/
+  NOTES.md               落盘范围、排除项、CRLF 告警成因、推送核对、两项未做
+  commit-meta.txt        git log -1 --format=fuller eafd31e
+  commit-stat.txt        git show --stat --oneline eafd31e（12 files, +1120/−598）
+  commit-files.txt       12 个 app/src 文件的 name-status
+  feature-landing.diff   git diff 5c688af4 eafd31e（104,244 B）
+  landing-gates.txt      基线/暂存/check/一致性四项实测值
+  remote-readback.txt    ls-remote、rev-parse、log、push 回显
+```
+
+要点：
+
+1. 提交 `eafd31e823f1ddb3e7e8595d9c4762b2ef1d1009`，父提交 `5c688af4`；12 个文件全在 `app/src/`，
+   +1120/−598。入库内容与「73 单测全绿 + 22 仪表通过 + 5558 安装验收」所用工作树逐字一致
+   （提交后 `git diff HEAD -- app/src` 为 0 行）。
+2. 未入库：`app/libs/sherpa-onnx-2.0.1.aar`（提交内 `app/libs` 为 0 文件）、APK、三个证据目录；
+   暂存用 `git add -- app/src/` 限定路径。
+3. `git diff --cached --check` **exit 2**：18 条 `trailing whitespace` 全部落在 `MainActivity.kt`，
+   该文件 `i/crlf  w/crlf`、仓库无 `.gitattributes`、`core.autocrlf=false`，属既有 CRLF 约定；
+   该文件本次 diff 仅 26 行，不是整篇行尾改写，其余 11 个文件无告警。
+4. 用户给的 `git status --short --cached` 不被 git 接受（`unknown option 'cached'`），
+   改用 `git diff --cached --name-status` 核对，清单与第 1 条一致。
+5. 推送回显 `5c688af..eafd31e  HEAD -> ux/rhythm-recent-notes-1`，快进无 `--force`；
+   回读 `origin/ux/rhythm-recent-notes-1` = `eafd31e8…`；`refs/heads/main` 仍为
+   `61dff28e4041aa5a8d9376ba1da872a87a009301`，未触碰。
+6. **未做（等指令）**：冷启动首屏轮播（需改 `NotesState`/`NotesListScreen`，属源码改动）；
+   `workbuddy_install_scrollbar_v2.sh` 的 `\r` 修复。
