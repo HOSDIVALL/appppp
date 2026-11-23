@@ -1,0 +1,13 @@
+captured : 2026-11-23 18:14 CST (adb -s 6LZT7T7TM7NZL799)
+serial   : 6LZT7T7TM7NZL799
+model    : 23078RKD5C
+brand    : Redmi
+release  : 16
+sdk      : 36
+abi      : arm64-v8a
+wm size  : Physical size: 1220x2712
+wm density: Physical density: 480
+
+note : at 18:38 CST the same serial no longer appeared in "adb devices -l"
+       (empty list), so every later step stopped on device availability,
+       not on code.

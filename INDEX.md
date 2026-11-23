@@ -146,3 +146,28 @@ recent-notes-1/home-wiring-5c688af/scrollbar-migration/
 
 三组目标用例全部执行且通过：24 / 11 / 11；全库 JVM 合计 73 条，0 失败 0 错误 0 跳过。
 迁移后的 `app-debug.apk` 取代上一轮 `d85ae6f7…`，后者作废。
+
+## 7 真机安装 harness 执行（2026-11-23 18:38）：第一道闸门未生效
+
+目的：在真机上按作者脚本原样安装滚动条候选并跑 instrumentation。
+
+```
+recent-notes-1/device-install-gate/
+  NOTES.md            本轮说明：四个阻塞点、未上传材料原因、需要的四项输入
+  harness/            workbuddy_install_scrollbar_candidate.sh 原样副本
+                      sha256 9f6ffe96…90a5c70
+  evidence/status.txt harness 退出时唯一一行：preflight: exit 1
+  evidence/apk.sha256 harness 自校验产物
+  evidence/hash-gate.txt  闸门 1 比对与可复现命令
+  evidence/gate-order.txt 按要求逐项状态
+  evidence/install-record.txt 18:14 真机安装与装前装后指纹
+  evidence/device.txt     设备参数
+```
+
+结论（三项，按严重度）：
+
+1. **闸门 1 模式写错**：`354fedc0*71d526` 匹配不到真实结尾 `11d526`，本应 `exit 2` 的旧候选被放行，脚本继续执行到 `sha256sum -c` 并输出两行 `OK`。差一个字符 `1`。
+2. 随后停在 `preflight`：脚本裸调 `adb`，本机 platform-tools 不在 PATH（`line 15: adb: command not found`），且 18:38 设备已从 `adb devices` 消失。
+3. 第三道闸门仍会拦：真机包名已存在（18:14 `install -r` 装入），脚本明确 no overwrite or cleanup。
+
+零条用例执行、零条通过。真机用户数据装前装后指纹一致；装前整包备份已做并校验，但因含私人笔记未纳入本分支；首屏截图与控件树同理未纳入。

@@ -1,0 +1,39 @@
+Run order as the harness executes it, with the state observed on this machine.
+The harness has no gate numbers of its own; the numbering below is only the
+order of its own checks.
+
+  [1] appsha pattern reject    SKIPPED  -- pattern does not match. See hash-gate.txt.
+  [2] sha256sum -c of both APKs PASS    -- two "OK" lines, recorded in apk.sha256
+  [3] adb reachable + state     FAIL    -- two separate causes:
+                                            a) the harness calls bare `adb`;
+                                               platform-tools is not on PATH here,
+                                               so line 15 aborts with
+                                               "adb: command not found"
+                                            b) at 18:38 `adb devices -l` was empty;
+                                               the serial from 18:14 was gone
+  [4] current user numeric      NOT REACHED
+  [5] package must not exist    NOT REACHED, and would fail:
+                                  pm list packages -u holds
+                                    com.example.myapplicationfirstapp
+                                  because of the 18:14 install recorded in
+                                  install-record.txt. The harness states
+                                  "no overwrite or cleanup" on purpose; it uses
+                                  `install --user` without -r.
+  [6] instrumentation runner    NOT REACHED
+  [7] am instrument -w          NOT REACHED
+  [8] "OK (n tests)" summary    NOT REACHED
+
+Net: zero tests started, zero tests passed, nothing installed by the harness.
+status.txt holds the single line the harness wrote on exit: "preflight: exit 1".
+
+What the harness was given, verbatim:
+  serial   6LZT7T7TM7NZL799
+  app      D:/RECENT-NOTES-1-.../app-debug.apk              58,081,932 B
+  test     D:/RECENT-NOTES-1-.../app-debug-androidTest.apk    1,254,265 B
+  appsha   354fedc000904b9345c21a5d69aa0198decc1027d785d68b4f574bcc6711d526
+  testsha  1c6c51a0ce9b5085d42914bfadc91dd37613d88d86ccc8b99020929c29660ba6
+  out      <out>/scrollbar-device-evidence   (new directory, created by the run)
+  flag     --dedicated-device
+
+Nothing was substituted. No APK was rebuilt, no pattern was edited, no PATH was
+pre-pended for the harness, no device was uninstalled or wiped.

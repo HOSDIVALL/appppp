@@ -1,0 +1,40 @@
+Gate 1 of harness/workbuddy_install_scrollbar_candidate.sh
+
+  source line : case "$appsha" in 354fedc0*71d526|d85ae6f7*686719d) STOP; exit 2 ;; esac
+
+  app APK     : D:/RECENT-NOTES-1-.../app-debug.apk   (58,081,932 B)
+  real sha256 : 354fedc000904b9345c21a5d69aa0198decc1027d785d68b4f574bcc6711d526
+  length      : 64
+  last 6      : 11d526
+  last 8      : 6711d526
+
+  pattern requires the string to end with : 71d526
+
+  outcome     : NO MATCH. The APK this gate is meant to reject was let through.
+
+Reproduction (bash, no repo dependency):
+
+  S=354fedc000904b9345c21a5d69aa0198decc1027d785d68b4f574bcc6711d526
+  case "$S" in 354fedc0*71d526) echo "MATCH 71d526" ;;
+              354fedc0*11d526) echo "MATCH 11d526" ;;
+              *)               echo "neither"    ;; esac
+
+  -> MATCH 11d526
+
+Observed run (real arguments, serial 6LZT7T7TM7NZL799,
+appsha 354fedc0...6711d526, testsha 1c6c51a0...29660ba6, out dir new):
+
+  app-debug.apk: OK
+  app-debug-androidTest.apk: OK
+  workbuddy_install_scrollbar_candidate.sh: line 15: adb: command not found
+  script exit = 1
+
+  evidence/status.txt -> "preflight: exit 1"
+
+The absence of the expected "STOP: old candidate APK / exit 2" is the point:
+gate 1 was skipped, gate 2 (sha256sum -c) ran and passed, and the run then
+died on gate 3 because the harness calls bare `adb` and this machine has
+platform-tools outside the default PATH.
+
+No edit was made to the pattern. To actually reject this APK the tail must be
+11d526, not 71d526 -- a one-character difference. Deciding that is yours.

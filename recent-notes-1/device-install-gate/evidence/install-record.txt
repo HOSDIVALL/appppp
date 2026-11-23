@@ -1,0 +1,42 @@
+Real-device install performed earlier the same day (18:14 CST), before the
+harness was run. Recorded here because it determines the state the harness
+would meet on this device -- the package already exists.
+
+Device    : 6LZT7T7TM7NZL799 / 23078RKD5C (Redmi) / Android 16 / API 36 / arm64-v8a
+Command   : adb install -r app-debug.apk     (overwrite, no data wipe, no uninstall)
+Result    : Success
+
+APK
+  name     app-debug.apk
+  size     58,081,932 B
+  sha256   354fedc000904b9345c21a5d69aa0198decc1027d785d68b4f574bcc6711d526
+  abi      lib/arm64-v8a only
+
+Version, before -> after
+  versionName      2.0            -> 2.0
+  versionCode      2              -> 2
+  lastUpdateTime   2026-11-14 01:36:40 -> 2026-11-23 18:14:15
+  firstInstallTime 2026-11-12 15:16:25 (unchanged)
+  signature        20c0fa99
+
+User data, before -> after (identical)
+  files/notes.json        7,117 B
+                          sha256 743e56f824c69b3eb67ce7ad2228435c607231cdfa19fc4082e47edca9575c01
+                          both sides identical; mtime still 2026-11-18 22:46
+  files/asr/              present (~229 MB model)
+  files/attachments/      present (~3.8 MB)
+  files/recordings/       present (~5.8 MB)
+  files/profileInstalled  present
+  shared_prefs/settings.xml present, 242 B, mtime 2026-11-19 22:56
+  databases/              absent before AND after (old build never created it)
+
+Pre-install full backup (kept off this branch on purpose, it holds the user's
+own notes, recordings and speech model):
+  <backup>/preinstall-files.tar   249,519,104 B / 45 entries
+  sha256 845f1cb422de68615d575db7a28670d4acb67172ef83235d0fb4d5d72eb3c470
+  unpack check: files/notes.json inside the tar has the same
+  743e56f8...575c01 digest as on the device.
+
+Not included on this branch, for privacy: the home-screen screenshot and the
+uiautomator dump. Both render the user's real note titles. Say the word and a
+redacted copy can be produced instead.

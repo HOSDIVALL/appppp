@@ -1,4 +1,4 @@
-2e198787a2e33414557904d6d36e29fa23d8063b385e8a00005a20d1ccfa1587 *INDEX.md
+aa8b2912b37c3d002e45d31fd731410a6457763acfd9950935e46ffaa90e7e81 *INDEX.md
 dd8e8f9245e01760bfc023a0e8d31267dbc195f867a1a2b8cafd91dc3882b8e5 *recent-notes-1/batch1/NOTES.md
 4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/batch1/batch1.diff
 054be080b059f4922cb45690aa79dd83ded27b15cba7a58c652aaa535dcb25fd *recent-notes-1/batch1/db/recent_notes.db
@@ -13,6 +13,14 @@ ced77fdf1808743da3d22dc2513f81037dc16e7101d9ef2f36350e62b23b1936 *recent-notes-1
 7cd95f9cdf5a6973ddb90e46957e028bc2a5e9415f94156c30f3e6f106ad8141 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest.xml
 189cccdab1113c08b62f8000e218e0c5666660e67292b9f05aa5c9a13ba50c61 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NotesListActionsTest.xml
 6e22ab22ecdc54245931650356039bd8868853b5a2934222d3f5b12489609d66 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest.xml
+795c72a9fe86a8c2c6ab77fe6f761b2faa45adcbead72acb6d091881f8040cc2 *recent-notes-1/device-install-gate/NOTES.md
+cbb2662a2d3e8c239994e5890d2abdd38ca98ec16fc93477c630351304351318 *recent-notes-1/device-install-gate/evidence/apk.sha256
+817e3265c71ba50b8893e96dd0fe499746adb5bad7e541fb885206904cc1ed4f *recent-notes-1/device-install-gate/evidence/device.txt
+183a934812f78c61cde3791f8b51c0316b1dceabebf47ed08011a8301837c4a1 *recent-notes-1/device-install-gate/evidence/gate-order.txt
+8a25d967370efec257de1598a70b727bef8c217235fce6698375825031e93c7b *recent-notes-1/device-install-gate/evidence/hash-gate.txt
+dd0ec389fd9559241e572e50e2fd872d9c3f37a7289f4219cd3703c53808556b *recent-notes-1/device-install-gate/evidence/install-record.txt
+b5cf6aaddfcb657c33b3da569cbd06d5bd498e712178c9963fd3ee1cfefef678 *recent-notes-1/device-install-gate/evidence/status.txt
+9f6ffe9603770fef6165f0ee450a092be64f8f2873e97543e0709b99d90a5c70 *recent-notes-1/device-install-gate/harness/workbuddy_install_scrollbar_candidate.sh
 c1744a429ab8e5193e988654febc6627ec0a1f562480030cba2bebb4e5fb2892 *recent-notes-1/home-wiring-5c688af/NOTES.md
 4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/home-wiring-5c688af/batch1.diff
 f9b539b9d1974ea45faa42e18c4a42d57e24bb1d122b506d3a4fe4d5b7523abd *recent-notes-1/home-wiring-5c688af/candidate.diff
