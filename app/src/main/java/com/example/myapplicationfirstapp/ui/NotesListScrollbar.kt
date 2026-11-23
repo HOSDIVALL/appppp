@@ -10,14 +10,11 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListItemInfo
-import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -34,7 +31,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -44,7 +41,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -52,6 +48,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplicationfirstapp.data.Note
@@ -60,13 +57,13 @@ import com.example.myapplicationfirstapp.ui.i18n.AppStrings
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
- * 100% 严格对齐 Rhythm 原版 ExpressiveScrollBar.kt 源码实现：
- * - 轨道：在手柄上下各留 gap (8dp)，上方从 0 到 handleY-gap，下方从 handleY+height+gap 到总高，两端 StrokeCap.Round
- * - 手柄形状：左侧伸出大半圆 (indicatorWidth / 2)，右侧保持小圆角 (6dp) 的非对称胶囊！
- * - 手柄内部：展开时淡入 Material unfold_more (上下双箭头图标)
- * - 气泡：手柄左侧 42dp 的 40×40dp 圆球，单字居中，绝不遮挡正文！
+ * 右侧笔记列表滚动条（限位版）：
+ * - 轨道和触摸热区仅覆盖当前可见笔记行，排除轮播、摘要、搜索、筛选、底部导航与尾部留白
+ * - 拖动只定位当前结果中的实际笔记行，首末端不跳到轮播或分区标题；无可滚动笔记时隐藏
+ * - 拖动开始时固定有效行程并用手指增量更新，避免轨道随列表滚动跳动；列表模型变化时重置状态
  */
 @Composable
 fun NotesListScrollbar(
@@ -76,6 +73,8 @@ fun NotesListScrollbar(
     strings: AppStrings,
     contentKey: Int,
     modifier: Modifier = Modifier,
+    trackTopPx: Float = 0f,
+    trackBottomPx: Float = Float.NaN,
     minHeight: Dp = 48.dp,
     thickness: Dp = 8.dp,
     indicatorExpandedWidth: Dp = 24.dp,
@@ -84,26 +83,63 @@ fun NotesListScrollbar(
     paddingEnd: Dp = 4.dp,
     trackGap: Dp = 8.dp
 ) {
-    val canScrollForward by remember(listState) { derivedStateOf { listState.canScrollForward } }
-    val canScrollBackward by remember(listState) { derivedStateOf { listState.canScrollBackward } }
-    val canScroll = canScrollForward || canScrollBackward
+    val noteIndices = remember(displayNotes) {
+        displayNotes.indices.filter { displayNotes[it] != null }
+    }
+    val hasScrollableNotes by remember(listState, noteIndices) {
+        derivedStateOf {
+            if (noteIndices.size < 2) return@derivedStateOf false
+            val info = listState.layoutInfo
+            val visible = info.visibleItemsInfo
+            if (visible.isEmpty()) return@derivedStateOf false
+            val firstIdx = noteIndices.first()
+            val lastIdx = noteIndices.last()
+            val firstItem = visible.firstOrNull { it.index == firstIdx }
+            val lastItem = visible.lastOrNull { it.index == lastIdx }
+            val firstFullyVisible = firstItem != null && firstItem.offset >= info.viewportStartOffset
+            val lastFullyVisible = lastItem != null && (lastItem.offset + lastItem.size) <= info.viewportEndOffset
+            !(firstFullyVisible && lastFullyVisible)
+        }
+    }
 
-    val tracker = remember(listState) { AxisTracker() }
+    val tracker = remember(listState, contentKey) { AxisTracker() }
     val expandedIndicatorWidth = indicatorExpandedWidth + indicatorExpandedWidthBoost
 
     BoxWithConstraints(modifier = modifier) {
-        if (!canScroll) return@BoxWithConstraints
+        var isPressed by remember(listState, contentKey) { mutableStateOf(false) }
+        var isDragging by remember(listState, contentKey) { mutableStateOf(false) }
+        var dragProgress by remember(listState, contentKey) { mutableFloatStateOf(-1f) }
+        var pendingScrollIndex by remember(listState, contentKey) { mutableIntStateOf(-1) }
+        var frozenTrackTopPx by remember(listState, contentKey) { mutableFloatStateOf(0f) }
+        var frozenTrackHeightPx by remember(listState, contentKey) { mutableFloatStateOf(0f) }
+        var frozenTravelPx by remember(listState, contentKey) { mutableFloatStateOf(1f) }
+        val displayedProgress = remember(listState, contentKey) { Animatable(0f) }
+        var hasSyncedDisplayedProgress by remember(listState, contentKey) { mutableStateOf(false) }
 
-        var isPressed by remember(listState) { mutableStateOf(false) }
-        var isDragging by remember(listState) { mutableStateOf(false) }
-        var dragProgress by remember(listState) { mutableFloatStateOf(-1f) }
-        var pendingScrollIndex by remember(listState) { mutableIntStateOf(-1) }
-        val displayedProgress = remember(listState) { Animatable(0f) }
-        var hasSyncedDisplayedProgress by remember(listState) { mutableStateOf(false) }
+        val density = LocalDensity.current
+        val fullHeightPx = with(density) { maxHeight.toPx() }
+        val handleHeightPx = with(density) { minHeight.toPx() }
+        val resolvedTopPx = if (trackBottomPx.isNaN()) 0f else trackTopPx.coerceIn(0f, fullHeightPx)
+        val resolvedBottomPx = if (trackBottomPx.isNaN()) fullHeightPx else trackBottomPx.coerceIn(resolvedTopPx, fullHeightPx)
+        val liveTrackHeightPx = (resolvedBottomPx - resolvedTopPx).coerceAtLeast(0f)
+
+        val latestResolvedTopPx by rememberUpdatedState(resolvedTopPx)
+        val latestLiveTrackHeightPx by rememberUpdatedState(liveTrackHeightPx)
+        val latestNoteIndices by rememberUpdatedState(noteIndices)
+
+        val activeTopPx = if (isDragging && frozenTrackHeightPx > 0f) frozenTrackTopPx else resolvedTopPx
+        val activeTrackHeightPx = if (isDragging && frozenTrackHeightPx > 0f) frozenTrackHeightPx else liveTrackHeightPx
+
+        if (!isDragging && (!hasScrollableNotes || liveTrackHeightPx < handleHeightPx)) {
+            return@BoxWithConstraints
+        }
+        if (noteIndices.isEmpty() || activeTrackHeightPx < 1f) {
+            return@BoxWithConstraints
+        }
 
         val primaryColor = MaterialTheme.colorScheme.primary
         val trackBgColor = MaterialTheme.colorScheme.secondaryContainer
-        val indicatorRightCornerRadiusPx = with(LocalDensity.current) { indicatorRightCornerRadius.toPx() }
+        val indicatorRightCornerRadiusPx = with(density) { indicatorRightCornerRadius.toPx() }
 
         val isInteracting = isPressed || isDragging
 
@@ -119,62 +155,60 @@ fun NotesListScrollbar(
             label = "IconAlpha"
         )
 
-        val density = LocalDensity.current
-        val constraintsMaxHeight = maxHeight
         val coarseJumpThresholdPx = with(density) { 16.dp.toPx() }
         val smoothJumpMinDistancePx = with(density) { 10.dp.toPx() }
 
-        fun getScrollStats(): ScrollStats {
+        fun targetNoteIndexForProgress(progress: Float): Int {
+            val indices = latestNoteIndices
+            if (indices.isEmpty()) return -1
+            val slot = scrollbarTarget(progress, (indices.size - 1).coerceAtLeast(1), indices.size)
+            return indices[slot]
+        }
+
+        fun getScrollStats(trackHeightPx: Float): ScrollStats {
             val layoutInfo = listState.layoutInfo
             val visibleItems = layoutInfo.visibleItemsInfo
             val totalItemsCount = layoutInfo.totalItemsCount
 
-            if (visibleItems.isEmpty() || totalItemsCount == 0) {
-                return ScrollStats(0f, 1, 1f)
+            if (visibleItems.isEmpty() || totalItemsCount == 0 || noteIndices.isEmpty()) {
+                return ScrollStats(0f, 1, scrollbarTravel(trackHeightPx, handleHeightPx))
             }
 
             tracker.resetIfNeeded(totalItemsCount, layoutInfo.mainAxisItemSpacing)
             tracker.observe(visibleItems, layoutInfo.mainAxisItemSpacing)
 
+            val firstNoteIndex = noteIndices.first()
+            val lastNoteIndex = noteIndices.last()
             val viewportHeightPx = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat().coerceAtLeast(1f)
             val itemStridePx = tracker.representativeStridePx(visibleItems, layoutInfo.mainAxisItemSpacing)
-            val estimatedVisibleItems = (viewportHeightPx / itemStridePx).coerceAtLeast(1f)
-            val lastItemIndex = (totalItemsCount - 1).coerceAtLeast(0)
 
-            val currentScrollPx = (tracker.distanceBefore(listState.firstVisibleItemIndex, itemStridePx) + listState.firstVisibleItemScrollOffset).coerceAtLeast(0f)
-            val totalScrollableContentPx = (
-                layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
-            ).toFloat() + (
-                tracker.distanceBefore(lastItemIndex, itemStridePx) + tracker.itemSizePx(lastItemIndex, itemStridePx) - viewportHeightPx
-            ).coerceAtLeast(1f)
+            val noteStartPx = tracker.distanceBefore(firstNoteIndex, itemStridePx)
+            val noteEndPx = tracker.distanceBefore(lastNoteIndex, itemStridePx) +
+                tracker.itemSizePx(lastNoteIndex, itemStridePx)
+            val noteContentSpanPx = (noteEndPx - noteStartPx).coerceAtLeast(1f)
+            val noteScrollablePx = (noteContentSpanPx - viewportHeightPx).coerceAtLeast(1f)
+            val currentScrollPx = tracker.distanceBefore(listState.firstVisibleItemIndex, itemStridePx) +
+                listState.firstVisibleItemScrollOffset
+            val boundedNoteScrollPx = (currentScrollPx - noteStartPx).coerceIn(0f, noteScrollablePx)
 
-            val approxMaxIndex = (totalItemsCount - estimatedVisibleItems).toInt().coerceAtLeast(1)
+            val lastVisibleNote = visibleItems.lastOrNull { it.index == lastNoteIndex }
+            val atNoteStart = listState.firstVisibleItemIndex < firstNoteIndex ||
+                (listState.firstVisibleItemIndex == firstNoteIndex && listState.firstVisibleItemScrollOffset == 0)
+            val atNoteEnd = !listState.canScrollForward ||
+                (lastVisibleNote != null && lastVisibleNote.offset + lastVisibleNote.size <= layoutInfo.viewportEndOffset)
 
-            val boundedScrollPx = currentScrollPx.coerceIn(0f, totalScrollableContentPx)
-            val realProgress = if (!listState.canScrollForward) 1f
-            else if (!listState.canScrollBackward) 0f
-            else (boundedScrollPx / totalScrollableContentPx).coerceIn(0f, 0.999f)
-
-            val availableHeight = with(density) { constraintsMaxHeight.toPx() }
-            val handleHeightPx = with(density) { minHeight.toPx() }
-            val scrollableHeight = (availableHeight - handleHeightPx).coerceAtLeast(1f)
-
-            return ScrollStats(realProgress, approxMaxIndex, scrollableHeight)
-        }
-
-        fun updateProgressFromTouch(touchY: Float, grabOffset: Float) {
-            val stats = getScrollStats()
-            val targetHandleTop = touchY - grabOffset
-            val newProgress = (targetHandleTop / stats.scrollableHeight).coerceIn(0f, 1f)
-            dragProgress = newProgress
-            pendingScrollIndex = if (newProgress >= 1f) {
-                (displayNotes.size - 1).coerceAtLeast(0)
-            } else {
-                (newProgress * stats.maxScrollIndex).toInt().coerceIn(0, (displayNotes.size - 1).coerceAtLeast(0))
+            val realProgress = when {
+                atNoteStart -> 0f
+                atNoteEnd -> 1f
+                else -> (boundedNoteScrollPx / noteScrollablePx).coerceIn(0f, 0.999f)
             }
+
+            val maxNoteStep = (noteIndices.size - 1).coerceAtLeast(1)
+            val scrollableHeight = scrollbarTravel(trackHeightPx, handleHeightPx)
+            return ScrollStats(realProgress, maxNoteStep, scrollableHeight)
         }
 
-        LaunchedEffect(listState) {
+        LaunchedEffect(listState, contentKey) {
             snapshotFlow { pendingScrollIndex }
                 .distinctUntilChanged()
                 .collectLatest { index ->
@@ -184,10 +218,10 @@ fun NotesListScrollbar(
                 }
         }
 
-        LaunchedEffect(listState, constraintsMaxHeight, minHeight, isDragging) {
+        LaunchedEffect(listState, contentKey, activeTrackHeightPx, minHeight, isDragging) {
             if (isDragging) return@LaunchedEffect
 
-            snapshotFlow { getScrollStats() }
+            snapshotFlow { getScrollStats(activeTrackHeightPx) }
                 .distinctUntilChanged()
                 .collectLatest { stats ->
                     val targetProgress = stats.progress
@@ -198,9 +232,13 @@ fun NotesListScrollbar(
                         val sourceIsScrolling = listState.isScrollInProgress
                         val handleDeltaPx = abs(targetProgress - displayedProgress.value) * stats.scrollableHeight
                         val estimatedStepPx = stats.scrollableHeight / stats.maxScrollIndex.coerceAtLeast(1).toFloat()
-                        val shouldSmoothJump = !sourceIsScrolling &&
-                            estimatedStepPx >= coarseJumpThresholdPx &&
-                            handleDeltaPx >= smoothJumpMinDistancePx
+                        val shouldSmoothJump = scrollbarSmooth(
+                            sourceIsScrolling,
+                            estimatedStepPx,
+                            handleDeltaPx,
+                            coarseJumpThresholdPx,
+                            smoothJumpMinDistancePx
+                        )
 
                         if (shouldSmoothJump) {
                             displayedProgress.animateTo(
@@ -214,7 +252,7 @@ fun NotesListScrollbar(
                 }
         }
 
-        LaunchedEffect(isDragging, dragProgress) {
+        LaunchedEffect(isDragging, dragProgress, contentKey) {
             if (isDragging && dragProgress >= 0f) {
                 displayedProgress.snapTo(dragProgress)
                 hasSyncedDisplayedProgress = true
@@ -222,19 +260,22 @@ fun NotesListScrollbar(
         }
 
         val indicatorPath = remember { Path() }
-
-        val handleHeightPx = with(density) { minHeight.toPx() }
         val visualProgress = displayedProgress.value
         val displayProgress = if (isDragging && dragProgress >= 0f) dragProgress else visualProgress
-        val stats = getScrollStats()
-        val handleY = displayProgress * stats.scrollableHeight
+        val travelPx = if (isDragging && frozenTrackHeightPx > 0f) {
+            frozenTravelPx
+        } else {
+            scrollbarTravel(activeTrackHeightPx, handleHeightPx)
+        }
+        val handleY = scrollbarHandleY(displayProgress, travelPx)
 
         Box(
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
+                .align(Alignment.TopEnd)
+                .offset { IntOffset(0, activeTopPx.roundToInt()) }
+                .height(with(density) { activeTrackHeightPx.toDp() })
                 .width(expandedIndicatorWidth + paddingEnd)
-                .pointerInput(Unit) {
+                .pointerInput(contentKey) {
                     detectTapGestures(
                         onPress = {
                             isPressed = true
@@ -246,52 +287,61 @@ fun NotesListScrollbar(
                         }
                     )
                 }
-                .pointerInput(Unit) {
-                    var grabOffset = 0f
+                .pointerInput(contentKey) {
                     detectDragGestures(
                         onDragStart = { offset ->
+                            val lockedHeight = latestLiveTrackHeightPx.coerceAtLeast(handleHeightPx)
+                            val lockedTravel = scrollbarTravel(lockedHeight, handleHeightPx)
+                            frozenTrackTopPx = latestResolvedTopPx
+                            frozenTrackHeightPx = lockedHeight
+                            frozenTravelPx = lockedTravel
                             isDragging = true
-                            val isTouchOnHandle = offset.y >= handleY && offset.y <= (handleY + handleHeightPx)
-                            if (isTouchOnHandle) {
-                                grabOffset = offset.y - handleY
-                                dragProgress = visualProgress
-                                pendingScrollIndex = listState.firstVisibleItemIndex
+                            val currentVisual = displayedProgress.value
+                            val currentHandleY = scrollbarHandleY(currentVisual, lockedTravel)
+                            val isTouchOnHandle = offset.y >= currentHandleY && offset.y <= (currentHandleY + handleHeightPx)
+                            val startProgress = if (isTouchOnHandle) {
+                                currentVisual
                             } else {
-                                grabOffset = handleHeightPx / 2f
-                                updateProgressFromTouch(offset.y, grabOffset)
+                                scrollbarTouchProgress(offset.y - handleHeightPx / 2f, lockedTravel)
                             }
+                            dragProgress = startProgress
+                            pendingScrollIndex = targetNoteIndexForProgress(startProgress)
                         },
                         onDragEnd = {
                             isDragging = false
                             dragProgress = -1f
                             pendingScrollIndex = -1
+                            frozenTrackHeightPx = 0f
                         },
                         onDragCancel = {
                             isDragging = false
                             dragProgress = -1f
                             pendingScrollIndex = -1
+                            frozenTrackHeightPx = 0f
                         },
-                        onDrag = { change, _ ->
+                        onDrag = { change, dragAmount ->
                             change.consume()
-                            updateProgressFromTouch(change.position.y, grabOffset)
+                            val lockedTravel = frozenTravelPx.coerceAtLeast(1f)
+                            val baseProgress = if (dragProgress >= 0f) dragProgress else displayedProgress.value
+                            val nextProgress = (baseProgress + dragAmount.y / lockedTravel).coerceIn(0f, 1f)
+                            dragProgress = nextProgress
+                            pendingScrollIndex = targetNoteIndexForProgress(nextProgress)
                         }
                     )
                 }
         ) {
-            val rightAnchorX = with(density) { (expandedIndicatorWidth).toPx() }
+            val rightAnchorX = with(density) { expandedIndicatorWidth.toPx() }
             val trackX = rightAnchorX - with(density) { thickness.toPx() / 2f }
 
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val trackStrokeWidth = thickness.toPx()
                 val indicatorWidthPx = animatedWidth.toPx()
                 val gapPx = trackGap.toPx()
-                // Rhythm 核心手柄几何：左侧是大半圆，右侧是小圆角！
                 val indicatorLeftCornerRadius = indicatorWidthPx / 2f
                 val maxAllowedRightCornerRadius = minOf(indicatorWidthPx / 2f, handleHeightPx / 2f)
                 val resolvedRightCornerRadius = indicatorRightCornerRadiusPx.coerceIn(0f, maxAllowedRightCornerRadius)
                 val currentIndicatorX = rightAnchorX - indicatorWidthPx
 
-                // 1. 上方淡色轨道（与手柄隔开 8dp gap，绝对不接触）
                 if (handleY > gapPx) {
                     drawLine(
                         color = trackBgColor,
@@ -302,7 +352,6 @@ fun NotesListScrollbar(
                     )
                 }
 
-                // 2. 下方淡色轨道（与手柄隔开 8dp gap，绝对不接触）
                 if (handleY + handleHeightPx + gapPx < size.height) {
                     drawLine(
                         color = trackBgColor,
@@ -313,7 +362,6 @@ fun NotesListScrollbar(
                     )
                 }
 
-                // 3. 非对称胶囊手柄（左大圆角向外伸出，右小圆角靠外边）
                 indicatorPath.rewind()
                 indicatorPath.addRoundRect(
                     RoundRect(
@@ -330,7 +378,6 @@ fun NotesListScrollbar(
                 drawPath(indicatorPath, color = primaryColor)
             }
 
-            // 4. 手柄内部上下箭头图标（展开交互时渐入淡显）
             if (iconAlpha > 0.01f) {
                 Box(
                     modifier = Modifier
@@ -352,19 +399,13 @@ fun NotesListScrollbar(
             }
         }
 
-        // 5. 对齐 v4 原型规范的 40×40dp 圆形定位气泡
-        val activeTargetIndex = if (pendingScrollIndex >= 0) pendingScrollIndex else listState.firstVisibleItemIndex
-        val targetNote = displayNotes.getOrNull(activeTargetIndex.coerceIn(0, (displayNotes.size - 1).coerceAtLeast(0)))
-        val glyph = targetNote?.let {
-            val text = it.displayTitle.trim()
-            val first = text.firstOrNull { c -> c.isLetterOrDigit() } ?: '#'
-            when {
-                first.isDigit() -> "#"
-                first in 'a'..'z' -> first.uppercaseChar().toString()
-                first in 'A'..'Z' -> first.toString()
-                else -> first.toString()
-            }
-        }.orEmpty()
+        val activeTargetIndex = if (pendingScrollIndex >= 0) {
+            pendingScrollIndex
+        } else {
+            noteIndices.firstOrNull { it >= listState.firstVisibleItemIndex } ?: noteIndices.last()
+        }
+        val targetNote = displayNotes.getOrNull(activeTargetIndex)
+        val glyph = targetNote?.let { scrollbarGlyph(it.displayTitle) }.orEmpty()
 
         val showBubble = isDragging && glyph.isNotEmpty()
         val bubbleAnim by animateFloatAsState(
@@ -382,14 +423,14 @@ fun NotesListScrollbar(
                     .align(Alignment.TopEnd)
                     .offset(
                         x = -(expandedIndicatorWidth + paddingEnd + 10.dp),
-                        y = with(density) { (handleY + (handleHeightPx - 40.dp.toPx()) / 2f).toDp() }
+                        y = with(density) { (activeTopPx + handleY + (handleHeightPx - 40.dp.toPx()) / 2f).toDp() }
                     )
                     .size(40.dp)
                     .graphicsLayer {
                         alpha = bubbleAnim
-                        scaleX = 0.82f + 0.18f * bubbleAnim
-                        scaleY = 0.82f + 0.18f * bubbleAnim
-                        translationX = (1f - bubbleAnim) * with(density) { 8.dp.toPx() }
+                        scaleX = scrollbarScale(bubbleAnim)
+                        scaleY = scrollbarScale(bubbleAnim)
+                        translationX = scrollbarSlide(bubbleAnim, with(density) { 8.dp.toPx() })
                     }
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -412,43 +453,3 @@ private data class ScrollStats(
     val maxScrollIndex: Int,
     val scrollableHeight: Float
 )
-
-private class AxisTracker {
-    private val strides = HashMap<Int, Float>()
-    private var totalItems = -1
-    private var spacing = -1
-
-    fun resetIfNeeded(total: Int, itemSpacing: Int) {
-        if (total != totalItems || itemSpacing != spacing) {
-            strides.clear()
-            totalItems = total
-            spacing = itemSpacing
-        }
-    }
-
-    fun observe(visibleItems: List<LazyListItemInfo>, itemSpacing: Int) {
-        visibleItems.zipWithNext().forEach { (curr, next) ->
-            if (next.index == curr.index + 1) {
-                strides[curr.index] = (next.offset - curr.offset).toFloat()
-            }
-        }
-    }
-
-    fun representativeStridePx(visibleItems: List<LazyListItemInfo>, itemSpacing: Int): Float {
-        val observed = strides.values.toList()
-        if (observed.isNotEmpty()) {
-            return observed.sorted()[observed.size / 2]
-        }
-        return visibleItems.firstOrNull()?.let { (it.size + itemSpacing).toFloat() } ?: 150f
-    }
-
-    fun distanceBefore(index: Int, stridePx: Float): Float {
-        var sum = 0f
-        for (i in 0 until index) {
-            sum += strides[i] ?: stridePx
-        }
-        return sum
-    }
-
-    fun itemSizePx(index: Int, stridePx: Float): Float = stridePx
-}

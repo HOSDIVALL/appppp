@@ -2,6 +2,7 @@ package com.example.myapplicationfirstapp.data
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.database.sqlite.SQLiteDatabase
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import java.security.MessageDigest
@@ -23,6 +24,7 @@ import java.util.UUID
 internal class IsolatedAppContext(base: Context, internal val rootDir: File) : ContextWrapper(base) {
     private val isolatedFiles = File(rootDir, "files")
     private val isolatedCache = File(rootDir, "cache")
+    private val isolatedDatabases = File(rootDir, "databases")
 
     override fun getApplicationContext(): Context = this
 
@@ -36,13 +38,33 @@ internal class IsolatedAppContext(base: Context, internal val rootDir: File) : C
         return isolatedCache
     }
 
+    /** 让 SQLiteOpenHelper 也落在沙箱里，否则 `recent_notes.db` 会写进真实 databases 目录 */
+    override fun getDatabasePath(name: String): File {
+        isolatedDatabases.mkdirs()
+        return File(isolatedDatabases, name)
+    }
+
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: SQLiteDatabase.CursorFactory?
+    ): SQLiteDatabase = SQLiteDatabase.openOrCreateDatabase(getDatabasePath(name), factory)
+
     /**
      * 只删本测试自己的 UUID 沙箱，公共父目录 `save-order-2/` 保留。
+     *
+     * 有重试：NotesState.persist() 的写盘协程可能晚于测试方法返回，
+     * 刚建目录刚删完又被它重建。重试仍然失败就返回 false，由调用方断言，
+     * 不会静默忽略。
      *
      * 返回是否真的删干净了 —— 调用方必须检查，不允许静默忽略清理失败。
      */
     fun dispose(): Boolean {
-        rootDir.deleteRecursively()
+        repeat(20) {
+            rootDir.deleteRecursively()
+            if (!rootDir.exists()) return true
+            Thread.sleep(50)
+        }
         return !rootDir.exists()
     }
 }

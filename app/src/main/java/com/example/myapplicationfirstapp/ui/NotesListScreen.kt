@@ -76,6 +76,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -123,7 +124,8 @@ fun NotesListScreen(
     onOpen: (String) -> Unit,
     onDelete: (Note) -> Unit,
     onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isHomeActive: Boolean = false
 ) {
     val s = LocalStrings.current
     val notes = state.visibleNotes
@@ -153,36 +155,14 @@ fun NotesListScreen(
         onOpen(id)
     }
 
-    BackHandler(enabled = searchActive) {
+    BackHandler(enabled = searchActive && isHomeActive) {
         collapseSearch()
     }
 
-    val pinned = notes.filter { it.pinned }
-    val regular = notes.filterNot { it.pinned }
-    val showSections = !isFiltering && pinned.isNotEmpty() && regular.isNotEmpty()
-
-    // LazyColumn 显示项 -> 笔记的映射（筛选行/分区标题/空状态记为 null）。
-    // 快速定位气泡按这份映射解析目标笔记，不拿 index 直接当笔记下标；
-    // 顺序与下面 items/item 的添加顺序逐项对应。
-    val displayNotes: List<Note?> = buildList {
-        add(null) // __filters__
-        when {
-            notes.isEmpty() -> add(null) // __empty__
-            showSections -> {
-                add(null) // __h_pin__
-                pinned.forEach { add(it) }
-                add(null) // __h_recent__
-                regular.forEach { add(it) }
-            }
-            else -> notes.forEach { add(it) }
-        }
-    }
-    // 数据/排序/筛选/置顶任一变化的指纹：拖动中变了就终止旧映射
-    val listDataKey = notes.hashCode() * 31 +
-        state.query.hashCode() +
-        state.filter.ordinal * 7 +
-        (state.selectedTag?.hashCode() ?: 0) +
-        state.sortMode.ordinal * 13
+    val recent = state.recentNotes
+    val model = buildNotesHomeListModel(notes, isFiltering, recent.isNotEmpty(), { it.id }, { it.pinned })
+    val displayNotes = model.displayNotes
+    val listDataKey = listOf(model, recent.map { it.id }, state.query, state.sortMode, state.filter, state.selectedTag).hashCode()
 
     Column(
         modifier = modifier
@@ -198,6 +178,7 @@ fun NotesListScreen(
     ) {
 
         // ---------- 顶栏：标题 + 回收站 + 设置 ----------
+        Spacer(Modifier.height(10.dp))
         LargeTopAppBar(
             title = {
                 // 顶栏内置 16dp 起始内边距；再补 6dp = 22dp，文字字形自带约 2dp 侧距，
@@ -210,7 +191,7 @@ fun NotesListScreen(
                         text = s.appName,
                         style = MaterialTheme.typography.displaySmall.copy(
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = (-1).sp
+                            fontSize = (32f - 8f * scrollBehavior.state.collapsedFraction).sp
                         )
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -272,6 +253,65 @@ fun NotesListScreen(
             windowInsets = WindowInsets(0, 0, 0, 0)
         )
 
+        // ---------- 筛选 chip + 新建按钮 + 笔记列表，同一个 LazyColumn ----------
+        // 以前筛选行和 SplitButton 在列表外面，LazyColumn 自己只剩几张卡片，
+        // 内容高度和视口几乎相同；标题栏一收起视口变大，官方滚动条判定
+        // 「内容不满一屏」就直接不画了 —— 这就是「滚动条不动 + 滑一下就消失」。
+        // 现在整页是一块可滚动内容，滚动条的长度、位置、可视性都由真实内容算。
+        val listState = rememberLazyListState()
+        val carouselVisible by remember(listState) {
+            derivedStateOf {
+                val info = listState.layoutInfo
+                info.visibleItemsInfo.any {
+                    it.key == "home:carousel" && it.offset < info.viewportEndOffset &&
+                        it.offset + it.size > info.viewportStartOffset
+                }
+            }
+        }
+        val bg = MaterialTheme.colorScheme.surface
+        val bottomFade by animateFloatAsState(
+            targetValue = if (listState.canScrollForward) 1f else 0f,
+            animationSpec = tween(180),
+            label = "notesBottomFade"
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    // 底部让出 96dp：列表止于悬浮导航栏上方，
+                    // 否则滚到底时最后一条会被导航栏压住。
+                    // 滚动条已换成自定义可拖动版本（见下方 NotesListScrollbar），
+                    // 这里不再挂 material3 的 nonInteractiveScrollbar——
+                    // 同一列表不允许同时出现两套指示器。
+                    .padding(bottom = ListVisualTokens.listBottomReserve)
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = PaddingValues(
+                    // 卡片左右缘压在 24dp 页面上；右侧不再额外留 28dp，
+                    // 滚动条交给 crossAxisTrackInset 处理，避免「左右不等宽」
+                    start = 0.dp,
+                    end = 0.dp,
+                    top = 2.dp,
+                    // 末尾留一段可滚动余量：最后一条笔记能滚到悬浮导航栏上方，
+                    // 滚动条也才有真实行程（否则内容刚好一屏，滑块无处可走）
+                    bottom = 120.dp
+                ),
+                // 行距不再交给全局 rowGap：分组后组内 4 / 组间 12 是两种间距，
+                // 统一 spacedBy 会把筛选行、分区标题也挤成同一个值。
+                verticalArrangement = Arrangement.Top
+            ) {
+                items(model.items, key = { it.key }, contentType = { it.kind }) { entry ->
+                    when (entry.kind) {
+                        NotesHomeItemKind.CAROUSEL -> RecentNotesCarousel(
+                            notes = recent, imageFile = state::imageFile, onOpen = ::openNote,
+                            active = isHomeActive && !searchActive && carouselVisible && !listState.isScrollInProgress
+                        )
+                        NotesHomeItemKind.SUMMARY -> {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -290,7 +330,8 @@ fun NotesListScreen(
             )
             SortMenu(current = state.sortMode, strings = s, onSelect = state::changeSortMode)
         }
-
+                        }
+                        NotesHomeItemKind.SEARCH -> {
         // ---------- 搜索 ----------
         // 不用 DockedSearchBar：它展开时把内容放进 focusable Popup（SearchBarKt 反编译确认，
         // PopupProperties(focusable=true)），Android 的焦点 Popup 会吞掉面板以外的一切触摸，
@@ -379,52 +420,8 @@ fun NotesListScreen(
                 }
             }
         }
-
-        // ---------- 筛选 chip + 新建按钮 + 笔记列表，同一个 LazyColumn ----------
-        // 以前筛选行和 SplitButton 在列表外面，LazyColumn 自己只剩几张卡片，
-        // 内容高度和视口几乎相同；标题栏一收起视口变大，官方滚动条判定
-        // 「内容不满一屏」就直接不画了 —— 这就是「滚动条不动 + 滑一下就消失」。
-        // 现在整页是一块可滚动内容，滚动条的长度、位置、可视性都由真实内容算。
-        val listState = rememberLazyListState()
-        val bg = MaterialTheme.colorScheme.surface
-        val bottomFade by animateFloatAsState(
-            targetValue = if (listState.canScrollForward) 1f else 0f,
-            animationSpec = tween(180),
-            label = "notesBottomFade"
-        )
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    // 底部让出 96dp：列表止于悬浮导航栏上方，
-                    // 否则滚到底时最后一条会被导航栏压住。
-                    // 滚动条已换成自定义可拖动版本（见下方 NotesListScrollbar），
-                    // 这里不再挂 material3 的 nonInteractiveScrollbar——
-                    // 同一列表不允许同时出现两套指示器。
-                    .padding(bottom = ListVisualTokens.listBottomReserve)
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
-                contentPadding = PaddingValues(
-                    // 卡片左右缘压在 24dp 页面上；右侧不再额外留 28dp，
-                    // 滚动条交给 crossAxisTrackInset 处理，避免「左右不等宽」
-                    start = AppSpacing.page,
-                    end = AppSpacing.page,
-                    top = 2.dp,
-                    // 末尾留一段可滚动余量：最后一条笔记能滚到悬浮导航栏上方，
-                    // 滚动条也才有真实行程（否则内容刚好一屏，滑块无处可走）
-                    bottom = 120.dp
-                ),
-                // 行距不再交给全局 rowGap：分组后组内 4 / 组间 12 是两种间距，
-                // 统一 spacedBy 会把筛选行、分区标题也挤成同一个值。
-                verticalArrangement = Arrangement.Top
-            ) {
-                // 类型筛选
-                item(key = "__filters__") {
+                        }
+                        NotesHomeItemKind.FILTERS -> Box(Modifier.padding(horizontal = AppSpacing.page)) {
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -492,83 +489,33 @@ fun NotesListScreen(
                             )
                         }
                     }
-                }
-
-                // 新建入口已统一到右下角官方 FAB Menu（见 NotesNavBar / MainActivity）
-
-                if (notes.isEmpty()) {
-                    item(key = "__empty__") {
-                        EmptyState(
-                            isSearching = isFiltering,
-                            strings = s,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = ListVisualTokens.listTopGap)
-                                .height(300.dp)
+                        }
+                        NotesHomeItemKind.EMPTY -> EmptyState(
+                            isSearching = isFiltering, strings = s,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.page)
+                                .padding(top = ListVisualTokens.listTopGap).height(300.dp)
                         )
-                    }
-                } else if (showSections) {
-                    // 两个分区各自是一条逻辑组：首条外角、末条外角各自算，
-                    // 分区标题不参与组内接缝，也不改 visibleNotes 的顺序。
-                    item(key = "__h_pin__") {
-                        ListSectionHeader(
-                            text = s.pinnedSection,
-                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
+                        NotesHomeItemKind.PINNED_HEADER, NotesHomeItemKind.RECENT_HEADER -> ListSectionHeader(
+                            text = if (entry.kind == NotesHomeItemKind.PINNED_HEADER) s.pinnedSection else s.recentSection,
+                            modifier = Modifier.padding(horizontal = AppSpacing.page).padding(top = ListVisualTokens.interGroupGap)
                         )
-                    }
-                    itemsIndexed(pinned, key = { _, note -> note.id }) { index, note ->
-                        NoteRowWithSwipe(
-                            note = note,
-                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
-                            strings = s,
-                            onClick = { openNote(note.id) },
-                            onDelete = { onDelete(note) },
-                            onTogglePin = { state.togglePin(note.id) },
-                            topGap = ListVisualTokens.intraGroupGap,
-                            shape = ListGrouping.shapeOf(
-                                ListGrouping.slotOf(indexInGroup = index, groupSize = pinned.size)
-                            )
-                        )
-                    }
-                    item(key = "__h_recent__") {
-                        ListSectionHeader(
-                            text = s.recentSection,
-                            modifier = Modifier.padding(top = ListVisualTokens.interGroupGap)
-                        )
-                    }
-                    itemsIndexed(regular, key = { _, note -> note.id }) { index, note ->
-                        NoteRowWithSwipe(
-                            note = note,
-                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
-                            strings = s,
-                            onClick = { openNote(note.id) },
-                            onDelete = { onDelete(note) },
-                            onTogglePin = { state.togglePin(note.id) },
-                            topGap = ListVisualTokens.intraGroupGap,
-                            shape = ListGrouping.shapeOf(
-                                ListGrouping.slotOf(indexInGroup = index, groupSize = regular.size)
-                            )
-                        )
-                    }
-                } else {
-                    // 搜索/筛选视图是一整组：组内顺序仍是 visibleNotes 的原顺序
-                    itemsIndexed(notes, key = { _, note -> note.id }) { index, note ->
-                        NoteRowWithSwipe(
-                            note = note,
-                            thumbnail = note.images.firstOrNull()?.let(state::imageFile),
-                            strings = s,
-                            onClick = { openNote(note.id) },
-                            onDelete = { onDelete(note) },
-                            onTogglePin = { state.togglePin(note.id) },
-                            topGap = if (index == 0) ListVisualTokens.listTopGap
-                            else ListVisualTokens.intraGroupGap,
-                            shape = ListGrouping.shapeOf(
-                                ListGrouping.slotOf(indexInGroup = index, groupSize = notes.size)
-                            )
-                        )
+                        NotesHomeItemKind.NOTE -> {
+                            val note = checkNotNull(entry.note)
+                            Box(Modifier.padding(horizontal = AppSpacing.page)) {
+                                NoteRowWithSwipe(
+                                    note = note, thumbnail = note.images.firstOrNull()?.let(state::imageFile),
+                                    strings = s, onClick = { openNote(note.id) }, onDelete = { onDelete(note) },
+                                    onTogglePin = { state.togglePin(note.id) },
+                                    topGap = if (entry.startsUnsectionedGroup) ListVisualTokens.listTopGap else ListVisualTokens.intraGroupGap,
+                                    shape = ListGrouping.shapeOf(ListGrouping.slotOf(entry.indexInGroup, entry.groupSize))
+                                )
+                            }
+                        }
                     }
                 }
             }
+            Box(Modifier.fillMaxWidth().height(24.dp).align(Alignment.TopCenter)
+                .background(Brush.verticalGradient(listOf(bg, bg.copy(alpha = 0.72f), bg.copy(alpha = 0.32f), Color.Transparent))))
 
             // 底部渐变：内容滚到悬浮导航栏时化开
             Box(
@@ -584,12 +531,34 @@ fun NotesListScreen(
             // 右侧快速定位：替换掉原来的 nonInteractiveScrollbar。
             // 整层只画，接收手势的只有手柄那一段 40dp；高度扣掉 96dp 导航保留区，
             // 所以不会盖住顶栏/搜索框，也不会伸进悬浮导航。
+            val noteTrackBounds by remember(listState, displayNotes) {
+                derivedStateOf {
+                    val info = listState.layoutInfo
+                    val viewportHeight = (info.viewportEndOffset - info.viewportStartOffset).coerceAtLeast(0)
+                    if (viewportHeight <= 0) return@derivedStateOf 0f to 0f
+                    var minTop = Int.MAX_VALUE
+                    var maxBottom = Int.MIN_VALUE
+                    for (item in info.visibleItemsInfo) {
+                        if (displayNotes.getOrNull(item.index) != null) {
+                            val top = (item.offset - info.viewportStartOffset).coerceIn(0, viewportHeight)
+                            val bottom = (item.offset + item.size - info.viewportStartOffset).coerceIn(0, viewportHeight)
+                            if (bottom > top) {
+                                if (top < minTop) minTop = top
+                                if (bottom > maxBottom) maxBottom = bottom
+                            }
+                        }
+                    }
+                    if (minTop >= maxBottom) 0f to 0f else minTop.toFloat() to maxBottom.toFloat()
+                }
+            }
             NotesListScrollbar(
                 listState = listState,
                 displayNotes = displayNotes,
                 sortMode = state.sortMode,
                 strings = s,
                 contentKey = listDataKey,
+                trackTopPx = noteTrackBounds.first,
+                trackBottomPx = noteTrackBounds.second,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .fillMaxSize()

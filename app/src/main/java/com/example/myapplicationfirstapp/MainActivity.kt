@@ -77,6 +77,7 @@ import androidx.core.content.ContextCompat
 import com.example.myapplicationfirstapp.data.AppSettings
 import com.example.myapplicationfirstapp.data.Note
 import com.example.myapplicationfirstapp.data.NotesRepository
+import com.example.myapplicationfirstapp.data.RecentNotesStore
 import com.example.myapplicationfirstapp.data.ReminderScheduler
 import com.example.myapplicationfirstapp.data.ThemeMode
 import com.example.myapplicationfirstapp.data.formatReminderTime
@@ -133,7 +134,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             NotesApp(
                 openNoteId = pendingNoteId,
-                onOpenNoteHandled = { pendingNoteId = null }
+                onOpenNoteHandled = {
+                    pendingNoteId = null
+                    // 消费掉 intent 里的 id：旋转重建后不要把同一条再当成一次新的打开
+                    intent?.removeExtra(ReminderNotifications.EXTRA_OPEN_NOTE)
+                }
             )
         }
     }
@@ -171,7 +176,8 @@ fun NotesApp(
             repository = NotesRepository(context),
             settings = settings,
             scope = scope,
-            scheduler = ReminderScheduler(context)
+            scheduler = ReminderScheduler(context),
+            recentStore = RecentNotesStore.getInstance(context)
         )
     }
 
@@ -419,12 +425,13 @@ fun NotesApp(
     }
 
     // 点通知进来：等笔记加载完，直接跳到那一条
+    // 走 state.openNote() 统一入口：笔记不存在或已在回收站就不跳，也不会记一次无效打开
     LaunchedEffect(openNoteId, state.loaded) {
         val target = openNoteId
         if (target != null && state.loaded) {
-            if (state.findNote(target) != null) {
+            state.openNote(target)?.let { opened ->
                 showTrash = false
-                editingId = target
+                editingId = opened.id
             }
             onOpenNoteHandled()
         }
@@ -619,12 +626,19 @@ fun NotesApp(
                         when (tab) {
                             HomeTab.NOTES -> NotesListScreen(
                                 state = state,
-                                onOpen = { id -> editingId = id },
+                                onOpen = { id ->
+                                    // 列表点击也走同一个入口：校验 + 记录 + 允许打开
+                                    state.openNote(id)?.let { editingId = it.id }
+                                },
                                 onDelete = { note ->
                                     trashNote(state, note, snackbarHostState, scope, strings)
                                 },
                                 onOpenSettings = { showSettings = true },
-                                modifier = contentModifier
+                                modifier = contentModifier,
+                                isHomeActive = page == AppPage.List && homeTab == HomeTab.NOTES &&
+                                    !recorder.isRecording && viewerFiles == null && pendingImportUri == null &&
+                                    !showFontSettings && !showExactAlarmHint && sheetRecordingId == null &&
+                                    renameTargetId == null && notePickerRecordingId == null
                             )
 
                             HomeTab.RECORD -> RecordScreen(

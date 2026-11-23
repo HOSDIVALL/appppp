@@ -9,19 +9,38 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** Separate metadata database. Does not read, migrate, or rewrite notes.json. */
-class RecentNotesStore private constructor(context: Context) {
-    private val helper = Helper(context.applicationContext)
-    private val mutex = Mutex()
-
-    suspend fun load(): List<RecentNoteUsage> = mutex.withLock {
-        withContext(Dispatchers.IO) { read(helper.readableDatabase) }
-    }
+/**
+ * The seam the UI layer depends on, so usage bookkeeping can be tested with a fake
+ * implementation and never needs a real SQLite handle inside `NotesState`.
+ */
+interface RecentNotesGateway {
+    suspend fun load(): List<RecentNoteUsage>
 
     /** Call only after resolving an existing, active note at the open boundary. */
     suspend fun recordOpened(
         noteId: String,
         openedAt: Long = System.currentTimeMillis()
+    ): List<RecentNoteUsage>
+
+    /** Permanent deletion only; soft delete must keep the row so a restore keeps history. */
+    suspend fun forget(noteId: String): List<RecentNoteUsage>
+
+    suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage>
+}
+
+/** Separate metadata database. Does not read, migrate, or rewrite notes.json. */
+class RecentNotesStore private constructor(context: Context) : RecentNotesGateway {
+    private val helper = Helper(context.applicationContext)
+    private val mutex = Mutex()
+
+    override suspend fun load(): List<RecentNoteUsage> = mutex.withLock {
+        withContext(Dispatchers.IO) { read(helper.readableDatabase) }
+    }
+
+    /** Call only after resolving an existing, active note at the open boundary. */
+    override suspend fun recordOpened(
+        noteId: String,
+        openedAt: Long
     ): List<RecentNoteUsage> {
         require(noteId.isNotBlank()) { "noteId must not be blank" }
         require(openedAt >= 0L) { "openedAt must not be negative" }
@@ -49,13 +68,30 @@ class RecentNotesStore private constructor(context: Context) {
     }
 
     /** Integration must call this on permanent deletion, not on temporary list filtering. */
-    suspend fun forget(noteId: String): List<RecentNoteUsage> = mutex.withLock {
+    override suspend fun forget(noteId: String): List<RecentNoteUsage> = mutex.withLock {
         withContext(Dispatchers.IO) {
             val db = helper.writableDatabase
             db.delete("recent_note_usage", "note_id = ?", arrayOf(noteId))
             read(db)
         }
     }
+
+    /**
+     * Batch form of [forget] for "empty trash" and expired-trash sweeps.
+     * One transaction-free delete keeps the mutex hold short instead of one round trip per id.
+     */
+    override suspend fun forgetAll(noteIds: Collection<String>): List<RecentNoteUsage> =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                val db = helper.writableDatabase
+                val ids = noteIds.filter { it.isNotBlank() }.distinct()
+                if (ids.isNotEmpty()) {
+                    val placeholders = ids.joinToString(",") { "?" }
+                    db.delete("recent_note_usage", "note_id IN ($placeholders)", ids.toTypedArray())
+                }
+                read(db)
+            }
+        }
 
     private fun read(db: SQLiteDatabase): List<RecentNoteUsage> = buildList {
         db.query(
@@ -91,5 +127,13 @@ class RecentNotesStore private constructor(context: Context) {
         fun getInstance(context: Context): RecentNotesStore = instance ?: synchronized(this) {
             instance ?: RecentNotesStore(context.applicationContext).also { instance = it }
         }
+
+        /**
+         * A separate handle on the same database file, bypassing the singleton cache.
+         * Instrumented tests use it to prove rows survive a "restart"; production code must
+         * keep using [getInstance].
+         */
+        fun openOnSameDatabase(context: Context): RecentNotesStore =
+            RecentNotesStore(context.applicationContext)
     }
 }
