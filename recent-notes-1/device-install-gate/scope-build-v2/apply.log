@@ -1,0 +1,3 @@
+ .../myapplicationfirstapp/ui/NotesListScreen.kt    | 265 ++++++++----------
+ .../myapplicationfirstapp/ui/NotesListScrollbar.kt | 297 +++++++++++----------
+ 2 files changed, 266 insertions(+), 296 deletions(-)

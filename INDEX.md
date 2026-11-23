@@ -202,3 +202,32 @@ recent-notes-1/device-install-gate/v2-request/avd-ready.txt
 3. 实测 `pm list packages -u | grep -i myapplication` 无匹配 —— 前置「包名不存在」成立，非由镜像缺失推断。
 
 仍需：v2 脚本正文、`BUILD_MANIFEST`、`APP_APK` / `ANDROID_TEST_APK` 字面值（serial 用 `emulator-5558`）。
+
+### 7.3 限位候选（scope）构建通过；v2 安装脚本 CRLF 缺陷；已按同语义装入专用模拟器
+
+```
+recent-notes-1/device-install-gate/scope-build-v2/
+  NOTES.md            复现步骤、构建数字、限位改动、harness 首错与根因、安装结果
+  status.txt          build_passed_no_install: exit 0
+  build-manifest.json 三项哈希 + 两个 APK 绝对路径（app 440e6c48…，test 1c6c51a0…）
+  before.diff / after.diff   限位前后（仅两个滚动条文件）
+  apply.log / unit.log / app.log / androidTest.log
+  unit-summary.txt    73 tests / 0 fail / 0 err / 0 skip
+  unit-xml/           9 个 TEST-*.xml 原始结果
+  install/            device.txt、install-attempt.log、RECORD.md、01..03.png
+```
+
+要点：
+
+1. 取件按 `0d63c8f`（三份脚本）与 `229af49`（`candidate-full.diff`）。隔离分离工作树
+   `D:/RECENT-NOTES-1-scope-v2`，`git apply --check` 干净，实际 12 文件 +958/−513；
+   AAR 校验 `a8d09d1d…f0ee7`，与上一轮同一份。
+2. 构建全绿：单测 73/0/0/0（24 首页模型、11 最近使用、11 滚动条），两支打包各 exit 0；
+   `git diff --check` 干净；manifest 已产出且 app 哈希不等于旧包 `354fedc0…`。
+3. **v2 安装脚本首跑 exit 1**：`adb.exe: filename doesn't end .apk or .apex: …\app-debug.apk`。
+   根因是 python `print(path)` 在 Windows 输出 CRLF，`mapfile -t` 元素尾留 `\r`，adb 收到
+   `…apk\r`。脚本与 Kotlin 均未改动；修法见 NOTES（python 侧重配 newline 或 bash 侧 `tr -d '\r'`）。
+4. 经委托方确认按同一语义手工安装：三项哈希 MATCH、AVD 身份与 boot 核对通过、安装前包名不存在、
+   两次 `install -r -t` 均 `Success`；`versionName 2.0 / code 2`，instrumentation 已注册。
+5. 全新 AVD 无笔记，首页为空态，滚动条不出现 —— 限位效果尚未肉眼验收；未跑
+   `connectedDebugAndroidTest`（harness 明示 No tests were run）。

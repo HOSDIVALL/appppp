@@ -1,0 +1,23 @@
+# install attempt 2026-11-23 19:36:06    
+## status.txt
+build_passed_no_install: exit 0
+## manifest
+{
+  "variant": "note-scrollbar-scope",
+  "build_passed": true,
+  "scope_diff_sha256": "1f9ce6e84bf10c930404d08150784fc96077eba3778e90ca5fcaf12e7ec6355e",
+  "app_sha256": "440e6c48bc1c3c20b7219bf283f3c3a4d334b66bc267141cd88b2a1207c3ae29",
+  "test_sha256": "1c6c51a0ce9b5085d42914bfadc91dd37613d88d86ccc8b99020929c29660ba6",
+  "app_apk": "D:\\RECENT-NOTES-1-scope-v2\\app\\build\\outputs\\apk\\debug\\app-debug.apk",
+  "android_test_apk": "D:\\RECENT-NOTES-1-scope-v2\\app\\build\\outputs\\apk\\androidTest\\debug\\app-debug-androidTest.apk",
+  "base": "5c688af4d30f01f8939319cad47b2393a8ebaa99",
+  "scope_evidence": "after.diff (baseline-relative diff of the two scrollbar files)"
+}
+## apk sha256
+440e6c48bc1c3c20b7219bf283f3c3a4d334b66bc267141cd88b2a1207c3ae29 *app/build/outputs/apk/debug/app-debug.apk
+1c6c51a0ce9b5085d42914bfadc91dd37613d88d86ccc8b99020929c29660ba6 *app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+## install output (exit 1)
+Install failed: Performing Streamed Install
+adb.exe: filename doesn't end .apk or .apex: D:\RECENT-NOTES-1-scope-v2\app\build\outputs\apk\debug\app-debug.apk
+## root cause
+python3 stdout on Windows translates \n -> \r\n; mapfile elements keep trailing \r; adb rejects the argument.

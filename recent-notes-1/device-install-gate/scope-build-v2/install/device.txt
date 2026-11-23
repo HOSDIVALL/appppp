@@ -1,0 +1,20 @@
+# target device
+emulator-5558          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:1
+
+# avd
+NotesGO_V2_Dedicated
+OK
+# props
+ro.build.version.sdk=37
+ro.build.version.release=17
+ro.product.cpu.abi=x86_64
+ro.product.model=sdk_gphone64_x86_64
+sys.boot_completed=1
+# installed packages
+package:com.example.myapplicationfirstapp
+package:com.example.myapplicationfirstapp.test
+# instrumentation
+instrumentation:com.example.myapplicationfirstapp.test/androidx.test.runner.AndroidJUnitRunner (target=com.example.myapplicationfirstapp)
+# version
+    versionCode=2 minSdk=24 targetSdk=37
+    versionName=2.0
