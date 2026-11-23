@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" tests="24" skipped="0" failures="0" errors="0" timestamp="2026-11-23T09:12:47.793Z" hostname="朱元璋的电" time="0.019">
+  <properties/>
+  <testcase name="retainedIdWinsOverAStaleOutOfRangeIndex" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.001"/>
+  <testcase name="emptyModelHasOnlyRealHeaderAndEmptySlots" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.009"/>
+  <testcase name="reorderingRetainsSelectedNoteId" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="compactHeightTabletUses240IndependentlyOfWidth" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="expandedWidthTabletUses360And32" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="historyAddsExactlyOneLeadingCarouselSlot" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.001"/>
+  <testcase name="compactHeightPhoneUses280" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="mediumWidthAndHeightBoundariesAreInclusive" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="duplicateNoteIdsAreRejectedBeforeLazyKeysAreBuilt" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.001"/>
+  <testcase name="noHistoryDoesNotReserveACarouselSlot" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="noteKeysCannotCollideWithHeaderKeys" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="expandedWidthBoundaryIsInclusive" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="filteringHidesCarouselWithoutAnIndexHole" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="filteredOrderIsPreservedWithoutSectionHeaders" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.001"/>
+  <testcase name="duplicateCarouselIdsAreRejected" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="deletedSelectionFallsBackToNearestValidIndex" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="missingIdAndNegativeIndexClampToZero" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="phoneItemWidthUsesWindowWidth" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="unfilteredMixedNotesFormTwoIndependentGroups" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="nonFiniteWindowSizeIsRejected" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="mediumWidthTabletUses280And16" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.001"/>
+  <testcase name="aSinglePinnedGroupHasNoPhantomSectionHeaders" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.001"/>
+  <testcase name="scrollbarSlotsAlignOneToOneAndRetainOriginalObjects" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <testcase name="emptyCarouselHasASafeInitialIndex" classname="com.example.myapplicationfirstapp.ui.NotesHomeListModelTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

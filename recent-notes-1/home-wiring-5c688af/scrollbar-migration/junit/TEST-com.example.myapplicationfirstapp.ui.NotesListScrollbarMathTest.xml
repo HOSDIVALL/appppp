@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-11-23T09:12:47.842Z" hostname="朱元璋的电" time="0.004">
+  <properties/>
+  <testcase name="touchAndHandleRoundTrip" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="smoothingChecksBothThresholdsAndIdleSource" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="shortTrackHasOnePixelTravel" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="endTargetsActualLastSlot" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="glyphPreservesChineseAndMapsLeadingDigits" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="travelSubtractsHandle" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="intermediateTargetUsesEstimateAndClamps" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="unobservedPrefixUsesFallback" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="bubbleAnimationEndpoints" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.001"/>
+  <testcase name="emptyTrackerFallsBack" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <testcase name="emptyPrefixIsZero" classname="com.example.myapplicationfirstapp.ui.NotesListScrollbarMathTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

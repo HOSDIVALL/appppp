@@ -120,3 +120,29 @@ recent-notes-1/home-wiring-5c688af/separate-tasks/
 2. `git diff --check` 退出码 2，19 条 trailing whitespace 全在 `MainActivity.kt`，根因是该文件 blob 为 CRLF（`i/crlf w/crlf`、`core.autocrlf=false`），`\r` 被计为行尾空白；实测 0 行以空格结尾。未做行尾修正。
 
 未执行：`migrate_scrollbar_math.py`、`verify_home_junit.py`（两个文件在本机均不存在）。因此**仍是零条用例执行**，24 项 / 11 项 / 滚动条 11 项均无 XML 可查。
+
+### 6.2 滚动条单测迁移与三组 JUnit 核对（首个阻塞已解除）
+
+```
+recent-notes-1/home-wiring-5c688af/scrollbar-migration/
+  README.md            本轮说明：取件、退出码、迁移内容、XML 计数、打包、CRLF
+  status.txt           六行退出码/状态
+  migration.diff       本轮迁移的三文件改动（536 行）
+  candidate-full.diff  第一批 + 首页接线 + 迁移的合并候选（1,852 行 / 12 文件）
+  junit/               9 份 testDebugUnitTest XML（73 条，0 失败）
+  b4-test-after-migration.log
+  b5-assembleDebug-after-migration.log
+  b6-assembleDebugAndroidTest-after-migration.log
+  diff-check.txt       迁移后 git diff --check 输出（20 条，全在 MainActivity.kt）
+```
+
+| 步骤 | 退出码 |
+|---|---|
+| `migrate_scrollbar_math.py`（取自 `7d6a001`） | 0，无锚点错误 |
+| `:app:testDebugUnitTest` | 0 |
+| `verify_home_junit.py app` | 0：`Verified 24 home model, 11 recent usage, 11 scrollbar cases.` |
+| `:app:assembleDebug` | 0：APK 58,081,932 B，`sha256 354fedc0…71d526` |
+| `:app:assembleDebugAndroidTest` | 0：APK 1,254,265 B，`sha256 1c6c51a0…60ba6`（未变） |
+
+三组目标用例全部执行且通过：24 / 11 / 11；全库 JVM 合计 73 条，0 失败 0 错误 0 跳过。
+迁移后的 `app-debug.apk` 取代上一轮 `d85ae6f7…`，后者作废。

@@ -1,0 +1,6 @@
+migrate_scrollbar_math.py (7d6a001): exit 0 — ScrollbarMath.kt 新建，测试重写 11 条
+testDebugUnitTest: exit 0 — 73 tests / 0 failures / 0 errors / 0 skipped
+verify_home_junit.py app: exit 0 — Verified 24 home model, 11 recent usage, 11 scrollbar cases.
+assembleDebug: exit 0 — APK 58,081,932 B sha256 354fedc000904b9345c21a5d69aa0198decc1027d785d68b4f574bcc6711d526
+assembleDebugAndroidTest: exit 0 — APK 1,254,265 B sha256 1c6c51a0…（未变，androidTest 源未改）
+git diff --check: exit 2 — 20 条 trailing whitespace 全在 MainActivity.kt（CRLF 假阳性，未修）
