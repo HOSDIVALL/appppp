@@ -1,0 +1,14 @@
+command: adb -s emulator-5558 shell am instrument -w -r \
+  -e class com.example.myapplicationfirstapp.data.RecentNotesStoreTest,\
+com.example.myapplicationfirstapp.ui.NotesStateRecentNotesTest \
+  com.example.myapplicationfirstapp.test/androidx.test.runner.AndroidJUnitRunner
+
+raw: 02-instrument.txt
+INSTRUMENTATION_CODE: -1
+Time: 5.207
+OK (22 tests)
+
+per class (parsed from INSTRUMENTATION_STATUS blocks):
+  RecentNotesStoreTest        11  code 0   (0 fail / 0 skip)
+  NotesStateRecentNotesTest   11  code 0   (0 fail / 0 skip)
+  total                       22  pass     (0 fail / 0 error / 0 skip)

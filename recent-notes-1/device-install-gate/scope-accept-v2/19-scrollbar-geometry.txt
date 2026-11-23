@@ -1,0 +1,31 @@
+method: 1080x2400 screenshot, sample column x=1060, classify
+  track  = RGB(221,226,249) +-14
+  handle = dark capsule, B>R+30 and 60<R<140
+values = absolute y pixels (screen height 2400)
+
+state                              handle(y)       track(y)
+top, carousel visible (06)         1795-1920       1931-2095
+drag frame 1 (e1)                  1889-2014       2026-2080
+drag frame 2 (e2)                  1553-1678       1690-2094
+drag frame 3 (e3)                  1215-1340       1352-2094
+drag frame 4 (e4)                  1025-1150       1162-2094
+hold on handle, bubble (hold2)      790-912         925-2094
+list end (bottom2)                 1644-1769      247-1632
+
+reference bounds from uiautomator dump at top state (ui-top.xml):
+  carousel     y 331..1271
+  summary      y 1308..1360
+  search       y 1423..1570
+  filter row   y 1570..1696
+  pinned label y 1738..1790
+  first note   y 1806..2046   (Cedar 雪松 03)
+  bottom nav   y 2153..2289
+
+derived:
+  top state: handle top 1795 < first note top 1806 by 11px (rounded cap),
+    and 495px below carousel bottom (1271) -> no overlap with carousel/search/filter.
+  drag frames: handle top strictly monotonic 1889 -> 1553 -> 1215 -> 1025 -> 790,
+    deltas -336 / -338 / -190 / -235, no reversal and no gap -> no jump.
+  list end: track+handle end at 1769, last note (Dune 沙丘 04) bottom ~1800,
+    bottom nav at 2153 -> track stops at last note, does not enter padding or nav.
+  search states: no track/handle pixels at x=1055..1070 in 09/10 screenshots.

@@ -231,3 +231,36 @@ recent-notes-1/device-install-gate/scope-build-v2/
    两次 `install -r -t` 均 `Success`；`versionName 2.0 / code 2`，instrumentation 已注册。
 5. 全新 AVD 无笔记，首页为空态，滚动条不出现 —— 限位效果尚未肉眼验收；未跑
    `connectedDebugAndroidTest`（harness 明示 No tests were run）。
+
+### 7.4 专用模拟器验收：限位与拖动判定通过；气泡首字口径待确认；冷启动轮播仍未在首屏
+
+```
+recent-notes-1/device-install-gate/scope-accept-v2/
+  NOTES.md                 逐项结论、造数说明、两个未闭环项
+  01-device-identity.txt   get-state / AVD 名 / 版本 / 安装时间 / 已装 base.apk 哈希
+  02-instrument.txt        am instrument 原始输出（22 tests，OK）
+  02b-instrument-summary.txt 11 + 11 分类统计
+  19-scrollbar-geometry.txt  像素测量的手柄/轨道坐标与参照边界
+  14-top-carousel-scope.png  顶部轮播可见时的限位
+  15-drag-handle-at-top.png  手柄拖到最顶
+  16-drag-bubble.png         按住手柄的气泡（R）
+  17-bottom-end.png          拖到最底，轨道止于最后一条笔记
+  18-drag-cross-carousel.png 轮播滚出视口瞬间
+  09/10/11-search-*.png      1 条 / 0 条 / 清空恢复
+  13-crash.txt               crash 缓冲导出（0 行）
+```
+
+要点：
+
+1. 身份复核：已装 `base.apk` 拉回本地算哈希 `440e6c48…3ae29`，与 scope-build-v2 的
+   `app_sha256` 一致；`versionName 2.0 / code 2`，安装时间仍为 11:38:42 UTC（未重装）。
+2. 仪表测试：`RecentNotesStoreTest` 11 + `NotesStateRecentNotesTest` 11 = **22 通过 / 0 失败 / 0 跳过**，
+   `OK (22 tests)`，Time 5.207。
+3. 顶部带轮播时：手柄 1795–1920、轨道 1931–2095；首条笔记上沿 1806、轮播下沿 1271、
+   筛选行 1570–1696、导航 2153–2289 —— 滚动条只在笔记行区间，**通过**。
+4. 拖动四帧手柄顶端 1889→1553→1215→1025→790，单调无回跳；顶/末端分别停在第一条与最后一条实际笔记，
+   底部未进留白与导航，**通过**。
+5. **气泡首字待确认**：气泡显示 `R`，对应视口第一条可见笔记 `River 河流 18`，
+   而手柄正对行是 `Prairie 草原 16`（P）。若约定为"手柄正对行"，此项不通过。
+6. 搜索 1 条 / 0 条时滚动条均不出现，清空后恢复；crash 缓冲 0 行。
+7. **观察项（未修）**：冷启动首屏仍看不到轮播（05 截图），下滑一次才出现 —— 与上一轮记录同缺陷。

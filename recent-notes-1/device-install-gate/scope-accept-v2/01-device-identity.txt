@@ -1,0 +1,18 @@
+$ adb -s emulator-5558 get-state
+device
+
+$ adb -s emulator-5558 emu avd name
+NotesGO_V2_Dedicated
+OK
+
+$ adb -s emulator-5558 shell dumpsys package com.example.myapplicationfirstapp | grep -E "versionName|versionCode|firstInstallTime|lastUpdateTime"
+    versionCode=2 minSdk=24 targetSdk=37
+    versionName=2.0
+    lastUpdateTime=2026-11-23 11:38:42
+      firstInstallTime=2026-11-23 11:38:42
+
+$ adb -s emulator-5558 shell pm list packages | grep myapplication
+package:com.example.myapplicationfirstapp
+package:com.example.myapplicationfirstapp.test
+INSTALLED_PATH=/data/app/~~EfDry_jwUhzecm47NGsstQ==/com.example.myapplicationfirstapp-OxkXaHbABELtuACZE9Bzug==/base.apk
+440e6c48bc1c3c20b7219bf283f3c3a4d334b66bc267141cd88b2a1207c3ae29 */d/v2-scope-tools/installed-base.apk
