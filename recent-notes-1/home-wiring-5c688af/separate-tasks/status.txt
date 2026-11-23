@@ -1,0 +1,6 @@
+migrate_scrollbar_math.py: NOT RUN (file not found)
+git diff --check: exit 2 (19 trailing-whitespace hits, all CRLF in MainActivity.kt)
+assembleDebug: exit 0
+testDebugUnitTest: exit 1 (101 e:, NotesListScrollbarMathTest.kt)
+assembleDebugAndroidTest: exit 0
+verify_home_junit.py: NOT RUN (file not found)

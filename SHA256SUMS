@@ -1,4 +1,4 @@
-8d78cb3e63e48f6ad87dd849cddfdc3e7cd9e7e627cd6aec94c0410225999710 *INDEX.md
+22570347db1343c5522aa4e00c8cff2068f43b3fe0fed27bf3965b2ec8e427bf *INDEX.md
 dd8e8f9245e01760bfc023a0e8d31267dbc195f867a1a2b8cafd91dc3882b8e5 *recent-notes-1/batch1/NOTES.md
 4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/batch1/batch1.diff
 054be080b059f4922cb45690aa79dd83ded27b15cba7a58c652aaa535dcb25fd *recent-notes-1/batch1/db/recent_notes.db
@@ -19,4 +19,10 @@ f9b539b9d1974ea45faa42e18c4a42d57e24bb1d122b506d3a4fe4d5b7523abd *recent-notes-1
 e89a2febc309a63e7f5183659a378af3cc8746cb96e7a2ea2df39b8d17b6b15b *recent-notes-1/home-wiring-5c688af/harness/apply_home_wiring.py
 92844067688cb04cc1ed77bb99fb31ee2f3ad57e420b74454097852e09721af5 *recent-notes-1/home-wiring-5c688af/harness/verify_home_candidate.sh
 9420115ecfc45a618ac8e43988316bec16d2b7b771fe6fd7715e2fe216b5dd05 *recent-notes-1/home-wiring-5c688af/run.log
+a6ad6c6aa21c3af2c74cbf93770132a6107ded96b575d6de35a2fc735f171573 *recent-notes-1/home-wiring-5c688af/separate-tasks/README.md
+876e11c57d8f7bd717d56a07dc719b7c61739c56ad705c313dbb76c0d458b1a8 *recent-notes-1/home-wiring-5c688af/separate-tasks/b1.log
+be14c830a1001bb94c7ffb880107fe9c91d866cff70c0e278d1164b588a983f9 *recent-notes-1/home-wiring-5c688af/separate-tasks/b2.log
+fe36202379c09973f90ac3e0f81a92bb737e32f0f868ef5cc21002dc3a0c905f *recent-notes-1/home-wiring-5c688af/separate-tasks/b3.log
+3f4598d09ad6a0ce3befa394d0b72787345e47c4030c22ee219c3427aaf95a4a *recent-notes-1/home-wiring-5c688af/separate-tasks/diff-check.txt
+eea3c60b4c9a729ac048f392cefbe2ac3d0537536941b0a38af426d27e5ade54 *recent-notes-1/home-wiring-5c688af/separate-tasks/status.txt
 24d255a8ae3e41c17c7cceb2b2811ec243291ebc3d943006087c9d5abf95bc9f *recent-notes-1/home-wiring-5c688af/status.txt

@@ -95,3 +95,28 @@ recent-notes-1/home-wiring-5c688af/
 1. 失败文件不在 `candidate.diff` 内（`grep -c` = 0），主源集 `ScrollbarEstimate` 引用 0 处、测试侧 62 处 → 归因为 v4 滚动条重写后的基线遗留，与本候选无关。
 2. 本轮**零条用例真实执行**，无 `test-results/`、无 APK 产出，因此不提供任何通过数。
 3. 第二处将触发的不符：`test_evidence` 期望 `RecentNoteUsageTest` 为 7，源码为 11（基线 7 + 第一批新增 4）。
+
+### 6.1 分开执行的构建与单测（同日补测）
+
+```
+recent-notes-1/home-wiring-5c688af/separate-tasks/
+  README.md        本轮说明：缺件、三条命令、退出码、CRLF 归因、未验证项
+  status.txt       六行，逐条退出码/状态
+  b1.log           :app:assembleDebug
+  b2.log           :app:testDebugUnitTest
+  b3.log           :app:assembleDebugAndroidTest
+  diff-check.txt   git diff --check 的全部输出（19 条，全在 MainActivity.kt）
+```
+
+| 命令 | 退出码 | 产物 |
+|---|---|---|
+| `:app:assembleDebug` | 0 | APK 57,469,448 B，`sha256 d85ae6f7…686719d` |
+| `:app:testDebugUnitTest` | 1 | 无产物；101 条 `e:` 全在 `NotesListScrollbarMathTest.kt` |
+| `:app:assembleDebugAndroidTest` | 0 | APK 1,254,265 B，`sha256 1c6c51a0…60ba6` |
+
+两点必须一起读：
+
+1. **打包与单测互不掩盖**：三条命令分别调用，两条打包各自成功，失败只落在单测编译。
+2. `git diff --check` 退出码 2，19 条 trailing whitespace 全在 `MainActivity.kt`，根因是该文件 blob 为 CRLF（`i/crlf w/crlf`、`core.autocrlf=false`），`\r` 被计为行尾空白；实测 0 行以空格结尾。未做行尾修正。
+
+未执行：`migrate_scrollbar_math.py`、`verify_home_junit.py`（两个文件在本机均不存在）。因此**仍是零条用例执行**，24 项 / 11 项 / 滚动条 11 项均无 XML 可查。

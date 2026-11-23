@@ -1,0 +1,40 @@
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:80: trailing whitespace.
++import com.example.myapplicationfirstapp.data.RecentNotesStore
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:137: trailing whitespace.
++                onOpenNoteHandled = {
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:138: trailing whitespace.
++                    pendingNoteId = null
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:139: trailing whitespace.
++                    // 消费掉 intent 里的 id：旋转重建后不要把同一条再当成一次新的打开
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:140: trailing whitespace.
++                    intent?.removeExtra(ReminderNotifications.EXTRA_OPEN_NOTE)
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:141: trailing whitespace.
++                }
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:179: trailing whitespace.
++            scheduler = ReminderScheduler(context),
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:180: trailing whitespace.
++            recentStore = RecentNotesStore.getInstance(context)
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:428: trailing whitespace.
++    // 走 state.openNote() 统一入口：笔记不存在或已在回收站就不跳，也不会记一次无效打开
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:432: trailing whitespace.
++            state.openNote(target)?.let { opened ->
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:434: trailing whitespace.
++                editingId = opened.id
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:629: trailing whitespace.
++                                onOpen = { id ->
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:630: trailing whitespace.
++                                    // 列表点击也走同一个入口：校验 + 记录 + 允许打开
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:631: trailing whitespace.
++                                    state.openNote(id)?.let { editingId = it.id }
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:632: trailing whitespace.
++                                },
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:637: trailing whitespace.
++                                modifier = contentModifier,
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:638: trailing whitespace.
++                                isHomeActive = page == AppPage.List && homeTab == HomeTab.NOTES &&
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:639: trailing whitespace.
++                                    !recorder.isRecording && viewerFiles == null && pendingImportUri == null &&
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:640: trailing whitespace.
++                                    !showFontSettings && !showExactAlarmHint && sheetRecordingId == null &&
+app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt:641: trailing whitespace.
++                                    renameTargetId == null && notePickerRecordingId == null
