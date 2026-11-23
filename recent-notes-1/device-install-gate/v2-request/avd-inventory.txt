@@ -1,0 +1,35 @@
+Emulator inventory, captured 2026-11-23 18:50 CST on the build machine.
+Read-only probe: no AVD was started, no image was wiped.
+
+emulator -list-avds
+  Medium_Phone_API_37.0
+  NotesGO_B2_Test
+
+Per-AVD persistent state ($HOME/.android/avd/<name>.avd)
+  Medium_Phone_API_37.0    userdata-qemu.img : absent
+                           sdcard.img        : absent
+                           note: used at :5554 for earlier evidence rounds.
+                           Absence of userdata-qemu.img was observed with the
+                           emulator stopped; it does not prove the package is
+                           gone, and it was not verified by booting.
+  NotesGO_B2_Test          userdata-qemu.img : present
+                           sdcard.img        : absent
+                           note: used at :5556. The 18:0x candidate APK
+                           (354fedc0...6711d526) was installed here with
+                           `install -r`, so com.example.myapplicationfirstapp
+                           exists on this AVD. It cannot satisfy the harness
+                           precondition "package must not exist".
+
+System image available
+  system-images/android-37.0/google_apis_playstore/x86_64
+
+Disk
+  D: 653G total, 203G free
+
+Consequence for a --dedicated-device run
+  Neither AVD qualifies as-is. Two clean options exist:
+    (a) create a brand-new one-shot AVD (fresh userdata, package absent) --
+        no existing state touched; costs roughly one more AVD image on disk;
+    (b) boot NotesGO_B2_Test with -wipe-data -- makes the package absent but
+        destroys the screenshots' associated device state from the 18:0x
+        acceptance round. Not recommended without an explicit instruction.

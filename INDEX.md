@@ -171,3 +171,20 @@ recent-notes-1/device-install-gate/
 3. 第三道闸门仍会拦：真机包名已存在（18:14 `install -r` 装入），脚本明确 no overwrite or cleanup。
 
 零条用例执行、零条通过。真机用户数据装前装后指纹一致；装前整包备份已做并校验，但因含私人笔记未纳入本分支；首屏截图与控件树同理未纳入。
+
+### 7.1 v2 harness 调用请求（同日 18:50）：缺正文与 manifest
+
+```
+recent-notes-1/device-install-gate/v2-request/
+  NOTES-2.md        收到 v2 调用命令但无脚本正文；四项取值未给；设备改由模拟器
+  avd-inventory.txt 本机 AVD 只读盘点：两台均不满足「包名不存在」
+```
+
+要点：
+
+1. 本轮只收到调用行，没有 `workbuddy_install_scrollbar_v2.sh` 正文，也没有 `BUILD_MANIFEST`；
+   磁盘上仅存在 v1 脚本（sha256 `9f6ffe96…90a5c70`）。`$APP_APK` / `$ANDROID_TEST_APK` / `$TEST_DEVICE_SERIAL` 未给字面值。
+2. 设备改用模拟器后，`--dedicated-device` 的「包名不存在」前置仍不成立：
+   `NotesGO_B2_Test` 有持久 userdata 且已装入候选包；`Medium_Phone_API_37.0` 未启动核实，不能断言干净。
+   两条出路：新建一次性 AVD（推荐），或对 B2_Test 用 `-wipe-data`（会毁 18:0x 验收对应设备状态）。
+3. 本轮零动作：未建/启 AVD、未安装、未跑测试、未改脚本。
