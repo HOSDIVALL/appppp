@@ -188,3 +188,17 @@ recent-notes-1/device-install-gate/v2-request/
    `NotesGO_B2_Test` 有持久 userdata 且已装入候选包；`Medium_Phone_API_37.0` 未启动核实，不能断言干净。
    两条出路：新建一次性 AVD（推荐），或对 B2_Test 用 `-wipe-data`（会毁 18:0x 验收对应设备状态）。
 3. 本轮零动作：未建/启 AVD、未安装、未跑测试、未改脚本。
+
+### 7.2 同日后补：一次性 AVD 已就绪，前置已实测
+
+```
+recent-notes-1/device-install-gate/v2-request/avd-ready.txt
+```
+
+7.1 记录的「两台 AVD 均不满足包名不存在」已处理：
+
+1. 手工新建 `NotesGO_V2_Dedicated`（仅写 `.ini` 与 `config.ini`，未复制任何镜像，首次启动生成全新 userdata），未改动、未擦除、未启动原有两台。
+2. 以端口 `5558` 启动，`sys.boot_completed=1`；设备 `sdk_gphone64_x86_64` / Android 17 / API 37 / x86_64 / 1080x2400@420dpi / current user 0。
+3. 实测 `pm list packages -u | grep -i myapplication` 无匹配 —— 前置「包名不存在」成立，非由镜像缺失推断。
+
+仍需：v2 脚本正文、`BUILD_MANIFEST`、`APP_APK` / `ANDROID_TEST_APK` 字面值（serial 用 `emulator-5558`）。

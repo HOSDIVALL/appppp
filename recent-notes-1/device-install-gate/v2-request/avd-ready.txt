@@ -1,0 +1,35 @@
+One-shot AVD prepared for the v2 harness run, 2026-11-23 18:51-18:54 CST.
+No existing AVD was modified, wiped, or booted for this.
+
+Name      NotesGO_V2_Dedicated
+Created   by hand: $HOME/.android/avd/NotesGO_V2_Dedicated.ini
+          + $HOME/.android/avd/NotesGO_V2_Dedicated.avd/config.ini
+          (config copied from NotesGO_B2_Test, AvdId/displayname changed)
+          No image file was copied. Directory held only config.ini before boot,
+          so userdata is generated fresh on first boot.
+          1080x2400 @420dpi is the same geometry as the B2 AVD, for comparability.
+
+Boot      emulator -avd NotesGO_V2_Dedicated -port 5558 -no-snapshot \
+                   -no-boot-anim -gpu swiftshader_indirect
+          sys.boot_completed = 1 on first poll
+
+Device    serial   emulator-5558
+          model    sdk_gphone64_x86_64
+          release  17
+          sdk      37
+          abi      x86_64
+          wm size  Physical size: 1080x2400
+          density  420
+          current user 0
+          packages 264 (system only)
+
+Precondition check that the harness relies on
+  pm list packages -u | grep -i myapplication  ->  no match
+  i.e. com.example.myapplicationfirstapp is absent, so the harness's
+  "package must not exist / no overwrite or cleanup" gate can pass here.
+  This was verified by querying the running device, not assumed from the
+  absence of an image file.
+
+Still missing before the harness can run
+  v2 script text, BUILD_MANIFEST, and literal values for APP_APK,
+  ANDROID_TEST_APK, TEST_DEVICE_SERIAL (emulator-5558 for this AVD).
