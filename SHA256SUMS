@@ -1,4 +1,4 @@
-77fc46bb81ad3a25b82e2bab465b7fbf80e6188d591585bce939530441e1846d *INDEX.md
+8d78cb3e63e48f6ad87dd849cddfdc3e7cd9e7e627cd6aec94c0410225999710 *INDEX.md
 dd8e8f9245e01760bfc023a0e8d31267dbc195f867a1a2b8cafd91dc3882b8e5 *recent-notes-1/batch1/NOTES.md
 4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/batch1/batch1.diff
 054be080b059f4922cb45690aa79dd83ded27b15cba7a58c652aaa535dcb25fd *recent-notes-1/batch1/db/recent_notes.db
@@ -13,3 +13,10 @@ ced77fdf1808743da3d22dc2513f81037dc16e7101d9ef2f36350e62b23b1936 *recent-notes-1
 7cd95f9cdf5a6973ddb90e46957e028bc2a5e9415f94156c30f3e6f106ad8141 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest.xml
 189cccdab1113c08b62f8000e218e0c5666660e67292b9f05aa5c9a13ba50c61 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NotesListActionsTest.xml
 6e22ab22ecdc54245931650356039bd8868853b5a2934222d3f5b12489609d66 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest.xml
+c1744a429ab8e5193e988654febc6627ec0a1f562480030cba2bebb4e5fb2892 *recent-notes-1/home-wiring-5c688af/NOTES.md
+4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/home-wiring-5c688af/batch1.diff
+f9b539b9d1974ea45faa42e18c4a42d57e24bb1d122b506d3a4fe4d5b7523abd *recent-notes-1/home-wiring-5c688af/candidate.diff
+e89a2febc309a63e7f5183659a378af3cc8746cb96e7a2ea2df39b8d17b6b15b *recent-notes-1/home-wiring-5c688af/harness/apply_home_wiring.py
+92844067688cb04cc1ed77bb99fb31ee2f3ad57e420b74454097852e09721af5 *recent-notes-1/home-wiring-5c688af/harness/verify_home_candidate.sh
+9420115ecfc45a618ac8e43988316bec16d2b7b771fe6fd7715e2fe216b5dd05 *recent-notes-1/home-wiring-5c688af/run.log
+24d255a8ae3e41c17c7cceb2b2811ec243291ebc3d943006087c9d5abf95bc9f *recent-notes-1/home-wiring-5c688af/status.txt

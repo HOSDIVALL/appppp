@@ -1,8 +1,14 @@
-# 证据索引 — 第一批「最近使用业务接线」
+# 证据索引 — 最近使用接线 + 首页接线候选
 
 **用途**：只承载审阅副本。本分支不含任何 `app/` 源码改动，源码仍在工作区、**未提交**。
-**被评审基线**：`ux/rhythm-recent-notes-1` @ `fd9438894d3b121ed8ed233e887ac19ce113f20b`
-**本分支派生自**：同一基线（`fd94388`），只追加 `recent-notes-1/` 目录。
+**本分支派生自**：`ux/rhythm-recent-notes-1` @ `fd9438894d3b121ed8ed233e887ac19ce113f20b`，只追加 `recent-notes-1/` 目录。
+
+两轮材料，互不覆盖：
+
+| 轮次 | 基线 | 目录 | 结论 |
+|---|---|---|---|
+| 第一批「最近使用业务接线」 | `fd94388` | `recent-notes-1/batch1/` | 通过：JVM 38 / 仪器化 22，全绿 |
+| 第二轮「首页接线候选验证」 | `5c688af` | `recent-notes-1/home-wiring-5c688af/` | 前四阶段通过，卡在单测编译（基线遗留），详见该目录 `NOTES.md` |
 
 ## 1 目录结构
 
@@ -58,3 +64,34 @@ git apply --stat recent-notes-1/batch1/batch1.diff      # 只看规模
 sqlite3 recent-notes-1/batch1/db/recent_notes.db \
   "select open_order, note_id from recent_note_usage order by open_order desc"
 ```
+
+## 6 第二轮材料（2026-11-23）：首页接线候选在 `5c688af` 的验证
+
+目的：在 `5c688af` 的隔离工作树上，先应用第一批补丁，再执行首页接线脚本，导出两批合并的 `candidate.diff`，然后用真实 AAR 构建并跑单测。
+
+```
+recent-notes-1/home-wiring-5c688af/
+  NOTES.md          本轮完整说明：阶段、首个错误、归因、待裁决项
+  status.txt        仅一行，指出停在哪个阶段
+  run.log           脚本完整输出（绝对路径已脱敏）
+  batch1.diff       从本分支 a818854 抽出的第一批补丁，sha256 与 INDEX 记录一致
+  candidate.diff    两批合并候选补丁（1,316 行 / 57,616 B，9 文件，可逆）
+  harness/          本轮使用的两个脚本原件（verify_home_candidate.sh、apply_home_wiring.py）
+```
+
+判据（取自 `run.log`，不取任何口头结论）：
+
+| 阶段 | 结果 |
+|---|---|
+| baseline（fetch == `5c688af`） | 通过 |
+| batch1（sha256 + `git apply --check --verbose`，8 文件） | 通过 |
+| wiring（脚本 exit 0） | 通过 |
+| dependency（AAR `a8d09d1d…0ee7`） | 通过 |
+| android_build_and_tests | **失败 exit 1**：`:app:compileDebugUnitTestKotlin`，101 条 `e:` 全在 `NotesListScrollbarMathTest.kt` |
+| test_evidence | 未执行 |
+
+要点：
+
+1. 失败文件不在 `candidate.diff` 内（`grep -c` = 0），主源集 `ScrollbarEstimate` 引用 0 处、测试侧 62 处 → 归因为 v4 滚动条重写后的基线遗留，与本候选无关。
+2. 本轮**零条用例真实执行**，无 `test-results/`、无 APK 产出，因此不提供任何通过数。
+3. 第二处将触发的不符：`test_evidence` 期望 `RecentNoteUsageTest` 为 7，源码为 11（基线 7 + 第一批新增 4）。

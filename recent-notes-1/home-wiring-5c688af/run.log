@@ -1,0 +1,293 @@
+From https://github.com/HOSDIVALL/appppp
+ * branch            ux/rhythm-recent-notes-1 -> FETCH_HEAD
+<evidence>/batch1.diff: OK
+Preparing worktree (detached HEAD 5c688af)
+Updating files:  19% (77/394)Updating files:  20% (79/394)Updating files:  21% (83/394)Updating files:  22% (87/394)Updating files:  23% (91/394)Updating files:  24% (95/394)Updating files:  25% (99/394)Updating files:  26% (103/394)Updating files:  27% (107/394)Updating files:  28% (111/394)Updating files:  29% (115/394)Updating files:  30% (119/394)Updating files:  31% (123/394)Updating files:  32% (127/394)Updating files:  33% (131/394)Updating files:  34% (134/394)Updating files:  35% (138/394)Updating files:  36% (142/394)Updating files:  37% (146/394)Updating files:  38% (150/394)Updating files:  39% (154/394)Updating files:  40% (158/394)Updating files:  41% (162/394)Updating files:  42% (166/394)Updating files:  43% (170/394)Updating files:  44% (174/394)Updating files:  45% (178/394)Updating files:  46% (182/394)Updating files:  47% (186/394)Updating files:  48% (190/394)Updating files:  49% (194/394)Updating files:  50% (197/394)Updating files:  51% (201/394)Updating files:  52% (205/394)Updating files:  53% (209/394)Updating files:  53% (212/394)Updating files:  54% (213/394)Updating files:  55% (217/394)Updating files:  56% (221/394)Updating files:  57% (225/394)Updating files:  58% (229/394)Updating files:  59% (233/394)Updating files:  60% (237/394)Updating files:  61% (241/394)Updating files:  62% (245/394)Updating files:  63% (249/394)Updating files:  64% (253/394)Updating files:  65% (257/394)Updating files:  66% (261/394)Updating files:  67% (264/394)Updating files:  68% (268/394)Updating files:  69% (272/394)Updating files:  70% (276/394)Updating files:  71% (280/394)Updating files:  72% (284/394)Updating files:  73% (288/394)Updating files:  74% (292/394)Updating files:  75% (296/394)Updating files:  76% (300/394)Updating files:  77% (304/394)Updating files:  78% (308/394)Updating files:  79% (312/394)Updating files:  80% (316/394)Updating files:  81% (320/394)Updating files:  82% (324/394)Updating files:  83% (328/394)Updating files:  84% (331/394)Updating files:  85% (335/394)Updating files:  86% (339/394)Updating files:  87% (343/394)Updating files:  88% (347/394)Updating files:  89% (351/394)Updating files:  90% (355/394)Updating files:  91% (359/394)Updating files:  91% (362/394)Updating files:  92% (363/394)Updating files:  93% (367/394)Updating files:  94% (371/394)Updating files:  95% (375/394)Updating files:  96% (379/394)Updating files:  97% (383/394)Updating files:  98% (387/394)Updating files:  99% (391/394)Updating files: 100% (394/394)Updating files: 100% (394/394), done.
+HEAD is now at 5c688af feat: add recent-note home model and carousel components
+Checking patch app/src/androidTest/java/com/example/myapplicationfirstapp/data/IsolatedNoteStorage.kt...
+Checking patch app/src/main/java/com/example/myapplicationfirstapp/MainActivity.kt...
+Checking patch app/src/main/java/com/example/myapplicationfirstapp/data/RecentNoteUsage.kt...
+Checking patch app/src/main/java/com/example/myapplicationfirstapp/data/RecentNotesStore.kt...
+Checking patch app/src/main/java/com/example/myapplicationfirstapp/ui/NotesState.kt...
+Checking patch app/src/test/java/com/example/myapplicationfirstapp/data/RecentNoteUsageTest.kt...
+Checking patch app/src/androidTest/java/com/example/myapplicationfirstapp/data/RecentNotesStoreTest.kt...
+Checking patch app/src/androidTest/java/com/example/myapplicationfirstapp/ui/NotesStateRecentNotesTest.kt...
+ .../example/myapplicationfirstapp/MainActivity.kt  |  26 ++-
+ .../myapplicationfirstapp/ui/NotesListScreen.kt    | 243 ++++++++-------------
+ 2 files changed, 115 insertions(+), 154 deletions(-)
+<workspace>/app/libs/sherpa-onnx-2.0.1.aar: OK
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.6.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Calculating task graph as no cached configuration is available for tasks: :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest
+> Task :app:generateDebugAndroidTestAssets UP-TO-DATE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:writeDebugAppMetadata
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:preDebugAndroidTestBuild SKIPPED
+> Task :app:extractDeepLinksDebug
+> Task :app:validateSigningDebug
+> Task :app:javaPreCompileDebug
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:mergeDebugJniLibFolders
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:processDebugAndroidTestNavigationResources
+> Task :app:generateDebugAndroidTestResources
+> Task :app:desugarDebugAndroidTestFileDependencies
+> Task :app:generateDebugResources
+> Task :app:mapDebugSourceSetPaths
+> Task :app:packageDebugAndroidTestResources
+> Task :app:javaPreCompileDebugAndroidTest
+> Task :app:mapDebugAndroidTestSourceSetPaths
+> Task :app:checkDebugDuplicateClasses
+> Task :app:compileDebugAndroidTestNavigationResources
+> Task :app:mergeLibDexDebug
+> Task :app:packageDebugResources
+> Task :app:parseDebugAndroidTestLocalResources
+> Task :app:checkDebugAndroidTestDuplicateClasses
+> Task :app:mergeDebugAndroidTestJniLibFolders
+> Task :app:generateDebugAndroidTestRFile
+> Task :app:validateSigningDebugAndroidTest
+> Task :app:writeDebugAndroidTestSigningConfigVersions
+> Task :app:mergeLibDexDebugAndroidTest
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:checkDebugAarMetadata
+> Task :app:generateDebugGlobalSynthetics
+> Task :app:generateDebugAndroidTestGlobalSynthetics
+> Task :app:processDebugNavigationResources
+> Task :app:compileDebugNavigationResources
+> Task :app:parseDebugLocalResources
+> Task :app:mergeExtDexDebugAndroidTest
+> Task :app:checkDebugAndroidTestAarMetadata
+> Task :app:mergeDebugAndroidTestAssets
+> Task :app:compressDebugAndroidTestAssets
+> Task :app:generateDebugRFile
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:mergeDebugAndroidTestManifest
+> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugNativeLibs
+> Task :app:mergeDebugAndroidTestNativeLibs NO-SOURCE
+> Task :app:stripDebugAndroidTestDebugSymbols NO-SOURCE
+> Task :app:processDebugAndroidTestManifest
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libonnxruntime.so, libsherpa-onnx-c-api.so, libsherpa-onnx-cxx-api.so, libsherpa-onnx-jni.so. Run with --info option to learn more.
+
+> Task :app:mergeDebugAndroidTestResources
+> Task :app:mergeExtDexDebug
+> Task :app:processDebugAndroidTestResources
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+> Task :app:compileDebugKotlin
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/AudioPickSheet.kt:53:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt:820:13 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/NoteEditorScreen.kt:829:13 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/NotePickerSheet.kt:59:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:369:35 'fun InputField(query: String, onQueryChange: (String) -> Unit, onSearch: (String) -> Unit, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., colors: TextFieldColors = ..., interactionSource: MutableInteractionSource? = ...): Unit' is deprecated. Use SearchBarDefaults.InputField with TextFieldState and SearchBarState.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/NotesListScreen.kt:862:44 'val Icons.Filled.Sort: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Sort.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/RecorderState.kt:379:9 'fun stopPlayback(): Unit' is deprecated. 保留旧名字，外部调用语义未变.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/RecordingActionSheet.kt:74:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/RecordingActionSheet.kt:150:41 'val Icons.Filled.NoteAdd: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.NoteAdd.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/ReminderSheet.kt:52:22 'fun rememberModalBottomSheetState(skipPartiallyExpanded: Boolean = ..., confirmValueChange: (SheetValue) -> Boolean = ...): SheetState' is deprecated. Use rememberBottomSheetState with Hidden initial value.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/ReminderSheet.kt:173:5 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+w: file:///<evidence>/worktree/app/src/main/java/com/example/myapplicationfirstapp/ui/SettingsScreen.kt:486:5 'fun ListItem(headlineContent: @Composable() ComposableFunction0<Unit>, modifier: Modifier = ..., overlineContent: @Composable() ComposableFunction0<Unit>? = ..., supportingContent: @Composable() ComposableFunction0<Unit>? = ..., leadingContent: @Composable() ComposableFunction0<Unit>? = ..., trailingContent: @Composable() ComposableFunction0<Unit>? = ..., colors: ListItemColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ...): Unit' is deprecated. Use the overload where `headlineContent` is now a trailing `content` lambda.
+
+> Task :app:compressDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:compileDebugJavaWithJavac
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+
+> Task :app:compileDebugUnitTestKotlin FAILED
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:19:48 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:21:22 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:21:22 Not enough information to infer type argument for 'R'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:22:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:23:18 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:23:23 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:27:41 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:28:9 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:28:39 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:28:44 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:28:49 Unresolved reference 'update'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:34:28 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:36:28 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:38:44 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:40:28 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:41:26 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:41:51 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:46:21 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:47:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:48:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:49:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:51:40 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:60:32 Unresolved reference 'representativeStepPx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:68:32 Unresolved reference 'representativeStepPx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:70:32 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:72:39 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:73:53 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:79:32 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:81:50 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:81:50 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+fun <T, R> T.let(block: (T) -> R): R
+    [R|Contract description]
+     <
+        CallsInPlace(block, EXACTLY_ONCE)
+    >
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:81:56 Cannot infer type for this parameter. Specify it explicitly.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:82:32 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:84:13 Unresolved reference 'update'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:85:32 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:87:13 Unresolved reference 'update'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:88:24 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:95:32 Unresolved reference 'prefixDistancePx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:96:41 Function 'component1()' is ambiguous for this expression: 
+fun <T> Array<out T>.component1(): T
+fun ByteArray.component1(): Byte
+fun ShortArray.component1(): Short
+fun IntArray.component1(): Int
+fun LongArray.component1(): Long
+fun FloatArray.component1(): Float
+fun DoubleArray.component1(): Double
+fun BooleanArray.component1(): Boolean
+fun CharArray.component1(): Char
+fun <T> List<T>.component1(): T
+fun <K, V> Map.Entry<K, V>.component1(): K
+fun UIntArray.component1(): UInt
+fun ULongArray.component1(): ULong
+fun UByteArray.component1(): UByte
+fun UShortArray.component1(): UShort.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:96:41 Function 'component2()' is ambiguous for this expression: 
+fun <T> Array<out T>.component2(): T
+fun ByteArray.component2(): Byte
+fun ShortArray.component2(): Short
+fun IntArray.component2(): Int
+fun LongArray.component2(): Long
+fun FloatArray.component2(): Float
+fun DoubleArray.component2(): Double
+fun BooleanArray.component2(): Boolean
+fun CharArray.component2(): Char
+fun <T> List<T>.component2(): T
+fun <K, V> Map.Entry<K, V>.component2(): V
+fun UIntArray.component2(): UInt
+fun ULongArray.component2(): ULong
+fun UByteArray.component2(): UByte
+fun UShortArray.component2(): UShort.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:96:45 Unresolved reference 'targetFor'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:105:34 Unresolved reference 'targetFor'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:106:30 Function 'component1()' is ambiguous for this expression: 
+fun <T> Array<out T>.component1(): T
+fun ByteArray.component1(): Byte
+fun ShortArray.component1(): Short
+fun IntArray.component1(): Int
+fun LongArray.component1(): Long
+fun FloatArray.component1(): Float
+fun DoubleArray.component1(): Double
+fun BooleanArray.component1(): Boolean
+fun CharArray.component1(): Char
+fun <T> List<T>.component1(): T
+fun <K, V> Map.Entry<K, V>.component1(): K
+fun UIntArray.component1(): UInt
+fun ULongArray.component1(): ULong
+fun UByteArray.component1(): UByte
+fun UShortArray.component1(): UShort.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:106:30 Function 'component2()' is ambiguous for this expression: 
+fun <T> Array<out T>.component2(): T
+fun ByteArray.component2(): Byte
+fun ShortArray.component2(): Short
+fun IntArray.component2(): Int
+fun LongArray.component2(): Long
+fun FloatArray.component2(): Float
+fun DoubleArray.component2(): Double
+fun BooleanArray.component2(): Boolean
+fun CharArray.component2(): Char
+fun <T> List<T>.component2(): T
+fun <K, V> Map.Entry<K, V>.component2(): V
+fun UIntArray.component2(): UInt
+fun ULongArray.component2(): ULong
+fun UByteArray.component2(): UByte
+fun UShortArray.component2(): UShort.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:106:34 Unresolved reference 'targetFor'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:108:34 Unresolved reference 'targetFor'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:116:17 Unresolved reference 'progressOf'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:121:17 Unresolved reference 'progressOf'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:126:25 Unresolved reference 'progressOf'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:137:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:139:40 Unresolved reference 'estimatedTotalPx'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:148:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:151:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:162:22 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:165:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:166:36 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:168:13 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:170:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:171:36 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:181:23 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:182:29 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:188:22 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:190:17 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:198:20 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:199:33 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:200:33 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:201:34 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:210:25 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:211:25 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:212:25 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:213:25 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:214:25 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:219:26 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:220:26 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:225:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:226:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:227:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:228:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:229:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:231:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:232:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:233:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:234:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:245:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:246:23 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:247:23 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:262:18 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:263:18 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:265:30 Unresolved reference 'it'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:266:29 Unresolved reference 'it'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:271:29 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:272:26 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:273:29 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:279:29 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:280:26 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:281:34 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:284:21 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:292:22 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:292:58 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:293:26 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:294:27 Unresolved reference 'ScrollbarEstimate'.
+e: file:///<evidence>/worktree/app/src/test/java/com/example/myapplicationfirstapp/ui/NotesListScrollbarMathTest.kt:295:26 Unresolved reference 'ScrollbarEstimate'.
+
+> Task :app:dexBuilderDebug
+> Task :app:compileDebugAndroidTestKotlin
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugUnitTestKotlin' (registered by plugin 'com.android.internal.application').
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 38s
+62 actionable tasks: 62 executed
+Configuration cache entry stored.
