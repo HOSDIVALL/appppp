@@ -295,3 +295,29 @@ recent-notes-1/feature-landing/
    `61dff28e4041aa5a8d9376ba1da872a87a009301`，未触碰。
 6. **未做（等指令）**：冷启动首屏轮播（需改 `NotesState`/`NotesListScreen`，属源码改动）；
    `workbuddy_install_scrollbar_v2.sh` 的 `\r` 修复。
+
+### 7.6 代码静态审查（2026-11-24）：1 项 P0 数据丢失隐患 + 5 项 P1
+
+```
+recent-notes-1/code-review-2026-11-24/
+  CODE_REVIEW.md   三路并行审查 + 主审逐条回源码复核的完整报告
+```
+
+审查对象：`ux/rhythm-recent-notes-1` @ `eafd31e`（= 已落盘/已验收版本）；只读，未改源码、未构建、未跑测试。
+
+要点：
+
+1. **P0-1（确认）**：`notesFromJson` 解析失败返回**空列表而非 null**，`NotesState.importBackup`
+   的 `?: return -1` 拦不住 → `pruneAttachments(emptySet())` 删光图片 + `_notes.clear()` +
+   `persist()` 写空数组，UI 显示"已导入 0 条笔记"。畸形 notes.json 的 zip 可不可逆清空全部数据。
+2. **P0-2（确认）**：`BackupImporter` 的全套校验（大小/数量上限、严格 UTF-8、字段类型、CRC、路径）
+   **生产零引用**，只在 androidTest 用；生产走无防护的 `NotesRepository.importBackup`。与 P0-1 同根因。
+3. **P1 × 5**：录音元数据在退出/旋转时丢（`MainActivity:327` + `RecorderState:553`）；
+   编辑页延迟写回丢输入（`NoteEditorScreen:374/1272`）；媒体 binder 同步调用在主线程（ANR）；
+   ASR 模型下载无上限/校验/锁；冷启动轮播不在首屏（`NotesState:286-289`，验收已记录未修）。
+4. **P2 × 12**：含 `deletedAt:null → 0` 误删（外部篡改才触发，已标注）、原子写缺父目录 fsync、
+   录音 meta 非原子写、秒级文件名覆盖、主线程 IO、列表全量组合等。
+5. **测试缺口 × 6**：冷启动 hydrate 用例缺失；滚动条 `AxisTracker` 覆盖回退；Store 并发用例缺失；
+   NaN/Infinity 边界未覆盖等。
+6. 已核对**无缺陷**的部分：打开去重、open_order 抗时钟回拨、软删除保留历史、置顶/最近使用分组隔离。
+   所有"待确认"项已显式标注，未当作已发生问题陈述。

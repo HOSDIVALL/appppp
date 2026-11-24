@@ -1,4 +1,4 @@
-b779055a82ad1e5a4a588f574f5b52feb750e22bab65046f3e4f5b5ba9e9ae2b *INDEX.md
+1a64f361fe7549834cde0d77cf20f1eae0e88afced7936108b6a89ae371d6c5a *INDEX.md
 dd8e8f9245e01760bfc023a0e8d31267dbc195f867a1a2b8cafd91dc3882b8e5 *recent-notes-1/batch1/NOTES.md
 4f781f4aeade7a86f13df751f1323e8f0d28910671cf2622d22a4550bd280b41 *recent-notes-1/batch1/batch1.diff
 054be080b059f4922cb45690aa79dd83ded27b15cba7a58c652aaa535dcb25fd *recent-notes-1/batch1/db/recent_notes.db
@@ -13,6 +13,7 @@ ced77fdf1808743da3d22dc2513f81037dc16e7101d9ef2f36350e62b23b1936 *recent-notes-1
 7cd95f9cdf5a6973ddb90e46957e028bc2a5e9415f94156c30f3e6f106ad8141 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NoteEditorBlankTapPolicyTest.xml
 189cccdab1113c08b62f8000e218e0c5666660e67292b9f05aa5c9a13ba50c61 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NotesListActionsTest.xml
 6e22ab22ecdc54245931650356039bd8868853b5a2934222d3f5b12489609d66 *recent-notes-1/batch1/test-results/jvm/TEST-com.example.myapplicationfirstapp.ui.NotesListGroupShapeTest.xml
+59377e3c3a7d694e5c176b133f497964922e996f42bb0e4098d316fba12ac4f6 *recent-notes-1/code-review-2026-11-24/CODE_REVIEW.md
 795c72a9fe86a8c2c6ab77fe6f761b2faa45adcbead72acb6d091881f8040cc2 *recent-notes-1/device-install-gate/NOTES.md
 cbb2662a2d3e8c239994e5890d2abdd38ca98ec16fc93477c630351304351318 *recent-notes-1/device-install-gate/evidence/apk.sha256
 817e3265c71ba50b8893e96dd0fe499746adb5bad7e541fb885206904cc1ed4f *recent-notes-1/device-install-gate/evidence/device.txt
